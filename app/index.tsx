@@ -18,7 +18,7 @@ export default function HomeScreen() {
         <Pressable style={
           ({ pressed }) => [styles.button,
           pressed && styles.buttonPressed]}
-          onPress={() => { router.push('../home') }}
+          onPress={() => { router.push('../iniciarSesion') }}
         >
           {({ pressed }) => (
             <Text style={[styles.texto, pressed && styles.textPressed]}>

@@ -12,16 +12,42 @@ export default function HomeScreen() {
         >
             <View style={styles.background}>
                 <Text style={styles.title}>Link U</Text>
-                <View style={{ height: 400 }}></View>
+                <View style={{ height: 50 }}></View>
                 <Text style={styles.subtitle}>Bienvenidos</Text>
                 <View style={{ height: 10 }}></View>
-                <Text style={styles.texto}>Codigo Universitario</Text>
+                <Text style={styles.texto}>Correo</Text>
                 <View style={{ height: 10 }}></View>
                 <TextInput
                     style={styles.input}
-                    placeholder="Código"
+                    placeholder="Correo"
                 />
                 <View style={{ height: 10 }}></View>
+                <Text style={styles.texto}>Contraseña</Text>
+                <View style={{ height: 10 }}></View>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Contraseña"
+                    secureTextEntry
+                />
+                <View style={{ height: 15 }}></View>
+                <Pressable onPress={() => { }}
+                >
+                    {({ pressed }) => (
+                        <Text
+                            style={{
+                                color: "#fff",
+                                opacity: pressed ? 0.6 : 1,
+                                textAlign: 'right',
+                                alignSelf: 'flex-end',
+                                fontSize: 16,
+                                paddingHorizontal: 10,
+                            }}
+                        >
+                            Olvide mi contraseña
+                        </Text>
+                    )}
+                </Pressable>
+                <View style={{ height: 50 }}></View>
                 <Pressable style={
                     ({ pressed }) => [styles.button,
                     pressed && styles.buttonPressed]}
@@ -29,7 +55,27 @@ export default function HomeScreen() {
                 >
                     {({ pressed }) => (
                         <Text style={[styles.texto, pressed && styles.textPressed]}>
-                            {pressed ? 'Registrarse' : 'Registrarse'}
+                            {pressed ? 'Iniciar Sesión' : 'Iniciar Sesión'}
+                        </Text>
+                    )}
+                </Pressable>
+                <View style={{ height: 10 }}></View>
+                <Text style={[styles.texto, { marginTop: 20 }]}>¿No tienes una cuenta?</Text>
+                <Pressable onPress={() => { router.push('./registro') }}
+                >
+                    {({ pressed }) => (
+                        <Text
+                            style={{
+                                color: "#fff",
+                                opacity: pressed ? 0.6 : 1,
+                                textAlign: 'right',
+                                alignSelf: 'flex-end',
+                                fontSize: 18,
+                                paddingHorizontal: 10,
+                                fontWeight: 'bold',
+                            }}
+                        >
+                            Regístrate
                         </Text>
                     )}
                 </Pressable>
