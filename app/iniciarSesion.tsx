@@ -30,8 +30,8 @@ export default function HomeScreen() {
                     secureTextEntry
                 />
                 <View style={{ height: 15 }}></View>
-                <Pressable onPress={() => { }}
-                >
+                
+                <Pressable onPress={() => { router.push('./recuperar') }}>
                     {({ pressed }) => (
                         <Text
                             style={{
@@ -41,13 +41,16 @@ export default function HomeScreen() {
                                 alignSelf: 'flex-end',
                                 fontSize: 16,
                                 paddingHorizontal: 10,
+                                textDecorationLine: 'underline',
                             }}
                         >
-                            Olvide mi contraseña
+                            ¿Olvidaste tu contraseña?
                         </Text>
+                        
                     )}
                 </Pressable>
                 <View style={{ height: 50 }}></View>
+
                 <Pressable style={
                     ({ pressed }) => [styles.button,
                     pressed && styles.buttonPressed]}
