@@ -1,10 +1,10 @@
+import ModButton from '@/components/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-
-//import AppLoading from 'expo-app-loading';
+import { useRouter } from 'expo-router';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function HomeScreen() {
-
+    const router = useRouter();
     return (
         <LinearGradient
             colors={['#2F4AA6', '#0491C6']}
@@ -49,22 +49,8 @@ export default function HomeScreen() {
                     secureTextEntry
                 />
                 <View style={{ height: 50 }}></View>
-                <Pressable style={
-                    ({ pressed }) => [styles.button,
-                    pressed && styles.buttonPressed]}
-                    onPress={() => { }}
-                >
-                    {({ pressed }) => (
-                        <Text style={[{
-                            textAlign: 'center',
-                            color: 'white',
-                            fontFamily: 'Montserrat_400Regular',
-                            fontSize: 16
-                        }, pressed && styles.textPressed]}>
-                            {pressed ? 'Registrar' : 'Registrar'}
-                        </Text>
-                    )}
-                </Pressable>
+
+                <ModButton title="Registrar" style={styles.button} onPress={() => { router.push('./autCuenta') }} />
             </View>
         </LinearGradient>
     );
