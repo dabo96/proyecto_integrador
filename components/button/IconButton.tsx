@@ -48,8 +48,8 @@ export default function IconButton({
                             {
                                 color: textColor,
                                 fontWeight: fontWeight,
-                                fontFamily: "Montserrat_400Regular",
-                                fontSize: 16,
+                                fontFamily: "Montserrat_700Bold",
+                                fontSize: 14,
                             },
                             textStyle,
                         ]}

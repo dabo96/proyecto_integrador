@@ -1,74 +1,82 @@
+// CollapsibleUserHeader.tsx
 import React from "react";
-import { View, Text, Image, Animated, StyleSheet } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
+import UserHeader from "./UserHeader"; // ajusta la ruta a tu proyecto
+import { LinearGradient } from "expo-linear-gradient";
+import { Rows } from "lucide-react-native";
 
 type Props = {
-  user: {
-    name: string;
-    image: string;
-  };
-  scrollY: Animated.Value;
+  user: any;
+  headerHeight: Animated.AnimatedInterpolation<number>;
+  avatarSize: Animated.AnimatedInterpolation<number>;
+  expandedOpacity: Animated.AnimatedInterpolation<number>;
+  collapsedOpacity: Animated.AnimatedInterpolation<number>;
 };
 
-const CollapsibleHeader: React.FC<Props> = ({ user, scrollY }) => {
-  const HEADER_MAX_HEIGHT = 200;
-  const HEADER_MIN_HEIGHT = 80;
-  const AVATAR_MAX_SIZE = 100;
-  const AVATAR_MIN_SIZE = 50;
-
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-    extrapolate: "clamp",
-  });
-
-  const avatarSize = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [AVATAR_MAX_SIZE, AVATAR_MIN_SIZE],
-    extrapolate: "clamp",
-  });
-
-  const nameFontSize = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [22, 16],
-    extrapolate: "clamp",
-  });
-
+const CollapsibleUserHeader: React.FC<Props> = ({
+  user,
+  headerHeight,
+  avatarSize,
+  expandedOpacity,
+  collapsedOpacity,
+}) => {
   return (
-    <Animated.View style={[styles.header, { height: headerHeight }]}>
-      <Animated.Image
-        source={{ uri: user.image }}
-        style={[
-          styles.avatar,
-          {
+    <Animated.View style={[styles.container, { height: headerHeight }]}>
+      <LinearGradient colors={["#2F4AA6", "#0491C6"]} style={StyleSheet.absoluteFill} />
+
+      {/* Expanded version: center column (fades out) */}
+      <Animated.View style={[styles.expandedWrapper, { opacity: expandedOpacity, flex: 1 }]}>
+        <UserHeader
+          user={user}
+          compact={false}
+          avatarStyle={{ width: avatarSize, height: avatarSize, borderRadius: 999 }}
+          detailsStyle={{ opacity: expandedOpacity }}
+        />
+      </Animated.View>
+
+
+      {/* Collapsed version: row with small avatar + name (fades in) */}
+      <Animated.View style={[styles.collapsedWrapper, { opacity: collapsedOpacity }]}>
+        <UserHeader
+          user={user}
+          compact={true}
+          avatarStyle={{
             width: avatarSize,
             height: avatarSize,
-            borderRadius: Animated.divide(avatarSize, 2),
-          },
-        ]}
-      />
-      <Animated.Text style={[styles.name, { fontSize: nameFontSize }]}>
-        {user.name}
-      </Animated.Text>
+            borderRadius: 999,
+            marginBottom: 0,
+          }}
+          containerStyle={{ alignItems: "flex-start", paddingHorizontal: 16 }}
+          nameStyle={{ fontSize: 18 }}
+        />
+      </Animated.View>
     </Animated.View>
   );
 };
 
+export default CollapsibleUserHeader;
+
 const styles = StyleSheet.create({
-  header: {
-    backgroundColor: "#2F4AA6",
+  container: {
+    width: "100%",
+    height: "auto",
+    borderBottomLeftRadius: 60,
+    borderBottomRightRadius: 60,
+    overflow: "hidden",
+  },
+  expandedWrapper: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 40,
+    position: "relative",
+    height: "100%",
   },
-  avatar: {
-    borderWidth: 3,
-    borderColor: "white",
-    marginBottom: 8,
-  },
-  name: {
-    color: "white",
-    fontWeight: "bold",
+  collapsedWrapper: {
+    justifyContent: "center",
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 12,
+    // layout row handled by UserHeader via compact prop
   },
 });
-
-export default CollapsibleHeader;

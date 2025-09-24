@@ -1,10 +1,11 @@
 import React from "react";
 import PostCard from "@/components/cards/PostCard";
-import UserHeader from "@/components/profile/UserHeader";
 import IconButton from "@/components/button/IconButton";
-import { LinearGradient } from "expo-linear-gradient";
-import { Calendar, Database, FileText, MapPin, MessageCircle, UserPlus, Users, } from "lucide-react-native";
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, } from "react-native";
+import useCollapsibleHeader from "@/hooks/useCollapsibleHeader";
+import CollapsibleUserHeader from "@/components/profile/CollapsibleHeader";
+import { Animated } from "react-native";
+import { MessageCirclePlus, UserPlus, } from "lucide-react-native";
+import { FlatList, StyleSheet, View, } from "react-native";
 
 const posts = [
   {
@@ -21,6 +22,7 @@ const posts = [
     content: "📚 Estudiando nuevas tecnologías para mejorar en mis proyectos 💻",
     image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800",
   },
+
 ];
 
 const infoUser = {
@@ -31,72 +33,50 @@ const infoUser = {
   joinDate: "10 Abril 2020",
   location: "Sede Apolo Centro",
   posts: 100,
-  bio: "Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.",
+  bio: "Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.",
   image: "https://randomuser.me/api/portraits/men/2.jpg",
 };
 
-const ProfileScreen = () => {
-  const handleLike = (id: string) => {
-    console.log("Like en post:", id);
-  };
+const OtherProfileScreen = () => {
+  const {
+    onScroll,
+    headerHeight,
+    avatarSize,
+    expandedOpacity,
+    collapsedOpacity,
+    maxHeight,
+  } = useCollapsibleHeader({ maxHeight: 500, minHeight: 110, avatarMax: 160, avatarMin: 48 });
 
-  const handleComment = (id: string) => {
-    console.log("Comentario en post:", id);
-  };
-
-  const handleReport = (id: string) => {
-    console.log("Reportar post:", id);
-  };
-
-  const handleDelete = (id: string) => {
-    console.log("Eliminar post:", id);
-  };
+  const renderItem = ({ item }: any) => (
+    <PostCard post={item} onLike={() => { }} onComment={() => { }} onReport={() => { }} onDelete={() => { }} />
+  );
 
   return (
-    <View style={styles.container}>
-      <UserHeader
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <CollapsibleUserHeader
         user={infoUser}
-        onFollow={() => console.log("Seguir")}
-        onMessage={() => console.log("Mensaje")}
+        headerHeight={headerHeight}
+        avatarSize={avatarSize}
+        expandedOpacity={expandedOpacity}
+        collapsedOpacity={collapsedOpacity}
       />
+
       <View style={{ flexDirection: "row", justifyContent: "space-around", marginVertical: 12 }}>
-        <IconButton
-          title="Seguir"
-          onPress={() => console.log("Seguir")}
-          icon={<Users size={18} color="white" />}
-          backgroundColor="#2563eb"
-        />
-
-        <IconButton
-          title="Mensaje"
-          onPress={() => console.log("Mensaje")}
-          icon={<MessageCircle size={18} color="white" />}
-          backgroundColor="#1d4ed8"
-        />
-
+        <IconButton title="Seguir" onPress={() => { }} icon={<UserPlus size={18} color="white" />} backgroundColor="#2563eb" />
+        <IconButton title="Mensaje" onPress={() => { }} icon={<MessageCirclePlus size={18} color="white" />} backgroundColor="#1d4ed8" />
       </View>
 
-
-      <FlatList
+      <Animated.FlatList
         data={posts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <PostCard
-            post={item}
-            onLike={handleLike}
-            onComment={handleComment}
-            onReport={handleReport}
-            onDelete={handleDelete}
-          />
-        )}
+        keyExtractor={(i) => i.id}
+        renderItem={renderItem}
+        contentContainerStyle={{ paddingTop: 8 }}
+        ListFooterComponent={<View style={{ height: maxHeight }} />}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       />
     </View>
-
   );
 };
 
-export default ProfileScreen;
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-});
+export default OtherProfileScreen;
