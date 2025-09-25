@@ -49,6 +49,25 @@ export default function HomeScreen() {
                         
                     )}
                 </Pressable>
+                
+                <Pressable onPress={() => { router.push('./contacts') }}>
+                    {({ pressed }) => (
+                        <Text
+                            style={{
+                                color: "#fff",
+                                opacity: pressed ? 0.6 : 1,
+                                textAlign: 'right',
+                                alignSelf: 'flex-end',
+                                fontSize: 16,
+                                paddingHorizontal: 10,
+                                textDecorationLine: 'underline',
+                            }}
+                        >
+                            contacts
+                        </Text>
+                        
+                    )}
+                </Pressable>
                 <View style={{ height: 50 }}></View>
 
                 <Pressable style={
