@@ -1,5 +1,4 @@
-import React from 'react';
-import { Pressable, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { Pressable, Text, TextStyle, ViewStyle } from 'react-native';
 
 type ModButtonProps = {
   title: string;
