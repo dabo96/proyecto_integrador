@@ -1,8 +1,9 @@
 import IconButton from "@/components/button/IconButton";
 import CommunityCard from "@/components/cards/CommunityCard";
 import CommunityPostCard from "@/components/cards/CommunityPostCard";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { JSX } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 
 interface Comunidad {
@@ -67,8 +68,8 @@ const publicaciones: Publicacion[] = [
     id: "103",
     comunidad: "Memes de ciencias e ingenierías",
     tiempo: "Hace 4 horas",
-    texto: "Rutina de ejercicios para oficina. Se una persona programadora es muy divertido",
-    imagen: "https://picsum.photos/400/200?random=3",
+    texto: "momento xd del día",
+    imagen: "https://pbs.twimg.com/media/Dl0NgZCXcAUI9_J.jpg",
   },
 ];
 
@@ -120,21 +121,32 @@ export default function ComunidadScreen(): JSX.Element {
   ];
 
   return (
-    
-    <View style={styles.container}>
-      <FlatList
-        data={publicaciones}
-        keyExtractor={(item) => item.id}
-        renderItem={renderPostItem}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={<View>{renderContent()}</View>}
-        contentContainerStyle={styles.scrollContent}
-      />
-    </View>
+    <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <LinearGradient
+          colors={['#2F4AA6', '#0491C6']}
+          style={styles.mainHeader}
+        />
+        <View style={styles.container}>
+          <FlatList
+            data={publicaciones}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPostItem}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={<View>{renderContent()}</View>}
+            contentContainerStyle={styles.scrollContent}
+          />
+        </View>
+    </SafeAreaView> 
   );
 }
 
 const styles = StyleSheet.create({
+  mainHeader: { 
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
   container: { 
     flex: 1, 
     backgroundColor: "#fff",
