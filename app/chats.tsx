@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet} from "react-native";
 import { Plus } from "lucide-react-native";
+import Navbar from "@/components/layout/Navbar";
 
 type Chat = {
   id: string;
@@ -15,10 +16,10 @@ type Chat = {
 const chats: Chat[] = [
   {
     id: "1",
-    name: "Katty",
-    message: "Hola, ¿se puede reservar el día...",
+    name: "Henry Cavill",
+    message: "Hola, ¿Hoy te espero en...",
     time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/women/1.jpg",
+    avatar: "https://www.elespectador.com/resizer/v2/ZCA7PPEEJNCXXGYGPQTC3JVQYY.jpg?auth=6ae3ec1db683af768c1ef12d0685442cb6c96a29ae50965aaf5456309ed60e5a&width=920&height=613&smart=true&quality=60",
     online: true,
     unread: 1,
   },
@@ -27,7 +28,7 @@ const chats: Chat[] = [
     name: "Grupo Integrador",
     message: "La presentación es la siguiente cla...",
     time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/men/2.jpg",
+    avatar: "https://randomuser.me/api/portraits/men/1.jpg",
     online: true,
     unread: 1,
   },
@@ -85,33 +86,6 @@ const chats: Chat[] = [
     online: true,
     unread: 2,
   },
-  {
-    id: "9",
-    name: "Katty",
-    message: "Hola, ¿se puede reservar el día...",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/women/1.jpg",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: "10",
-    name: "Grupo Integrador",
-    message: "La presentación es la siguiente cla...",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/men/2.jpg",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: "11",
-    name: "Sofia",
-    message: "Jajaja no sabes lo que me pasó 😂",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/women/3.jpg",
-    online: true,
-    unread: 8,
-  },
 ];
 
 const ChatCreem = () => {
@@ -161,6 +135,7 @@ const ChatCreem = () => {
           </TouchableOpacity>
         )}
       />
+      <Navbar />
     </View>
   );
 };

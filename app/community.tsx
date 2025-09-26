@@ -1,6 +1,7 @@
 import IconButton from "@/components/button/IconButton";
 import CommunityCard from "@/components/cards/CommunityCard";
 import CommunityPostCard from "@/components/cards/CommunityPostCard";
+import Navbar from "@/components/layout/Navbar";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { JSX } from "react";
 import { FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
@@ -137,6 +138,7 @@ export default function ComunidadScreen(): JSX.Element {
             contentContainerStyle={styles.scrollContent}
           />
         </View>
+        <Navbar />
     </SafeAreaView> 
   );
 }

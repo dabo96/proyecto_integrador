@@ -23,6 +23,7 @@ type IconButtonProps = {
     | "700"
     | "800"
     | "900";
+    variant?: "gradient" | "transparent";
 };
 
 export default function IconButton({
@@ -33,31 +34,42 @@ export default function IconButton({
     style,
     textStyle,
     fontWeight = "normal",
+    variant = "gradient",
 }: IconButtonProps) {
-    
+
     return (
-        <Pressable onPress={onPress} style={{ borderRadius: 8, overflow: 'hidden', ...style }}>
+        <Pressable onPress={onPress} style={{ borderRadius: 8, overflow: "hidden", ...style }}>
             {({ pressed }) => (
-                <LinearGradient
-                    colors={pressed ? ['#1F3680', '#037A9E'] : ['#2F4AA6', '#0491C6']}
-                    style={{ paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}
-                >
-                    {icon && <View style={{ marginRight: 6 }}>{icon}</View>}
-                    <Text
-                        style={[
-                            {
-                                color: textColor,
-                                fontWeight: fontWeight,
-                                fontFamily: "Montserrat_700Bold",
-                                fontSize: 14,
-                            },
-                            textStyle,
-                        ]}
+                variant === "gradient" ? (
+                    <LinearGradient
+                        colors={pressed ? ["#1F3680", "#037A9E"] : ["#2F4AA6", "#0491C6"]}
+                        style={{ paddingVertical: 10, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 8 }}
                     >
-                        {title}
-                    </Text>
-                </LinearGradient>
+                        {icon && <View style={{ marginRight: 6 }}>{icon}</View>}
+                        <Text style={[{ color: textColor, fontWeight, fontFamily: "Montserrat_700Bold", fontSize: 14 }, textStyle]}>
+                            {title}
+                        </Text>
+                    </LinearGradient>
+                ) : (
+                    <View
+                        style={{
+                            backgroundColor: "transparent", // 👈 fondo transparente
+                            paddingVertical: 10,
+                            paddingHorizontal: 16,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: 8,
+                        }}
+                    >
+                        {icon && <View style={{ marginRight: 6 }}>{icon}</View>}
+                        <Text style={[{ color: textColor, fontWeight, fontFamily: "Montserrat_700Bold", fontSize: 14 }, textStyle]}>
+                            {title}
+                        </Text>
+                    </View>
+                )
             )}
         </Pressable>
+
     );
 }
