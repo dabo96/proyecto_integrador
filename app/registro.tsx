@@ -1,4 +1,4 @@
-import ModButton from '@/components/ModButton';
+import ModButton from '@/components/button/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TextInput, View } from 'react-native';

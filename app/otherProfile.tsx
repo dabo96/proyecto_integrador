@@ -6,6 +6,7 @@ import CollapsibleUserHeader from "@/components/profile/CollapsibleHeader";
 import { Animated } from "react-native";
 import { MessageCirclePlus, UserPlus, } from "lucide-react-native";
 import { FlatList, StyleSheet, View, } from "react-native";
+import Navbar from "@/components/layout/Navbar";
 
 const posts = [
   {
@@ -34,7 +35,7 @@ const infoUser = {
   location: "Sede Apolo Centro",
   posts: 100,
   bio: "Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.Apasionado por el desarrollo de aplicaciones móviles y el diseño de interfaces. Interesado en proyectos de investigación, innovación tecnológica y trabajo en equipo.",
-  image: "https://randomuser.me/api/portraits/men/2.jpg",
+  image: "https://www.elespectador.com/resizer/v2/ZCA7PPEEJNCXXGYGPQTC3JVQYY.jpg?auth=6ae3ec1db683af768c1ef12d0685442cb6c96a29ae50965aaf5456309ed60e5a&width=920&height=613&smart=true&quality=60",
 };
 
 const OtherProfileScreen = () => {
@@ -75,6 +76,8 @@ const OtherProfileScreen = () => {
         onScroll={onScroll}
         scrollEventThrottle={16}
       />
+
+      <Navbar />
     </View>
   );
 };

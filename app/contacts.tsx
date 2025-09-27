@@ -1,9 +1,7 @@
-import { AntDesign, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
+import Navbar from '@/components/layout/Navbar';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import {
-  Image, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
-} from 'react-native';
+import { Image, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
 
 const Contacts = () => {
   const [contactRequests, setContactRequests] = useState([
@@ -201,23 +199,7 @@ const Contacts = () => {
       </ScrollView>
 
       {/* BARRA DE NAVEGACIÓN */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <AntDesign name="home" size={20} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <MaterialIcons name="people" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <FontAwesome6 name="circle-plus" size={19} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <MaterialIcons name="search" size={22} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <FontAwesome name="user-plus" size={18} color="#919191ff" />
-        </TouchableOpacity>
-      </View>
+      <Navbar />
     </SafeAreaView>
   );
 };
@@ -238,7 +220,7 @@ const styles = StyleSheet.create({
   Subtitulos: {
     paddingTop: 10,
     paddingLeft: 15,
-    fontSize: 38,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'black',
     backgroundColor: 'white',
