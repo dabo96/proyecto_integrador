@@ -1,7 +1,7 @@
-import React from "react";
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet} from "react-native";
-import { Plus } from "lucide-react-native";
 import Navbar from "@/components/layout/Navbar";
+import { Plus } from "lucide-react-native";
+import React from "react";
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Chat = {
   id: string;
