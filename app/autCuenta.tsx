@@ -1,6 +1,6 @@
-import { KeyboardAvoidingView, StyleSheet, Text, TextInput, View,ScrollView } from 'react-native';
-import ModButton from '@/components/ModButton';
+import ModButton from '@/components/button/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function AutCuenta() {
 

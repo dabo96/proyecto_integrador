@@ -1,11 +1,10 @@
-import { AntDesign, Feather, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
+import { AntDesign, EvilIcons, Feather, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef } from 'react';
 import { Animated, Dimensions, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
-const Profile = () => {
-  const scrollY = useRef(new Animated.Value(0)).current;
+const Profile = () => { const scrollY = useRef(new Animated.Value(0)).current;
 
   // ANIMACION PARA EL HEADER CUANDO SE DESPLIEGA
   const headerHeight = scrollY.interpolate({
@@ -51,7 +50,6 @@ const Profile = () => {
     bio: "Estudiante de Ingeniería de Sistemas",
   };
 
-
   const actionButtonsData = [
     {
       id: 1,
@@ -91,7 +89,6 @@ const Profile = () => {
     }
   ];
 
-
   const postsData = [
     {
       id: 1,
@@ -127,7 +124,7 @@ const Profile = () => {
       id: 6,
       image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=250&fit=crop',
       description: 'Las conexiones profesionales son fundamentales. Cada conversación puede abrir nuevas oportunidades.',
-      timestamp: '5 horas',
+      timestamp: '5 días',
     }
   ];
   const handleLike = (postId: number) => {
@@ -174,9 +171,6 @@ const Profile = () => {
             <Text style={styles.locationText}></Text>
           </Animated.View>
 
-
-
-
           {/* ESTADÍSTICAS */}
           <Animated.View style={[styles.statsContainer, {
             opacity: buttonsOpacity,
@@ -192,7 +186,7 @@ const Profile = () => {
             </View>
           </Animated.View>
 
-          {/* Botones de acción estilo perfil */}
+          {/* BOTONES DEL PERFIL DE USUARIOS */}
           <Animated.View style={[styles.profileActions, {
             opacity: buttonsOpacity,
             transform: [{ translateY: buttonsTranslateY }],
@@ -264,7 +258,7 @@ const Profile = () => {
                 style={styles.actionButton}
                 onPress={() => handleLike(post.id)}
               >
-                <AntDesign name="like" size={20} color="#666" />
+                <Feather name="heart" size={18} color="#666" />
                 <Text style={styles.actionText}></Text>
               </TouchableOpacity>
 
@@ -272,7 +266,7 @@ const Profile = () => {
                 style={styles.actionButton}
                 onPress={() => handleComment(post.id)}
               >
-                <FontAwesome6 name="message" size={18} color="#666" />
+                <EvilIcons name="comment" size={25} color="#666" />
                 <Text style={styles.actionText}></Text>
               </TouchableOpacity>
             </View>
@@ -386,13 +380,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    gap: 20,
+    gap: 10,
     alignItems: 'center',
   },
   leftActions: {
     flexDirection: 'row',
     gap: 20,
-  },  
+  },
   actionButton: {
     alignItems: 'center',
     flexDirection: 'row',

@@ -1,9 +1,7 @@
 import { AntDesign, FontAwesome, FontAwesome6, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
-import ModButton from "@/components/ModButton";
+import { StyleSheet, View } from "react-native";
 import IconButton from "../button/IconButton";
-import { UserPlus } from "lucide-react-native";
 
 const Navbar = () => {
   const router = useRouter();
@@ -44,7 +42,7 @@ const Navbar = () => {
         <IconButton
               title=""
               onPress={() => { router.push('/contacts') }}
-              icon={<FontAwesome name="user-plus" size={18} color="#919191ff" />}
+              icon={<FontAwesome name="user-plus" size={18} color="#666" />}
               backgroundColor="#2563eb"
               variant="transparent"
               style={ styles.navItem }
