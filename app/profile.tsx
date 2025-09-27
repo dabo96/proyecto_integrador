@@ -1,16 +1,16 @@
-import { AntDesign, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
+import { AntDesign, Feather, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef } from 'react';
 import { Animated, Dimensions, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
-const LinkedInProfile = () => {
+const Profile = () => {
   const scrollY = useRef(new Animated.Value(0)).current;
 
   // ANIMACION PARA EL HEADER CUANDO SE DESPLIEGA
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 350],
-    outputRange: [480, 140],
+    outputRange: [520, 140],
     extrapolate: 'clamp',
   });
   const profileImageSize = scrollY.interpolate({
@@ -42,23 +42,120 @@ const LinkedInProfile = () => {
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
     { useNativeDriver: false }
   );
+
+  const profileData = {
+    name: "Andrea González Hernández",
+    profileImage: "https://randomuser.me/api/portraits/women/54.jpg",
+    followers: 524,
+    following: 850,
+    bio: "Estudiante de Ingeniería de Sistemas",
+  };
+
+
+  const actionButtonsData = [
+    {
+      id: 1,
+      icon: { name: 'lock', type: FontAwesome },
+      title: 'Cambiar Contraseña',
+      action: () => alert('Cambiar contraseña'),
+      showArrow: true
+    },
+    {
+      id: 2,
+      icon: { name: 'shopping-basket', type: FontAwesome },
+      title: 'Score Profesional',
+      action: () => alert('Ver score'),
+      stars: '⭐⭐⭐⭐⭐',
+      showArrow: false
+    },
+    {
+      id: 3,
+      icon: { name: 'user-circle', type: FontAwesome },
+      title: 'Editar Perfil',
+      action: () => alert('Editar perfil'),
+      showArrow: true
+    },
+    {
+      id: 4,
+      icon: { name: 'cog', type: FontAwesome },
+      title: 'Configuración',
+      action: () => alert('Configuración'),
+      showArrow: true
+    },
+    {
+      id: 5,
+      icon: { name: 'log-out', type: Feather },
+      title: 'Cerrar Sesión',
+      action: () => alert('Cerrar sesión'),
+      showArrow: false
+    }
+  ];
+
+
+  const postsData = [
+    {
+      id: 1,
+      image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=250&fit=crop',
+      description: 'Trabajando en una aplicación increíble con React Native y Expo. ¡Los resultados están siendo geniales!',
+      timestamp: '2 horas',
+    },
+    {
+      id: 2,
+      image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=250&fit=crop',
+      description: 'Excelente presentación sobre las últimas tendencias en desarrollo mobile. Aprendizaje constante es clave.',
+      timestamp: '5 horas',
+    },
+    {
+      id: 3,
+      image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=400&h=250&fit=crop',
+      description: 'Nada mejor que trabajar con un equipo increíble. La colaboración hace la diferencia en cada proyecto.',
+      timestamp: '1 día',
+    },
+    {
+      id: 4,
+      image: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=400&h=250&fit=crop',
+      description: 'El espacio de trabajo influye mucho en la productividad. ¿Cuál es tu lugar favorito para programar?',
+      timestamp: '2 días',
+    },
+    {
+      id: 5,
+      image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=250&fit=crop',
+      description: 'La importancia de escribir código limpio y mantenible. Cada línea cuenta para el futuro del proyecto.',
+      timestamp: '3 días',
+    },
+    {
+      id: 6,
+      image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=250&fit=crop',
+      description: 'Las conexiones profesionales son fundamentales. Cada conversación puede abrir nuevas oportunidades.',
+      timestamp: '5 horas',
+    }
+  ];
+  const handleLike = (postId: number) => {
+    alert(`Te gustó el post ${postId}`);
+  };
+
+  const handleComment = (postId: number) => {
+    alert(`Comentar en el post ${postId}`);
+  };
+
+  const handleShare = (postId: number) => {
+    alert(`Compartir el post ${postId}`);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#0077B5" barStyle="light-content" />
 
-
-      {/* ANIMACION DE HEADER */}
+      {/* HEADER ANIMADO */}
       <Animated.View style={[styles.stickyHeader, { height: headerHeight }]}>
         <LinearGradient
           colors={['#2F4AA6', '#0491C6']}
           style={[styles.headerGradient, { paddingBottom: paddingBottom }]}
         >
-
+          {/* IMAGEN DE PERFIL */}
           <View style={styles.profileImageContainer}>
             <Animated.Image
-              source={{
-                uri: "https://randomuser.me/api/portraits/women/54.jpg",
-              }}
+              source={{ uri: profileData.profileImage }}
               style={[styles.profileImage, {
                 width: profileImageSize,
                 height: profileImageSize,
@@ -67,23 +164,30 @@ const LinkedInProfile = () => {
             />
           </View>
 
+          {/* NOMBRE Y BIO */}
           <Animated.Text style={[styles.name, { fontSize: nameSize }]}>
-            Andrea González Hernández
+            {profileData.name}
           </Animated.Text>
 
+          <Animated.View style={[styles.bioContainer, { opacity: buttonsOpacity }]}>
+            <Text style={styles.bioText}>{profileData.bio}</Text>
+            <Text style={styles.locationText}></Text>
+          </Animated.View>
 
 
-          {/* Estadísticas de seguidores */}
+
+
+          {/* ESTADÍSTICAS */}
           <Animated.View style={[styles.statsContainer, {
             opacity: buttonsOpacity,
             transform: [{ translateY: buttonsTranslateY }],
           }]}>
             <View style={styles.statBox}>
-              <Text style={styles.statNumber}>524</Text>
+              <Text style={styles.statNumber}>{profileData.followers}</Text>
               <Text style={styles.statLabel}>Seguidores</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statNumber}>850</Text>
+              <Text style={styles.statNumber}>{profileData.following}</Text>
               <Text style={styles.statLabel}>Seguidos</Text>
             </View>
           </Animated.View>
@@ -93,24 +197,24 @@ const LinkedInProfile = () => {
             opacity: buttonsOpacity,
             transform: [{ translateY: buttonsTranslateY }],
           }]}>
-            <TouchableOpacity style={styles.profileActionButton} 
-            onPress={() => {    
-              // Aquí navega a la pantalla de cambio de contraseña o muestra un modal
-              alert('Funcionalidad próximamente');
-            }}
+            <TouchableOpacity style={styles.profileActionButton}
+              onPress={() => {
+                alert('SAPO ERES');
+              }}
             >
-              <AntDesign name="message" size={16} color="#666" />
+              <FontAwesome name="lock" size={18} color="#919191ff" />
               <Text style={styles.profileActionText}>Cambiar Contraseña</Text>
+              <MaterialIcons name="arrow-right" size={25} color="#919191ff" />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.profileActionButton}>
-              <AntDesign name="star" size={16} color="#FFD700" />
+              <FontAwesome name="shopping-basket" size={18} color="#919191ff" />
               <Text style={styles.profileActionText}>Score</Text>
               <Text style={styles.starsText}>⭐⭐⭐</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.profileActionButton}>
-              <AntDesign name="logout" size={16} color="#666" />
+              <Feather name="log-out" size={18} color="#919191ff" />
               <Text style={styles.profileActionText}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -126,132 +230,56 @@ const LinkedInProfile = () => {
         scrollEventThrottle={16}
       >
 
-        {/* PUBLICACIONES POST */}
-        <View style={styles.postCard}>
-          <Image source={{
-            uri: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=250&fit=crop'
-          }}
-            style={styles.postImage}
-          />
-          <View style={styles.postActions}>
-            <View style={styles.leftActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>❤️</Text>
-                <Text style={styles.actionText}>0</Text>
+        {/* RENDERIZADO DE PUBLICACIONES CON MAP */}
+        {postsData.map((post) => (
+          <View key={post.id} style={styles.postCard}>
+            {/* HEADER DEL POST */}
+            <View style={styles.postHeader}>
+              <View style={styles.postUserInfo}>
+                <Image
+                  source={{ uri: profileData.profileImage }}
+                  style={styles.postUserImage}
+                />
+                <View>
+                  <Text style={styles.postUserName}>{profileData.name}</Text>
+                  <Text style={styles.postTimestamp}>{post.timestamp}</Text>
+                </View>
+              </View>
+              <TouchableOpacity>
+                <MaterialIcons name="more-horiz" size={24} color="#666" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>0</Text>
+            </View>
+
+            {/* CONTENIDO DEL POST */}
+            <View style={styles.postContent}>
+              <Text style={styles.postDescription}>{post.description}</Text>
+            </View>
+
+            {/* IMAGEN DEL POST */}
+            <Image source={{ uri: post.image }} style={styles.postImage} />
+
+            {/* ACCIONES DEL POST */}
+            <View style={styles.postActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleLike(post.id)}
+              >
+                <AntDesign name="like" size={20} color="#666" />
+                <Text style={styles.actionText}></Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleComment(post.id)}
+              >
+                <FontAwesome6 name="message" size={18} color="#666" />
+                <Text style={styles.actionText}></Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        ))}
 
-        {/* Additional Posts for Scrolling */}
-        <View style={styles.postCard}>
-          <Image source={{ uri: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=250&fit=crop' }}
-            style={styles.postImage}
-          />
-
-          <View style={styles.postActions}>
-            <View style={styles.leftActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>❤️</Text>
-                <Text style={styles.actionText}>5</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>2</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.postCard}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=400&h=250&fit=crop'
-            }}
-            style={styles.postImage}
-          />
-
-          <View style={styles.postActions}>
-            <View style={styles.leftActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>❤️</Text>
-                <Text style={styles.actionText}>12</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>3</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.postCard}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=400&h=250&fit=crop'
-            }}
-            style={styles.postImage}
-          />
-
-          <View style={styles.postActions}>
-            <View style={styles.leftActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>❤️</Text>
-                <Text style={styles.actionText}>8</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>1</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.postCard}>
-          <Image source={{ uri: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=250&fit=crop' }}
-            style={styles.postImage}
-          />
-
-          <View style={styles.postActions}>
-            <View style={styles.leftActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>❤️</Text>
-                <Text style={styles.actionText}>15</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>4</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.postCard}>
-          <Image
-            source={
-              {uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=250&fit=crop'
-            }}
-            style={styles.postImage}
-          />
-
-          <View style={styles.postActions}>
-            <View style={styles.leftActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>❤️</Text>
-                <Text style={styles.actionText}>22</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>7</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
+        <View style={styles.bottomSpace} />
       </Animated.ScrollView>
 
 
@@ -273,7 +301,7 @@ const LinkedInProfile = () => {
           <FontAwesome name="user-plus" size={18} color="#919191ff" />
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </SafeAreaView >
   );
 };
 
@@ -303,24 +331,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     position: 'relative',
     overflow: 'hidden',
-    paddingTop: 40,
-  },
-  gradientLayer1: {
-    position: 'absolute',
-    backgroundColor: '#1E90FF',
-    opacity: 0.8,
-  },
-  gradientLayer2: {
-    position: 'absolute',
-    top: '30%',
-    backgroundColor: '#4169E1',
-    opacity: 0.6,
-  },
-  gradientLayer3: {
-    position: 'absolute',
-    top: '60%',
-    backgroundColor: '#0066CC',
-    opacity: 0.4,
+    paddingTop: 25,
   },
 
   /* ENCABEZADO FIJADO*/
@@ -347,8 +358,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  /* ESPACIADO DEL PERFIL CON LAS PUBLICACIONES */
   scrollContent: {
-    paddingTop: 480,
+    paddingTop: 520,
     paddingBottom: 10,
   },
   /* PUBLICACIONES*/
@@ -371,18 +383,19 @@ const styles = StyleSheet.create({
   },
   postActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    gap: 20,
     alignItems: 'center',
   },
   leftActions: {
     flexDirection: 'row',
     gap: 20,
-  },
+  },  
   actionButton: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: 8,
   },
   actionIcon: {
@@ -439,6 +452,60 @@ const styles = StyleSheet.create({
   starsText: {
     fontSize: 14,
   },
+  /* PUBLICACIONES */
+  postHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    paddingBottom: 10,
+  },
+  postUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  postUserImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  postUserName: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#333',
+  },
+  postTimestamp: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  postContent: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  postTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  postDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  postStats: {
+    paddingHorizontal: 15,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E0E0E0',
+  },
+  postStatsText: {
+    fontSize: 12,
+    color: '#666',
+  },
   /* Estadísticas de seguidores */
   statBox: {
     alignItems: 'center',
@@ -466,6 +533,23 @@ const styles = StyleSheet.create({
     marginBottom: 25,
     zIndex: 10,
   },
+  /*PERFIL DE USUARIO */
+  bioContainer: {
+    alignItems: 'center',
+    marginBottom: 15,
+    zIndex: 10,
+  },
+  bioText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  locationText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    textAlign: 'center',
+  },
 });
 
-export default LinkedInProfile;
+export default Profile;

@@ -1,5 +1,4 @@
 import Navbar from '@/components/layout/Navbar';
-import { AntDesign, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import { Image, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
