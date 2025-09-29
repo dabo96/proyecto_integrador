@@ -1,8 +1,60 @@
-import { KeyboardAvoidingView, StyleSheet, Text, TextInput, View,ScrollView } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet, Text, TextInput, View,ScrollView, Alert } from 'react-native';
 import ModButton from '@/components/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getDocs, updateDoc, collection, query, where } from 'firebase/firestore';
+import { db } from '@/services/firebase';
+import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 
 export default function AutCuenta() {
+    const [input, setInput] = useState(['', '', '', '', '']);
+    const router = useRouter();
+
+    const manejarCambios = (texto: string, indice: number) => {
+        const nuevosInputs = [...input];
+        nuevosInputs[indice] = texto;
+        setInput(nuevosInputs);
+    }
+
+    const manejarVerificacion = async () => {
+        const codigoIngresado = input.join('');
+
+        if (codigoIngresado.length !== 5) {
+            alert('Por favor, ingresa un código de 5 dígitos.');
+            return;
+        }
+
+        try {
+            const q = query(collection(db, 'codAuth'), where('code', '==', codigoIngresado), where('used', '==', false));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                alert('Código inválido o ya utilizado. Intenta nuevamente.');
+                return;
+            }
+
+            const docRef = snapshot.docs[0].ref;
+            const data = snapshot.docs[0].data();
+
+            await updateDoc(docRef, { used: true, updatedAt: new Date() });
+
+            if(data.correo) {
+                const userQuery = query(collection(db, 'Usuarios'), where('correo', '==', data.correo));
+                const userSnapshot = await getDocs(userQuery);
+
+                if(!userSnapshot.empty) {
+                    const userRef = userSnapshot.docs[0].ref;
+                    await updateDoc(userRef, { verified: true, updatedAt: new Date() });
+                }
+            }
+
+            console.log('Éxito', 'Cuenta verificada exitosamente.');
+            router.push('./tabs/homeScreen');
+        } catch (error) {
+            console.error(error);
+            Alert.alert('Error', 'Ocurrió un error al verificar el código. Intenta nuevamente.');
+        }
+    }
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }}>
@@ -20,22 +72,37 @@ export default function AutCuenta() {
                 <View style={styles.container}>
                     <TextInput
                         style={styles.input}
+                        maxLength={1}
+                        keyboardType='numeric'
+                        onChangeText={ (t) => manejarCambios(t, 0) }
                     />
                     <TextInput
                         style={styles.input}
+                        maxLength={1}
+                        keyboardType='numeric'
+                        onChangeText={ (t) => manejarCambios(t, 1) }
                     />
                     <TextInput
                         style={styles.input}
+                        maxLength={1}
+                        keyboardType='numeric'
+                        onChangeText={ (t) => manejarCambios(t, 2) }
                     />
                     <TextInput
                         style={styles.input}
+                        maxLength={1}
+                        keyboardType='numeric'
+                        onChangeText={ (t) => manejarCambios(t, 3) }
                     />
                     <TextInput
                         style={styles.input}
+                        maxLength={1}
+                        keyboardType='numeric'
+                        onChangeText={ (t) => manejarCambios(t, 4) }
                     />
                 </View>                
                 <View style={{ height: 50 }}></View>
-                <ModButton title="Verificar" fontWeight='bold' textColor = "black" style={styles.button} onPress={() => { }} />
+                <ModButton title="Verificar" fontWeight='bold' textColor = "black" style={styles.button} onPress={() => { manejarVerificacion(); }} />
             </View>
         </View>
             </ScrollView>
@@ -68,7 +135,9 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 10,  
         flex: 1,
-        marginHorizontal: 5,   
+        marginHorizontal: 5,
+        textAlign: 'center',
+        fontFamily: 'Montserrat_400Regular',
     },
     container: {
         flexDirection: "row",
