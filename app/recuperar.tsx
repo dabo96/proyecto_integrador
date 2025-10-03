@@ -1,64 +1,106 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { StyleSheet, Text, TextInput, View, Alert } from 'react-native';
+import { useState } from 'react';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase';
+import ModButton from '@/components/ModButton';
 
-export default function HomeScreen() {
+export default function RecuperarScreen() {
+    const router = useRouter();
+
+    const [correo, setCorreo] = useState('');
+    const [nuevaContrasena, setNuevaContrasena] = useState('');
+    const [confirmarContrasena, setConfirmarContrasena] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handlePasswordChange = async () => {
+        if (!correo || !nuevaContrasena || !confirmarContrasena) {
+            Alert.alert("Error", "Por favor completa todos los campos");
+            return;
+        }
+
+        if (nuevaContrasena !== confirmarContrasena) {
+            Alert.alert("Error", "Las contraseñas no coinciden");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const q = query(collection(db, "Usuarios"), where("correo", "==", correo));
+            const querySnapshot = await getDocs(q);
+            console.log(querySnapshot.docs.map(d => d.data()))
+
+            if (querySnapshot.empty) {
+                Alert.alert("Error", "No existe un usuario con ese correo");
+                setLoading(false);
+                return;
+            }
+
+            // Tomar el primer documento ya que el correo es único
+            const userDoc = querySnapshot.docs[0];
+            const userRef = doc(db, "Usuarios", userDoc.id);
+
+            console.log(userDoc);
+
+            await updateDoc(userRef, {
+                contrasena: nuevaContrasena,
+                updatedAt: new Date()
+            });
+
+            router.push("./iniciarSesion")
+
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "Hubo un problema al actualizar la contraseña");
+        }
+
+        setLoading(false);
+    };
+
     return (
         <LinearGradient
             colors={['#2F4AA6', '#0491C6']}
             style={StyleSheet.absoluteFill}
         >
             <View style={styles.background}>
-                <Text style={styles.subtitle}>Contraseña Actual</Text>
-                <View style={{ height: 50 }}></View>
+                <Text style={styles.subtitle}>Recuperar Contraseña</Text>
+                <View style={{ height: 30 }} />
 
-                {/* OPCIÓN 1: Texto centrado completamente */}
-                <Text style={styles.textoCentrado}>Contraseña nueva</Text>
-                <View style={{ height: 10 }}></View>
+                <Text style={styles.textoCentrado}>Correo</Text>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Correo"
+                    value={correo}
+                    onChangeText={setCorreo}
+                />
+
+                <View style={{ height: 20 }} />
+                <Text style={styles.textoCentrado}>Nueva Contraseña</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="Nueva Contraseña"
+                    secureTextEntry
+                    value={nuevaContrasena}
+                    onChangeText={setNuevaContrasena}
                 />
 
-                {/* OPCIÓN 2: Usar un contenedor para centrar */}
-                <View style={{ height: 10 }}></View>
-                <View style={styles.labelContainer}>
-                    <Text style={styles.texto}>Nueva Contraseña</Text>
-                </View>
-                <View style={{ height: 10 }}></View>
+                <View style={{ height: 20 }} />
+                <Text style={styles.textoCentrado}>Confirmar Contraseña</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="Confirmar contraseña"
                     secureTextEntry
+                    value={confirmarContrasena}
+                    onChangeText={setConfirmarContrasena}
                 />
 
-                <View style={{ height: 10 }}></View>
-                <View style={{ height: 10 }}></View>
-                <View style={styles.labelContainer}>
-                    <Text style={styles.texto}>Confirmar contraseña</Text>
-                </View>
-                <View style={{ height: 10 }}></View>
-                <TextInput
-                    style={styles.input}
-                    placeholder="Confirmar contraseña"
-                    secureTextEntry
-                />
-                <View style={{ height: 50 }}></View>
-                <Pressable style={
-                    ({ pressed }) => [styles.button,
-                    pressed && styles.buttonPressed]}
-                    onPress={() => { }}
-                >
-                    {({ pressed }) => (
-                        <Text style={[{
-                            textAlign: 'center',
-                            color: 'white',
-                            fontFamily: 'Montserrat_400Regular',
-                            fontSize: 16
-                        }, pressed && styles.textPressed]}>
-                            Actualizar
-                        </Text>
-                    )}
-                </Pressable>
+                <View style={{ height: 40 }} />
+
+                <ModButton style={styles.button} 
+                    title={loading ? "Actualizando..." : "Actualizar"}
+                    onPress={()=>{handlePasswordChange()}}/>
             </View>
         </LinearGradient>
     );
@@ -70,7 +112,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-
     button: {
         borderWidth: 2,
         borderColor: "#fff",
@@ -81,11 +122,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         width: 300,
     },
-
     buttonPressed: {
         backgroundColor: '#fff',
     },
-
     subtitle: {
         color: 'white',
         fontSize: 24,
@@ -93,47 +132,14 @@ const styles = StyleSheet.create({
         marginTop: 10,
         fontFamily: 'Montserrat_700Bold',
     },
-
-    // OPCIÓN 1: Texto original pero centrado
     textoCentrado: {
         color: 'white',
         fontFamily: 'Montserrat_400Regular',
         fontSize: 16,
-        textAlign: 'center', // Centrado
-        width: 300, // Mismo ancho que el input
-    },
-
-    // OPCIÓN 2: Contenedor para centrar el texto
-    labelContainer: {
-        width: 300,
-        alignItems: 'center', // Centra el contenido del contenedor
-    },
-
-    // Texto original (alineado a la izquierda)
-    texto: {
-        color: 'white',
-        fontFamily: 'Montserrat_400Regular',
-        fontSize: 16,
-        textAlign: 'left',
-        alignSelf: 'flex-start',
-        paddingHorizontal: 50,
-    },
-
-    // OPCIÓN 3: Texto personalizado con más opciones
-    textoPersonalizado: {
-        color: 'white',
-        fontFamily: 'Montserrat_400Regular',
-        fontSize: 18, // Tamaño más grande
         textAlign: 'center',
         width: 300,
-        fontWeight: 'bold', // Negrita
-        marginVertical: 5, // Espaciado vertical
+        marginBottom: 5
     },
-
-    textPressed: {
-        color: '#000',
-    },
-
     input: {
         height: 40,
         paddingHorizontal: 10,
@@ -142,5 +148,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderRadius: 5,
         borderColor: '#fff',
+        fontFamily: 'Montserrat_400Regular',
     }
 });
