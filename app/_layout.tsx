@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -21,8 +22,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-      </Stack>
+      <GestureHandlerRootView>
+        <Stack screenOptions={{ headerShown: false }}>
+        </Stack>
+      </GestureHandlerRootView>
       <StatusBar style="auto" />
     </ThemeProvider>
   );

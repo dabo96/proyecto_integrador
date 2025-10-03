@@ -1,11 +1,11 @@
 import Link from '@/components/Link';
 import ModButton from '@/components/ModButton';
+import { db } from '@/services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, TextInput, View, Alert } from 'react-native';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useState } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/services/firebase';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function SignInScreen() {
     const router = useRouter();
@@ -32,7 +32,7 @@ export default function SignInScreen() {
                 return;
             }
 
-            let userFound : any = null;
+            let userFound: any = null;
             querySnapshot.forEach((doc) => {
                 userFound = { id: doc.id, ...doc.data() };
             });
@@ -83,9 +83,9 @@ export default function SignInScreen() {
                 <View style={{ height: 15 }}></View>
                 <Link title='¿Olvidaste tu contraseña?' color="white" onPress={() => { router.push('./recuperar') }} />
                 <View style={{ height: 50 }}></View>
-                <ModButton 
-                    title={loading ? 'Cargando...' : 'Iniciar sesión'} 
-                    onPress={handleSignIn} 
+                <ModButton
+                    title={loading ? 'Cargando...' : 'Iniciar sesión'}
+                    onPress={handleSignIn}
                 />
                 <View style={{ height: 10 }}></View>
                 <Text style={[styles.texto, { marginTop: 20 }]}>¿No tienes una cuenta?</Text>

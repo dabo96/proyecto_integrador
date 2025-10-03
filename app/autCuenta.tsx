@@ -1,19 +1,24 @@
-import { KeyboardAvoidingView, StyleSheet, Text, TextInput, View,ScrollView, Alert } from 'react-native';
 import ModButton from '@/components/ModButton';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getDocs, updateDoc, collection, query, where } from 'firebase/firestore';
 import { db } from '@/services/firebase';
-import React, { useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { collection, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import React, { useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function AutCuenta() {
     const [input, setInput] = useState(['', '', '', '', '']);
+    const inputsRef = useRef<(TextInput | null)[]>([]);
     const router = useRouter();
 
     const manejarCambios = (texto: string, indice: number) => {
         const nuevosInputs = [...input];
         nuevosInputs[indice] = texto;
         setInput(nuevosInputs);
+
+        if (texto && indice < inputsRef.current.length - 1) {
+            inputsRef.current[indice + 1]?.focus();
+        }
     }
 
     const manejarVerificacion = async () => {
@@ -38,11 +43,11 @@ export default function AutCuenta() {
 
             await updateDoc(docRef, { used: true, updatedAt: new Date() });
 
-            if(data.correo) {
+            if (data.correo) {
                 const userQuery = query(collection(db, 'Usuarios'), where('correo', '==', data.correo));
                 const userSnapshot = await getDocs(userQuery);
 
-                if(!userSnapshot.empty) {
+                if (!userSnapshot.empty) {
                     const userRef = userSnapshot.docs[0].ref;
                     await updateDoc(userRef, { verified: true, updatedAt: new Date() });
                 }
@@ -60,54 +65,35 @@ export default function AutCuenta() {
         <KeyboardAvoidingView style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
                 <View style={styles.mainContainer}>
-            <LinearGradient
-            colors={['#2F4AA6', '#0491C6']}
-            style={styles.gradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            />
-            <View style={styles.background}>
-                <Text style={styles.subtitle}>Ingresa el código enviado al correo electrónico registrado</Text>
-                <View style={{ height: 30 }}></View>
-                <View style={styles.container}>
-                    <TextInput
-                        style={styles.input}
-                        maxLength={1}
-                        keyboardType='numeric'
-                        onChangeText={ (t) => manejarCambios(t, 0) }
+                    <LinearGradient
+                        colors={['#2F4AA6', '#0491C6']}
+                        style={styles.gradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
                     />
-                    <TextInput
-                        style={styles.input}
-                        maxLength={1}
-                        keyboardType='numeric'
-                        onChangeText={ (t) => manejarCambios(t, 1) }
-                    />
-                    <TextInput
-                        style={styles.input}
-                        maxLength={1}
-                        keyboardType='numeric'
-                        onChangeText={ (t) => manejarCambios(t, 2) }
-                    />
-                    <TextInput
-                        style={styles.input}
-                        maxLength={1}
-                        keyboardType='numeric'
-                        onChangeText={ (t) => manejarCambios(t, 3) }
-                    />
-                    <TextInput
-                        style={styles.input}
-                        maxLength={1}
-                        keyboardType='numeric'
-                        onChangeText={ (t) => manejarCambios(t, 4) }
-                    />
-                </View>                
-                <View style={{ height: 50 }}></View>
-                <ModButton title="Verificar" fontWeight='bold' textColor = "black" style={styles.button} onPress={() => { manejarVerificacion(); }} />
-            </View>
-        </View>
+                    <View style={styles.background}>
+                        <Text style={styles.subtitle}>Ingresa el código enviado al correo electrónico registrado</Text>
+                        <View style={{ height: 30 }}></View>
+                        <View style={styles.container}>
+                            {input.map((valor, i) => (
+                                <TextInput
+                                    key={i}
+                                    ref={(ref) => { inputsRef.current[i] = ref; }}
+                                    style={styles.input}
+                                    maxLength={1}
+                                    keyboardType="numeric"
+                                    value={valor}
+                                    onChangeText={(t) => manejarCambios(t, i)}
+                                />
+                            ))}
+                        </View>
+                        <View style={{ height: 50 }}></View>
+                        <ModButton title="Verificar" fontWeight='bold' textColor="black" style={styles.button} onPress={() => { manejarVerificacion(); }} />
+                    </View>
+                </View>
             </ScrollView>
         </KeyboardAvoidingView>
-        );
+    );
 }
 
 const styles = StyleSheet.create({
@@ -133,10 +119,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'gray',
         borderColor: 'gray',
         borderWidth: 1,
-        borderRadius: 10,  
+        borderRadius: 10,
         flex: 1,
         marginHorizontal: 5,
         textAlign: 'center',
+        textAlignVertical: "center",
         fontFamily: 'Montserrat_400Regular',
     },
     container: {
@@ -154,6 +141,6 @@ const styles = StyleSheet.create({
         borderColor: "#dfdfdf",
         backgroundColor: "#dfdfdf",
         borderRadius: 5,
-        width:200,
+        width: 200,
     }
 });

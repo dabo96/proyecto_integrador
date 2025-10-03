@@ -1,10 +1,10 @@
-import { StyleSheet, Text, TextInput, View, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
 import IconButton from '@/components/IconButton';
 import ImageButton from '@/components/ImageButton';
-import { Ionicons, EvilIcons, Feather, MaterialIcons } from "@expo/vector-icons";
+import { EvilIcons, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function MainPageScreen() {
 
@@ -66,33 +66,52 @@ export default function MainPageScreen() {
     ];
 
     return (
-        <View style={{ flex: 1, backgroundColor:'white' }}>
+        <View style={{ flex: 1, backgroundColor: 'white' }}>
             <LinearGradient
                 colors={['#2F4AA6', '#0491C6']}
-                style={styles.gradientContainer}>
-                <ImageButton
-                    source={require("@/assets/images/react-logo.png")}
-                    onPress={() => { router.push("./profile") }}
-                    size={80}
-                    style={styles.btnProfile}
-                    borderWidth={4}
-                    borderColor="white"
-                />
-                <Text style={styles.Title}>Hola Andrea</Text>
-                <Text style={styles.Subtitle}>¡Bienvenida!</Text>
+                style={styles.gradientContainer}
+            >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 2, marginTop: 10 }}>
+                    <View style={{ alignItems: "center" }}>
+                        <ImageButton
+                            source={require("@/assets/images/react-logo.png")}
+                            onPress={() => { router.push("./profile") }}
+                            size={70}
+                            style={styles.btnProfile}
+                            borderWidth={4}
+                            borderColor="white"
+                        />
+                        <Text style={styles.Title}>Hola Andrea</Text>
+                        <Text style={styles.Subtitle}>¡Bienvenida!</Text>
+                    </View>
 
-                <View style={{ alignSelf: "flex-end", flexDirection: "row", marginRight: -30 }}>
-                    <IconButton onPress={() => { router.push("./chats") }} size={30} style={{ width: '10%', marginRight: 30, marginTop: -190 }} backgroundColor="transparent" iconName="chat-bubble-outline" iconLib="MaterialIcons" />
-                    <IconButton onPress={() => { router.push("./notificaciones") }} size={30} style={{ width: '10%', marginTop: -190 }} backgroundColor="transparent" iconName="notifications-outline" iconLib="Ionicons" />
+                    <View style={{ flexDirection: "row", gap: 10, marginRight: 20 }}>
+                        <IconButton
+                            onPress={() => { router.push("./chats") }}
+                            size={30}
+                            backgroundColor="transparent"
+                            iconName="chat-bubble-outline"
+                            iconLib="MaterialIcons"
+                        />
+                        <IconButton
+                            onPress={() => { router.push("./notificaciones") }}
+                            size={30}
+                            backgroundColor="transparent"
+                            iconName="notifications-outline"
+                            iconLib="Ionicons"
+                        />
+                    </View>
                 </View>
 
-                <View style={styles.inputContainer}>
-                    <Ionicons name="person" size={20} color="gray" style={styles.icon} />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Buscar"
-                        placeholderTextColor="gray"
-                    />
+                <View>
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="person" size={20} color="gray" style={styles.icon} />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Buscar"
+                            placeholderTextColor="gray"
+                        />
+                    </View>
                 </View>
             </LinearGradient>
 
@@ -102,7 +121,7 @@ export default function MainPageScreen() {
                         <View style={styles.postHeader}>
                             <View style={styles.postUserInfo}>
                                 <ImageButton
-                                    source={profileData.profileImage}
+                                    source={{ uri: profileData.profileImage }}
                                     onPress={() => { router.push("./otherProfile") }}
                                     size={45}
                                     style={styles.postUserImage}
@@ -176,7 +195,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Montserrat_400Regular',
     },
     btnProfile: {
-        marginTop: 30,
+        marginTop: 40,
         marginLeft: 30,
     },
     gradientContainer: {
@@ -191,14 +210,14 @@ const styles = StyleSheet.create({
         color: 'white',
         fontFamily: 'Montserrat_700Bold',
         fontSize: 18,
-        marginTop: 10,
+        marginTop: 2,
         marginLeft: 30,
     },
     Subtitle: {
         color: 'white',
         fontFamily: 'Montserrat_400Regular',
         fontSize: 16,
-        marginTop: 5,
+        marginTop: 2,
         marginLeft: 30,
     },
     postCard: {

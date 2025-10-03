@@ -1,7 +1,7 @@
 import ModButton from '@/components/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -16,9 +16,9 @@ export default function HomeScreen() {
         <View style={{ height: 400 }}></View>
         <Text style={styles.subtitle}>Empecemos</Text>
         <View style={{ height: 10 }}></View>
-        <ModButton title='Iniciar sesión' style={styles.button} pressedStyle={styles.buttonPressed} pressedTextColor="#0491C6" onPress={()=>{ router.push('./iniciarSesion') }}/>
+        <ModButton title='Iniciar sesión' style={styles.button} pressedStyle={styles.buttonPressed} pressedTextColor="#0491C6" onPress={() => { router.push('./iniciarSesion') }} />
         <View style={{ height: 10 }}></View>
-        <ModButton title='Registrarse' style={styles.button} pressedStyle={styles.buttonPressed} pressedTextColor="#0491C6" onPress={()=>{ router.push('./registro') }}/>
+        <ModButton title='Registrarse' style={styles.button} pressedStyle={styles.buttonPressed} pressedTextColor="#0491C6" onPress={() => { router.push('./registro') }} />
       </View>
     </LinearGradient>
   );
