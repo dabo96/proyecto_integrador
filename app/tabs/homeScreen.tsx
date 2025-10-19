@@ -3,8 +3,10 @@ import ImageButton from '@/components/ImageButton';
 import { EvilIcons, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { obtenerUsuarioActivo } from "@/api/usuariosService";
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 export default function MainPageScreen() {
 
@@ -25,6 +27,21 @@ export default function MainPageScreen() {
         following: 850,
         bio: "Estudiante de Ingeniería de Sistemas",
     };
+
+    useEffect(() => {
+        const auth = getAuth();
+
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log("Usuario autenticado:", user.uid);
+                await obtenerUsuarioActivo();
+            } else {
+                console.log("Usuario no autenticado");
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const postsData = [
         {
