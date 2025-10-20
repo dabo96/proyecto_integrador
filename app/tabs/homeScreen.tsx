@@ -3,84 +3,248 @@ import ImageButton from '@/components/ImageButton';
 import { EvilIcons, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { obtenerUsuarioActivo } from "@/api/usuariosService";
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '@/services/firebase';
+import { collection, getDocs, query, where, orderBy, limit, addDoc, doc, getDoc } from 'firebase/firestore';
+
+interface Post {
+    id: string;
+    usuarioID: string;
+    contenido: string;
+    fechaCreacion: any;
+    imagen?: string;
+    autor: {
+        nombres: string;
+        apellidos: string;
+        fotoPerfil?: string;
+    };
+    likes: number;
+    comentarios: number;
+}
 
 export default function MainPageScreen() {
-
     const router = useRouter();
+    
+    // Estados
+    const [usuarioID, setUsuarioID] = useState<string>('');
+    const [usuarioNombre, setUsuarioNombre] = useState<string>('');
+    const [posts, setPosts] = useState<Post[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string>('');
+    const [showCommentInput, setShowCommentInput] = useState<string | null>(null);
+    const [commentText, setCommentText] = useState('');
 
-    const handleComment = (postId: number) => {
-        alert(`Comentar en el post ${postId}`);
+    // Función para formatear fecha relativa
+    const formatRelativeTime = (timestamp: any) => {
+        if (!timestamp) return 'Hace un momento';
+        
+        const now = new Date();
+        const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const diffInSeconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
+        
+        if (diffInSeconds < 60) return 'Hace un momento';
+        if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
+        if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
+        if (diffInSeconds < 2592000) return `Hace ${Math.floor(diffInSeconds / 86400)} días`;
+        return postDate.toLocaleDateString();
     };
 
-    const handleLike = (postId: number) => {
-        alert(`Te gustó el post ${postId}`);
+    // Función para obtener contactos del usuario
+    const getContactos = async (usuarioID: string): Promise<string[]> => {
+        try {
+            const contactosRef = collection(db, 'usuarios', usuarioID, 'contactos');
+            const contactosSnapshot = await getDocs(contactosRef);
+            const seguidoIDs: string[] = [];
+            
+            contactosSnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.seguidoID) {
+                    seguidoIDs.push(data.seguidoID);
+                }
+            });
+            
+            return seguidoIDs;
+        } catch (error) {
+            console.error('Error obteniendo contactos:', error);
+            return [];
+        }
     };
 
-    const profileData = {
-        name: "Andrea González Hernández",
-        profileImage: "https://randomuser.me/api/portraits/women/54.jpg",
-        followers: 524,
-        following: 850,
-        bio: "Estudiante de Ingeniería de Sistemas",
-    };
-
-    useEffect(() => {
-        const auth = getAuth();
-
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                console.log("Usuario autenticado:", user.uid);
-                await obtenerUsuarioActivo();
-            } else {
-                console.log("Usuario no autenticado");
+    // Función para obtener publicaciones
+    const getPublicaciones = async (usuarioID: string, seguidoIDs: string[]) => {
+        try {
+            const publicacionesRef = collection(db, 'publicaciones');
+            const allUserIDs = [usuarioID, ...seguidoIDs];
+            const publicaciones: Post[] = [];
+            
+            // Hacer consultas separadas para evitar problemas de índices
+            // Primero obtener publicaciones del usuario actual
+            const qUsuario = query(
+                publicacionesRef,
+                where('usuarioID', '==', usuarioID),
+                where('estado', '==', 'activo')
+            );
+            
+            const snapshotUsuario = await getDocs(qUsuario);
+            
+            for (const docSnapshot of snapshotUsuario.docs) {
+                const data = docSnapshot.data();
+                const usuarioRef = doc(db, 'usuarios', data.usuarioID);
+                const usuarioDoc = await getDoc(usuarioRef);
+                
+                if (usuarioDoc.exists()) {
+                    const usuarioData = usuarioDoc.data() as any;
+                    publicaciones.push({
+                        id: docSnapshot.id,
+                        usuarioID: data.usuarioID,
+                        contenido: data.contenido,
+                        fechaCreacion: data.fechaCreacion,
+                        imagen: data.imagen,
+                        autor: {
+                            nombres: usuarioData.nombres || '',
+                            apellidos: usuarioData.apellidos || '',
+                            fotoPerfil: usuarioData.fotoPerfil
+                        },
+                        likes: 0, // TODO: Implementar conteo de likes
+                        comentarios: 0 // TODO: Implementar conteo de comentarios
+                    });
+                }
             }
-        });
+            
+            // Luego obtener publicaciones de los usuarios seguidos
+            for (const seguidoID of seguidoIDs) {
+                const qSeguido = query(
+                    publicacionesRef,
+                    where('usuarioID', '==', seguidoID),
+                    where('estado', '==', 'activo')
+                );
+                
+                const snapshotSeguido = await getDocs(qSeguido);
+                
+                for (const docSnapshot of snapshotSeguido.docs) {
+                    const data = docSnapshot.data();
+                    const usuarioRef = doc(db, 'usuarios', data.usuarioID);
+                    const usuarioDoc = await getDoc(usuarioRef);
+                    
+                    if (usuarioDoc.exists()) {
+                        const usuarioData = usuarioDoc.data() as any;
+                        publicaciones.push({
+                            id: docSnapshot.id,
+                            usuarioID: data.usuarioID,
+                            contenido: data.contenido,
+                            fechaCreacion: data.fechaCreacion,
+                            imagen: data.imagen,
+                            autor: {
+                                nombres: usuarioData.nombres || '',
+                                apellidos: usuarioData.apellidos || '',
+                                fotoPerfil: usuarioData.fotoPerfil
+                            },
+                            likes: 0, // TODO: Implementar conteo de likes
+                            comentarios: 0 // TODO: Implementar conteo de comentarios
+                        });
+                    }
+                }
+            }
+            
+            // Ordenar por fecha de creación (más recientes primero)
+            publicaciones.sort((a, b) => {
+                const fechaA = a.fechaCreacion?.toDate ? a.fechaCreacion.toDate() : new Date(a.fechaCreacion);
+                const fechaB = b.fechaCreacion?.toDate ? b.fechaCreacion.toDate() : new Date(b.fechaCreacion);
+                return fechaB.getTime() - fechaA.getTime();
+            });
+            
+            // Limitar a 20 publicaciones
+            return publicaciones.slice(0, 20);
+        } catch (error) {
+            console.error('Error obteniendo publicaciones:', error);
+            throw error;
+        }
+    };
 
-        return () => unsubscribe();
+    // Función para cargar datos del feed
+    const loadFeedData = async () => {
+        try {
+            setLoading(true);
+            setError('');
+            
+            const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+            const storedUsuarioNombre = await AsyncStorage.getItem('usuarioNombre');
+
+            console.log('storedUsuarioID', storedUsuarioID);
+            console.log('storedUsuarioNombre', storedUsuarioNombre);
+            
+            if (!storedUsuarioID) {
+                setError('No se encontró información del usuario');
+                return;
+            }
+            
+            setUsuarioID(storedUsuarioID);
+            setUsuarioNombre(storedUsuarioNombre || 'Usuario');
+            
+            // Obtener contactos
+            const seguidoIDs = await getContactos(storedUsuarioID);
+            
+            // Obtener publicaciones
+            const publicaciones = await getPublicaciones(storedUsuarioID, seguidoIDs);
+            setPosts(publicaciones);
+            
+        } catch (error) {
+            console.error('Error cargando feed:', error);
+            setError('Error al cargar las publicaciones');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Cargar datos al montar el componente
+    useEffect(() => {
+        loadFeedData();
     }, []);
 
-    const postsData = [
-        {
-            id: 1,
-            image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=250&fit=crop',
-            description: 'Trabajando en una aplicación increíble con React Native y Expo. ¡Los resultados están siendo geniales!',
-            timestamp: '2 horas',
-        },
-        {
-            id: 2,
-            image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=250&fit=crop',
-            description: 'Excelente presentación sobre las últimas tendencias en desarrollo mobile. Aprendizaje constante es clave.',
-            timestamp: '5 horas',
-        },
-        {
-            id: 3,
-            image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=400&h=250&fit=crop',
-            description: 'Nada mejor que trabajar con un equipo increíble. La colaboración hace la diferencia en cada proyecto.',
-            timestamp: '1 día',
-        },
-        {
-            id: 4,
-            image: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=400&h=250&fit=crop',
-            description: 'El espacio de trabajo influye mucho en la productividad. ¿Cuál es tu lugar favorito para programar?',
-            timestamp: '2 días',
-        },
-        {
-            id: 5,
-            image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=250&fit=crop',
-            description: 'La importancia de escribir código limpio y mantenible. Cada línea cuenta para el futuro del proyecto.',
-            timestamp: '3 días',
-        },
-        {
-            id: 6,
-            image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=250&fit=crop',
-            description: 'Las conexiones profesionales son fundamentales. Cada conversación puede abrir nuevas oportunidades.',
-            timestamp: '5 días',
+    const handleComment = async (postId: string) => {
+        if (showCommentInput === postId) {
+            // Enviar comentario
+            if (commentText.trim()) {
+                try {
+                    await addDoc(collection(db, 'interacciones'), {
+                        usuarioID: usuarioID,
+                        publicacionID: postId,
+                        tipo: 'comentario',
+                        comentario: commentText.trim(),
+                        fecha: new Date()
+                    });
+                    
+                    setCommentText('');
+                    setShowCommentInput(null);
+                    // Recargar feed para actualizar contadores
+                    loadFeedData();
+                } catch (error) {
+                    console.error('Error enviando comentario:', error);
+                }
+            }
+        } else {
+            // Mostrar input de comentario
+            setShowCommentInput(postId);
         }
-    ];
+    };
+
+    const handleLike = async (postId: string) => {
+        try {
+            await addDoc(collection(db, 'interacciones'), {
+                usuarioID: usuarioID,
+                publicacionID: postId,
+                tipo: 'like',
+                fecha: new Date()
+            });
+            
+            // Recargar feed para actualizar contadores
+            loadFeedData();
+        } catch (error) {
+            console.error('Error dando like:', error);
+        }
+    };
 
     return (
         <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -98,8 +262,8 @@ export default function MainPageScreen() {
                             borderWidth={4}
                             borderColor="white"
                         />
-                        <Text style={styles.Title}>Hola Andrea</Text>
-                        <Text style={styles.Subtitle}>¡Bienvenida!</Text>
+                        <Text style={styles.Title}>Hola {usuarioNombre}</Text>
+                        <Text style={styles.Subtitle}>¡Bienvenido!</Text>
                     </View>
 
                     <View style={{ flexDirection: "row", gap: 10, marginRight: 20 }}>
@@ -133,53 +297,110 @@ export default function MainPageScreen() {
             </LinearGradient>
 
             <ScrollView style={styles.whiteContainer}>
-                {postsData.map((post) => (
-                    <View key={post.id} style={styles.postCard}>
-                        <View style={styles.postHeader}>
-                            <View style={styles.postUserInfo}>
-                                <ImageButton
-                                    source={{ uri: profileData.profileImage }}
-                                    onPress={() => { router.push("./otherProfile") }}
-                                    size={45}
-                                    style={styles.postUserImage}
-                                    borderWidth={4}
-                                    borderColor="white"
-                                />
-                                <View>
-                                    <Text style={styles.postUserName}>{profileData.name}</Text>
-                                    <Text style={styles.postTimestamp}>{post.timestamp}</Text>
-                                </View>
-                            </View>
-                            <TouchableOpacity>
-                                <MaterialIcons name="more-horiz" size={24} color="#666" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.postContent}>
-                            <Text style={styles.postDescription}>{post.description}</Text>
-                        </View>
-
-                        <Image source={{ uri: post.image }} style={styles.postImage} />
-
-                        <View style={styles.postActions}>
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={() => handleLike(post.id)}
-                            >
-                                <Feather name="heart" size={18} color="#666" />
-                                <Text style={styles.actionText}></Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={() => handleComment(post.id)}
-                            >
-                                <EvilIcons name="comment" size={25} color="#666" />
-                                <Text style={styles.actionText}></Text>
-                            </TouchableOpacity>
-                        </View>
+                {loading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#2F4AA6" />
+                        <Text style={styles.loadingText}>Cargando publicaciones...</Text>
                     </View>
-                ))}
+                ) : error ? (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{error}</Text>
+                        <TouchableOpacity style={styles.retryButton} onPress={loadFeedData}>
+                            <Text style={styles.retryButtonText}>Reintentar</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : posts.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No hay publicaciones para mostrar</Text>
+                        <Text style={styles.emptySubtext}>Sigue a más personas para ver sus publicaciones</Text>
+                    </View>
+                ) : (
+                    posts.map((post) => (
+                        <View key={post.id} style={styles.postCard}>
+                            <View style={styles.postHeader}>
+                                <View style={styles.postUserInfo}>
+                                    <ImageButton
+                                        source={post.autor.fotoPerfil ? 
+                                            { uri: post.autor.fotoPerfil } : 
+                                            require("@/assets/images/react-logo.png")
+                                        }
+                                        onPress={() => { router.push("./otherProfile") }}
+                                        size={45}
+                                        style={styles.postUserImage}
+                                        borderWidth={4}
+                                        borderColor="white"
+                                    />
+                                    <View>
+                                        <Text style={styles.postUserName}>
+                                            {post.autor.nombres} {post.autor.apellidos}
+                                        </Text>
+                                        <Text style={styles.postTimestamp}>
+                                            {formatRelativeTime(post.fechaCreacion)}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity>
+                                    <MaterialIcons name="more-horiz" size={24} color="#666" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.postContent}>
+                                <Text style={styles.postDescription}>{post.contenido}</Text>
+                            </View>
+
+                            {post.imagen && (
+                                <Image source={{ uri: post.imagen }} style={styles.postImage} />
+                            )}
+
+                            <View style={styles.postActions}>
+                                <TouchableOpacity
+                                    style={styles.actionButton}
+                                    onPress={() => handleLike(post.id)}
+                                >
+                                    <Feather name="heart" size={18} color="#666" />
+                                    <Text style={styles.actionText}>{post.likes}</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.actionButton}
+                                    onPress={() => handleComment(post.id)}
+                                >
+                                    <EvilIcons name="comment" size={25} color="#666" />
+                                    <Text style={styles.actionText}>{post.comentarios}</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Input de comentario */}
+                            {showCommentInput === post.id && (
+                                <View style={styles.commentInputContainer}>
+                                    <TextInput
+                                        style={styles.commentInput}
+                                        placeholder="Escribe un comentario..."
+                                        value={commentText}
+                                        onChangeText={setCommentText}
+                                        multiline
+                                    />
+                                    <View style={styles.commentButtons}>
+                                        <TouchableOpacity
+                                            style={styles.commentButton}
+                                            onPress={() => setShowCommentInput(null)}
+                                        >
+                                            <Text style={styles.commentButtonText}>Cancelar</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.commentButton, styles.commentButtonPrimary]}
+                                            onPress={() => handleComment(post.id)}
+                                        >
+                                            <Text style={[styles.commentButtonText, styles.commentButtonTextPrimary]}>
+                                                Comentar
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+                    ))
+                )}
             </ScrollView>
         </View>
     );
@@ -307,5 +528,102 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#666',
         fontWeight: '500',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 50,
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: '#666',
+        fontFamily: 'Montserrat_400Regular',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 50,
+        paddingHorizontal: 20,
+    },
+    errorText: {
+        fontSize: 16,
+        color: '#ff4444',
+        textAlign: 'center',
+        marginBottom: 20,
+        fontFamily: 'Montserrat_400Regular',
+    },
+    retryButton: {
+        backgroundColor: '#2F4AA6',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontFamily: 'Montserrat_400Regular',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 50,
+        paddingHorizontal: 20,
+    },
+    emptyText: {
+        fontSize: 18,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 10,
+        fontFamily: 'Montserrat_400Regular',
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: '#999',
+        textAlign: 'center',
+        fontFamily: 'Montserrat_400Regular',
+    },
+    commentInputContainer: {
+        padding: 15,
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
+    },
+    commentInput: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 10,
+        fontSize: 14,
+        fontFamily: 'Montserrat_400Regular',
+        minHeight: 40,
+        maxHeight: 100,
+    },
+    commentButtons: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginTop: 10,
+        gap: 10,
+    },
+    commentButton: {
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#ddd',
+    },
+    commentButtonPrimary: {
+        backgroundColor: '#2F4AA6',
+        borderColor: '#2F4AA6',
+    },
+    commentButtonText: {
+        fontSize: 14,
+        color: '#666',
+        fontFamily: 'Montserrat_400Regular',
+    },
+    commentButtonTextPrimary: {
+        color: 'white',
     },
 });
