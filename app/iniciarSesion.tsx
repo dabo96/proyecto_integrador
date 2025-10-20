@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignInScreen() {
     const router = useRouter();
@@ -38,6 +39,9 @@ export default function SignInScreen() {
             });
 
             if (userFound?.contrasena === contrasena) {
+                // Guardar el usuarioID en AsyncStorage
+                await AsyncStorage.setItem('usuarioID', userFound.id);
+                await AsyncStorage.setItem('usuarioNombre', userFound.nombre);
                 Alert.alert("Éxito", `Bienvenido ${userFound.nombre}`);
                 router.push('./tabs/homeScreen');
             } else {
