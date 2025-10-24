@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View,} from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View, } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import ModButton from "@/components/ModButton";
 import { addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/services/firebase";
-import { getStorage, ref, uploadBytes, getDownloadURL,} from "firebase/storage";
+import { app, db } from "@/services/firebase";
+import { getStorage, ref, uploadBytes, getDownloadURL, } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type NuevaPublicacionProps = {
@@ -72,19 +72,24 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
   // 🔹 Subir imagen al Storage
   const subirImagenAFirebase = async (uri: string): Promise<string> => {
     try {
-      const storage = getStorage();
-      const nombreArchivo = `publicaciones/${Date.now()}_${Math.floor(
-        Math.random() * 10000
-      )}.jpg`;
-      const storageRef = ref(storage, nombreArchivo);
+      const storage = getStorage(app); // ✅ obtiene la instancia global de tu proyecto
+      const nombreArchivo = `publicaciones/${Date.now()}_${Math.floor(Math.random() * 10000)}.jpg`;
+      const storageRef = ref(storage, nombreArchivo); // ✅ referencia correcta
 
+      console.log("🔹 Subiendo imagen a Firebase Storage:", nombreArchivo);
+      // convierte la URI a blob
       const response = await fetch(uri);
       const blob = await response.blob();
 
+      // sube la imagen
       await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(storageRef);
 
+      console.log("✅ Imagen subida, obteniendo URL...");
+      
+      // obtiene la URL pública
+      const downloadURL = await getDownloadURL(storageRef);
       console.log("✅ Imagen subida correctamente:", downloadURL);
+
       return downloadURL;
     } catch (error) {
       console.error("❌ Error subiendo imagen:", error);
@@ -107,10 +112,10 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
     try {
       let imagenUrl: string | null = null;
 
+      console.log("🔹 Publicando con imagen:", imagen);
       if (imagen) {
         imagenUrl = await subirImagenAFirebase(imagen);
       }
-
       const docRef = await addDoc(collection(db, "publicaciones"), {
         usuarioID: usuario.id,
         texto,
@@ -126,13 +131,8 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
         },
       });
 
-      // 🔹 Crear subcolecciones vacías
-      const rutas = ["interacciones", "reportes", "comentarios"];
-      for (const ruta of rutas) {
-        await setDoc(doc(db, `publicaciones/${docRef.id}/${ruta}/__init__`), {});
-      }
-
       Alert.alert("✅ Éxito", "Publicación creada correctamente.");
+      console.log("✅ Publicación creada con ID:", docRef.id);
       setTexto("");
       setImagen(null);
     } catch (error) {
