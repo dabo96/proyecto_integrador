@@ -2,8 +2,8 @@ import ModButton from "@/components/ModButton";
 import CommunityCard from "@/components/cards/CommunityCard";
 import CommunityPostCard from "@/components/cards/CommunityPostCard";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { JSX } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import React, { JSX, useEffect, useState } from "react";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 
 interface Comunidad {
@@ -22,62 +22,24 @@ interface Publicacion {
 }
 
 
-const comunidades: Comunidad[] = [
-  { 
-    id: "1", 
-    nombre: "Arquitectura", 
-    posts: 25,
-    imagen: "https://docenzia.com/blog/wp-content/uploads/tipos-de-ingenieria.webp"
-  },
-  { 
-    id: "2", 
-    nombre: "Redes I", 
-    posts: 12,
-    imagen: "https://i.scdn.co/image/ab6765630000ba8af770691237911d7e512de37c"
-  },
-  { 
-    id: "3", 
-    nombre: "Memes de ciencias e ingenierías", 
-    posts: 20,
-    imagen: "https://de.web.img3.acsta.net/r_654_368/img/0d/de/0ddef4642c8b0346476b01ba382b5724.jpg"
-  },
-  { 
-    id: "4", 
-    nombre: "Normas APA", 
-    posts: 8,
-    imagen: "https://www.educaciontrespuntocero.com/wp-content/uploads/2022/11/apa.jpg"
-  },
-];
-
-const publicaciones: Publicacion[] = [
-  {
-    id: "101",
-    comunidad: "Arquitectura",
-    tiempo: "Hace 5 minutos",
-    texto: "Evolución del rodaje",
-    imagen: "https://coitiab.es/wp-content/uploads/2020/10/ing-industrial1-blog.jpg",
-  },
-  {
-    id: "102",
-    comunidad: "Redes I",
-    tiempo: "Hace 2 horas",
-    texto: "Yo al graduarme",
-    imagen: "https://www.dotcom-monitor.com/wp-content/uploads/sites/3/2010/08/grayedmess.jpg",
-  },
-  {
-    id: "103",
-    comunidad: "Memes de ciencias e ingenierías",
-    tiempo: "Hace 4 horas",
-    texto: "momento xd del día",
-    imagen: "https://pbs.twimg.com/media/Dl0NgZCXcAUI9_J.jpg",
-  },
-];
-
-const obtenerImagenComunidad = (nombreComunidad: string): string => {
-  const comunidad = comunidades.find(c => c.nombre === nombreComunidad);
-  return comunidad?.imagen || "https://picsum.photos/40/40";
-};
+// Estados para las comunidades y publicaciones del usuario
+// Inicialmente vacíos hasta que se carguen los datos reales
 export default function ComunidadScreen(): JSX.Element {
+  // Estados para las comunidades y publicaciones del usuario
+  const [comunidades, setComunidades] = useState<Comunidad[]>([]);
+  const [publicaciones, setPublicaciones] = useState<Publicacion[]>([]);
+
+  // Función para obtener imagen de comunidad
+  const obtenerImagenComunidad = (nombreComunidad: string): string => {
+    const comunidad = comunidades.find(c => c.nombre === nombreComunidad);
+    return comunidad?.imagen || "https://picsum.photos/40/40";
+  };
+
+  // TODO: Implementar carga de datos reales del usuario
+  useEffect(() => {
+    // Aquí se cargarían las comunidades y publicaciones reales del usuario
+    // Por ahora se mantienen vacíos
+  }, []);
   
   const renderCommunityItem = ({ item }: { item: Comunidad }) => (
     <CommunityCard
@@ -101,18 +63,46 @@ export default function ComunidadScreen(): JSX.Element {
     
     <View key="header" style={styles.header}>
       <Text style={styles.title}>Comunidad</Text>
-      <ModButton title="Ver todo" onPress={() => { }} backgroundColor="#1d4ed8" style={{    borderRadius: 20, }} />
+      <View style={styles.verTodoContainer}>
+        <LinearGradient
+          colors={['#2F4AA6', '#0491C6']}
+          style={styles.verTodoButton}
+        >
+          <ModButton 
+            title="Ver todo" 
+            onPress={() => { }} 
+            backgroundColor="transparent" 
+            style={styles.verTodoButtonInner}
+            textStyle={styles.verTodoText}
+          />
+        </LinearGradient>
+        <LinearGradient
+          colors={['#2F4AA6', '#0491C6']}
+          style={styles.addButton}
+        >
+          <TouchableOpacity 
+            style={styles.addButtonInner}
+            onPress={() => console.log('Agregar nueva comunidad')}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
     </View>,
     
     <View key="community-section" style={styles.section}>
       <Text style={styles.sectionTitle}>Tu Comunidad</Text>
-      {comunidades.map((item) => (
-        <CommunityCard
-          key={item.id}
-          comunidad={item}
-          onPress={() => console.log('Navegar a comunidad:', item.nombre)}
-        />
-      ))}
+      {comunidades.length > 0 ? (
+        comunidades.map((item) => (
+          <CommunityCard
+            key={item.id}
+            comunidad={item}
+            onPress={() => console.log('Navegar a comunidad:', item.nombre)}
+          />
+        ))
+      ) : (
+        <Text style={styles.emptyMessage}>No hay comunidades para mostrar</Text>
+      )}
     </View>,
 
     <View key="posts-section" style={styles.section}>
@@ -134,6 +124,11 @@ export default function ComunidadScreen(): JSX.Element {
             renderItem={renderPostItem}
             showsVerticalScrollIndicator={false}
             ListHeaderComponent={<View>{renderContent()}</View>}
+            ListEmptyComponent={
+              publicaciones.length === 0 ? (
+                <Text style={styles.emptyMessage}>No hay publicaciones para mostrar</Text>
+              ) : null
+            }
             contentContainerStyle={styles.scrollContent}
           />
         </View>
@@ -180,5 +175,48 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: "#000",
     fontFamily: 'Montserrat_400Regular',
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginVertical: 20,
+    fontStyle: "italic",
+    opacity: 0.7,
+    fontFamily: 'Montserrat_400Regular',
+  },
+  verTodoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  verTodoButton: {
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  verTodoButtonInner: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  verTodoText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  addButtonInner: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
