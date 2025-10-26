@@ -1,6 +1,7 @@
 import ModButton from '@/components/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
 import {
   Alert,
   Image,
@@ -8,8 +9,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
+  ActivityIndicator
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db, storage } from '@/services/firebase';
+import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import * as ImagePicker from 'expo-image-picker';
 
 interface Props {
   onGoBack?: () => void;
@@ -22,12 +29,132 @@ const NuevaPublicacionScreen: React.FC<Props> = ({
   onPublicar = (texto) => console.log('Publicar:', texto),
   usuarioNombre = "Sofia"
 }) => {
+  const router = useRouter();
   const [texto, setTexto] = useState('');
+  const [imagen, setImagen] = useState<string | null>(null);
+  const [usuarioID, setUsuarioID] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const publicar = () => {
-    if (!texto.trim()) return Alert.alert('Error', 'Escribe algo');
-    onPublicar(texto);
-    setTexto('');
+  // Obtener datos del usuario al cargar
+  useEffect(() => {
+    const getUserData = async () => {
+      try {
+        const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+        const storedUsuarioNombre = await AsyncStorage.getItem('usuarioNombre');
+        
+        if (storedUsuarioID) {
+          setUsuarioID(storedUsuarioID);
+        }
+        if (storedUsuarioNombre) {
+          // Actualizar el nombre si viene de AsyncStorage
+        }
+      } catch (error) {
+        console.error('Error obteniendo datos del usuario:', error);
+        Alert.alert('Error', 'No se pudo obtener los datos del usuario');
+      }
+    };
+    
+    getUserData();
+  }, []);
+
+  // Función para seleccionar imagen
+  const selectImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setImagen(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error seleccionando imagen:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    }
+  };
+
+  // Función para subir imagen a Firebase Storage
+  const uploadImage = async (imageUri: string): Promise<string | null> => {
+    try {
+      setUploading(true);
+      
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      
+      const imageRef = ref(storage, `publicaciones/${Date.now()}_${usuarioID}.jpg`);
+      await uploadBytes(imageRef, blob);
+      const downloadURL = await getDownloadURL(imageRef);
+      
+      return downloadURL;
+    } catch (error) {
+      console.error('Error subiendo imagen:', error);
+      Alert.alert('Error', 'No se pudo subir la imagen');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Función para crear la publicación
+  const publicar = async () => {
+    if (!texto.trim() && !imagen) {
+      Alert.alert('Error', 'Escribe algo o selecciona una imagen');
+      return;
+    }
+
+    if (!usuarioID) {
+      Alert.alert('Error', 'No se encontró información del usuario');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      let imagenURL = null;
+      
+      // Subir imagen si existe
+      if (imagen) {
+        imagenURL = await uploadImage(imagen);
+        if (!imagenURL) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Crear publicación en Firestore
+      const publicacionRef = await addDoc(collection(db, 'publicaciones'), {
+        usuarioID: usuarioID,
+        contenido: texto.trim(),
+        imagen: imagenURL,
+        fechaCreacion: new Date(),
+        likes: 0,
+        comentarios: 0,
+        estado: 'activo'
+      });
+
+      console.log('Publicación creada:', publicacionRef.id);
+      
+      Alert.alert('Éxito', 'Publicación creada exitosamente', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setTexto('');
+            setImagen(null);
+            router.back();
+          }
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Error creando publicación:', error);
+      Alert.alert('Error', 'No se pudo crear la publicación');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,7 +177,12 @@ const NuevaPublicacionScreen: React.FC<Props> = ({
         />
         <Text style={styles.name}>{usuarioNombre}</Text>
       </View>
-      <ModButton title="Publicar" onPress={() => { }} backgroundColor="#1d4ed8" style={{borderRadius:20,}} />
+      <ModButton 
+        title={loading ? 'Publicando...' : 'Publicar'} 
+        onPress={loading || uploading ? () => {} : publicar} 
+        backgroundColor={loading || uploading ? "#9CA3AF" : "#1d4ed8"} 
+        style={{borderRadius:20,}}
+      />
     </View>
 
     {/* Input*/}
@@ -64,10 +196,31 @@ const NuevaPublicacionScreen: React.FC<Props> = ({
       maxLength={280}
     />
 
+    {/* Imagen seleccionada */}
+    {imagen && (
+      <View style={styles.imageContainer}>
+        <Image source={{ uri: imagen }} style={styles.selectedImage} />
+        <Pressable 
+          style={styles.removeImageBtn}
+          onPress={() => setImagen(null)}
+        >
+          <Text style={styles.removeImageText}>✕</Text>
+        </Pressable>
+      </View>
+    )}
+
     {/* Footer */}
     <View style={styles.footer}>
-      <Pressable style={styles.actionBtn}>
-        <Text style={styles.icon}>📷</Text>
+      <Pressable 
+        style={[styles.actionBtn, uploading && styles.actionBtnDisabled]}
+        onPress={selectImage}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator size="small" color="#666" />
+        ) : (
+          <Text style={styles.icon}>📷</Text>
+        )}
       </Pressable>
       <Text style={styles.counter}>{280 - texto.length}</Text>
     </View>
@@ -133,7 +286,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center'
   },
+  actionBtnDisabled: {
+    backgroundColor: '#E0E0E0',
+    opacity: 0.6
+  },
   icon: { fontSize: 20 },
-  counter: { fontSize: 14, color: '#666', fontFamily: 'Montserrat_400Regular', }
+  counter: { fontSize: 14, color: '#666', fontFamily: 'Montserrat_400Regular', },
+  
+  // Estilos para imagen seleccionada
+  imageContainer: {
+    position: 'relative',
+    margin: 16,
+    borderRadius: 8,
+    overflow: 'hidden'
+  },
+  selectedImage: {
+    width: '100%',
+    height: 200,
+    resizeMode: 'cover'
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  removeImageText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold'
+  }
 });
 export default NuevaPublicacionScreen;

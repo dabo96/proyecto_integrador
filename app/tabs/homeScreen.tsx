@@ -1,5 +1,6 @@
 import IconButton from '@/components/IconButton';
 import ImageButton from '@/components/ImageButton';
+import PostCard from '@/components/cards/PostCard';
 import { EvilIcons, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -7,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '@/services/firebase';
-import { collection, getDocs, query, where, orderBy, limit, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, addDoc, doc, getDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 
 interface Post {
     id: string;
@@ -24,6 +25,26 @@ interface Post {
     comentarios: number;
 }
 
+interface Comentario {
+    id: string;
+    usuarioID: string;
+    comentario: string;
+    fecha: any;
+    autor: {
+        nombres: string;
+        apellidos: string;
+        fotoPerfil?: string;
+    };
+}
+
+interface Usuario {
+    id: string;
+    nombres: string;
+    apellidos: string;
+    fotoPerfil?: string;
+    usuarioID: string;
+}
+
 export default function MainPageScreen() {
     const router = useRouter();
     
@@ -35,6 +56,13 @@ export default function MainPageScreen() {
     const [error, setError] = useState<string>('');
     const [showCommentInput, setShowCommentInput] = useState<string | null>(null);
     const [commentText, setCommentText] = useState('');
+    const [seguidoIDs, setSeguidoIDs] = useState<string[]>([]);
+    const [comentarios, setComentarios] = useState<{ [postId: string]: Comentario[] }>({});
+    const [loadingComments, setLoadingComments] = useState<string | null>(null);
+    const [likedPosts, setLikedPosts] = useState<{ [postId: string]: boolean }>({});
+    const [searchText, setSearchText] = useState<string>('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
 
     // Función para formatear fecha relativa
     const formatRelativeTime = (timestamp: any) => {
@@ -49,6 +77,71 @@ export default function MainPageScreen() {
         if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
         if (diffInSeconds < 2592000) return `Hace ${Math.floor(diffInSeconds / 86400)} días`;
         return postDate.toLocaleDateString();
+    };
+
+    // Función para buscar usuarios
+    const buscarUsuarios = async (texto: string) => {
+        if (!texto.trim()) {
+            setSearchResults([]);
+            setShowSearchResults(false);
+            return;
+        }
+
+        try {
+            console.log('Buscando usuarios con texto:', texto);
+            const usuariosRef = collection(db, 'Usuarios');
+            const usuariosSnapshot = await getDocs(usuariosRef);
+            const resultados: Usuario[] = [];
+
+            console.log('Total de documentos en Usuarios:', usuariosSnapshot.size);
+
+            usuariosSnapshot.forEach((doc) => {
+                const data = doc.data();
+                console.log('Documento encontrado - TODOS los campos:', {
+                    id: doc.id,
+                    allData: data,
+                    keys: Object.keys(data)
+                });
+                
+                // Usar el campo "nombre" que contiene el nombre completo
+                const nombreCompleto = String(data.nombre || '').trim().toLowerCase();
+                const textoBusqueda = texto.trim().toLowerCase();
+                
+                console.log('Comparando:', {
+                    nombreCompleto,
+                    textoBusqueda
+                });
+
+                // Buscar si el texto está en el nombre completo
+                const coincideNombre = nombreCompleto.includes(textoBusqueda);
+                
+                console.log('Coincidencia:', { coincideNombre });
+                
+                if (coincideNombre) {
+                    console.log('✓ Coincidencia encontrada:', data.nombre);
+                    
+                    // Dividir el nombre completo para separar nombres y apellidos
+                    const partesNombre = (data.nombre || '').split(' ');
+                    const nombres = partesNombre[0] || '';
+                    const apellidos = partesNombre.slice(1).join(' ') || '';
+                    
+                    resultados.push({
+                        id: doc.id,
+                        usuarioID: doc.id,
+                        nombres: nombres,
+                        apellidos: apellidos,
+                        fotoPerfil: data.fotoPerfil
+                    });
+                }
+            });
+
+            console.log('Resultados encontrados:', resultados.length);
+            console.log('Resultados:', resultados);
+            setSearchResults(resultados);
+            setShowSearchResults(resultados.length > 0);
+        } catch (error) {
+            console.error('Error buscando usuarios:', error);
+        }
     };
 
     // Función para obtener contactos del usuario
@@ -72,94 +165,260 @@ export default function MainPageScreen() {
         }
     };
 
-    // Función para obtener publicaciones
-    const getPublicaciones = async (usuarioID: string, seguidoIDs: string[]) => {
+    // Función para procesar una publicación y obtener datos del autor
+    const procesarPublicacion = async (docSnapshot: any): Promise<Post | null> => {
         try {
-            const publicacionesRef = collection(db, 'publicaciones');
-            const allUserIDs = [usuarioID, ...seguidoIDs];
-            const publicaciones: Post[] = [];
+            const data = docSnapshot.data();
+            console.log('Procesando publicación:', data);
+            const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
+            const usuarioDoc = await getDoc(usuarioRef);
             
-            // Hacer consultas separadas para evitar problemas de índices
-            // Primero obtener publicaciones del usuario actual
-            const qUsuario = query(
-                publicacionesRef,
-                where('usuarioID', '==', usuarioID),
-                where('estado', '==', 'activo')
-            );
-            
-            const snapshotUsuario = await getDocs(qUsuario);
-            
-            for (const docSnapshot of snapshotUsuario.docs) {
-                const data = docSnapshot.data();
-                const usuarioRef = doc(db, 'usuarios', data.usuarioID);
-                const usuarioDoc = await getDoc(usuarioRef);
+            if (usuarioDoc.exists()) {
+                const usuarioData = usuarioDoc.data() as any;
+                console.log('Datos del usuario encontrados:', usuarioData);
                 
-                if (usuarioDoc.exists()) {
-                    const usuarioData = usuarioDoc.data() as any;
-                    publicaciones.push({
-                        id: docSnapshot.id,
-                        usuarioID: data.usuarioID,
-                        contenido: data.contenido,
-                        fechaCreacion: data.fechaCreacion,
-                        imagen: data.imagen,
-                        autor: {
-                            nombres: usuarioData.nombres || '',
-                            apellidos: usuarioData.apellidos || '',
-                            fotoPerfil: usuarioData.fotoPerfil
-                        },
-                        likes: 0, // TODO: Implementar conteo de likes
-                        comentarios: 0 // TODO: Implementar conteo de comentarios
-                    });
-                }
-            }
-            
-            // Luego obtener publicaciones de los usuarios seguidos
-            for (const seguidoID of seguidoIDs) {
-                const qSeguido = query(
-                    publicacionesRef,
-                    where('usuarioID', '==', seguidoID),
-                    where('estado', '==', 'activo')
+                // Contar likes reales desde la colección interacciones
+                const likesQuery = query(
+                    collection(db, 'interacciones'),
+                    where('publicacionID', '==', docSnapshot.id),
+                    where('tipo', '==', 'like')
                 );
+                const likesSnapshot = await getDocs(likesQuery);
+                const likesCount = likesSnapshot.size;
                 
-                const snapshotSeguido = await getDocs(qSeguido);
+                // Contar comentarios reales desde la colección interacciones
+                const comentariosQuery = query(
+                    collection(db, 'interacciones'),
+                    where('publicacionID', '==', docSnapshot.id),
+                    where('tipo', '==', 'comentario')
+                );
+                const comentariosSnapshot = await getDocs(comentariosQuery);
+                const comentariosCount = comentariosSnapshot.size;
                 
-                for (const docSnapshot of snapshotSeguido.docs) {
-                    const data = docSnapshot.data();
-                    const usuarioRef = doc(db, 'usuarios', data.usuarioID);
-                    const usuarioDoc = await getDoc(usuarioRef);
-                    
-                    if (usuarioDoc.exists()) {
-                        const usuarioData = usuarioDoc.data() as any;
-                        publicaciones.push({
-                            id: docSnapshot.id,
-                            usuarioID: data.usuarioID,
-                            contenido: data.contenido,
-                            fechaCreacion: data.fechaCreacion,
-                            imagen: data.imagen,
-                            autor: {
-                                nombres: usuarioData.nombres || '',
-                                apellidos: usuarioData.apellidos || '',
-                                fotoPerfil: usuarioData.fotoPerfil
-                            },
-                            likes: 0, // TODO: Implementar conteo de likes
-                            comentarios: 0 // TODO: Implementar conteo de comentarios
-                        });
+                const publicacion = {
+                    id: docSnapshot.id,
+                    usuarioID: data.usuarioID,
+                    contenido: data.contenido,
+                    fechaCreacion: data.fechaCreacion,
+                    imagen: data.imagen,
+                    autor: {
+                        nombres: usuarioData.nombres || '',
+                        apellidos: usuarioData.apellidos || '',
+                        fotoPerfil: usuarioData.fotoPerfil
+                    },
+                    likes: likesCount,
+                    comentarios: comentariosCount
+                };
+                console.log('Publicación procesada exitosamente:', publicacion);
+                
+                // Verificar si el usuario actual le dio like a esta publicación
+                if (usuarioID) {
+                    const userLikeQuery = query(
+                        collection(db, 'interacciones'),
+                        where('usuarioID', '==', usuarioID),
+                        where('publicacionID', '==', docSnapshot.id),
+                        where('tipo', '==', 'like')
+                    );
+                    const userLikeSnapshot = await getDocs(userLikeQuery);
+                    if (!userLikeSnapshot.empty) {
+                        setLikedPosts(prev => ({ ...prev, [docSnapshot.id]: true }));
                     }
                 }
+                
+                return publicacion;
+            } else {
+                console.log('Usuario no encontrado en la base de datos');
+                return null;
             }
-            
+        } catch (error) {
+            console.error('Error procesando publicación:', error);
+            return null;
+        }
+    };
+
+    // Función para configurar listener en tiempo real de publicaciones
+    const configurarListenerPublicaciones = (usuarioID: string, seguidoIDs: string[]) => {
+        if (!usuarioID) return () => {};
+
+        const allUserIDs = [usuarioID, ...seguidoIDs];
+        console.log('Configurando listener para usuarios:', allUserIDs);
+        const publicacionesRef = collection(db, 'publicaciones');
+        const publicaciones: Post[] = [];
+        let processedCount = 0;
+        const totalQueries = allUserIDs.length;
+
+        // Función para procesar todas las publicaciones cuando se complete la carga
+        const procesarTodasPublicaciones = async () => {
+            if (processedCount < totalQueries) return;
+
             // Ordenar por fecha de creación (más recientes primero)
             publicaciones.sort((a, b) => {
                 const fechaA = a.fechaCreacion?.toDate ? a.fechaCreacion.toDate() : new Date(a.fechaCreacion);
                 const fechaB = b.fechaCreacion?.toDate ? b.fechaCreacion.toDate() : new Date(b.fechaCreacion);
                 return fechaB.getTime() - fechaA.getTime();
             });
-            
+
             // Limitar a 20 publicaciones
-            return publicaciones.slice(0, 20);
+            console.log('Total de publicaciones procesadas:', publicaciones.length);
+            console.log('Publicaciones finales:', publicaciones);
+            setPosts(publicaciones.slice(0, 20));
+            setLoading(false);
+        };
+
+        // Configurar listeners para cada usuario
+        const unsubscribes: (() => void)[] = [];
+
+        allUserIDs.forEach((userID) => {
+            const q = query(
+                publicacionesRef,
+                where('usuarioID', '==', userID),
+                where('estado', '==', 'activo')
+            );
+
+            const unsubscribe = onSnapshot(q, async (snapshot) => {
+                console.log(`Listener para usuario ${userID}: ${snapshot.docs.length} documentos encontrados`);
+                const nuevasPublicaciones: Post[] = [];
+                
+                for (const docSnapshot of snapshot.docs) {
+                    const publicacion = await procesarPublicacion(docSnapshot);
+                    if (publicacion) {
+                        nuevasPublicaciones.push(publicacion);
+                        console.log('Publicación procesada:', publicacion.id);
+                    }
+                }
+
+                // Actualizar publicaciones del usuario específico
+                const publicacionesActualizadas = publicaciones.filter(p => p.usuarioID !== userID);
+                publicacionesActualizadas.push(...nuevasPublicaciones);
+                publicaciones.length = 0;
+                publicaciones.push(...publicacionesActualizadas);
+
+                processedCount++;
+                await procesarTodasPublicaciones();
+            }, (error) => {
+                console.error('Error en listener de publicaciones:', error);
+                setError('Error al cargar las publicaciones');
+                setLoading(false);
+            });
+
+            unsubscribes.push(unsubscribe);
+        });
+
+        // Retornar función de cleanup
+        return () => {
+            unsubscribes.forEach(unsubscribe => unsubscribe());
+        };
+    };
+
+    // Función para cargar comentarios de una publicación
+    const cargarComentarios = async (postId: string) => {
+        setLoadingComments(postId);
+        try {
+            // Eliminamos orderBy para evitar el error del índice de Firestore
+            const comentariosQuery = query(
+                collection(db, 'interacciones'),
+                where('publicacionID', '==', postId),
+                where('tipo', '==', 'comentario')
+            );
+            const comentariosSnapshot = await getDocs(comentariosQuery);
+            
+            const comentariosList: Comentario[] = [];
+            
+            for (const docSnapshot of comentariosSnapshot.docs) {
+                const data = docSnapshot.data();
+                
+                // Obtener datos del usuario que hizo el comentario
+                const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
+                const usuarioDoc = await getDoc(usuarioRef);
+                
+                if (usuarioDoc.exists()) {
+                    const usuarioData = usuarioDoc.data() as any;
+                    comentariosList.push({
+                        id: docSnapshot.id,
+                        usuarioID: data.usuarioID,
+                        comentario: data.comentario,
+                        fecha: data.fecha,
+                        autor: {
+                            nombres: usuarioData.nombres || '',
+                            apellidos: usuarioData.apellidos || '',
+                            fotoPerfil: usuarioData.fotoPerfil
+                        }
+                    });
+                }
+            }
+            
+            // Ordenar por fecha en memoria (más recientes primero)
+            comentariosList.sort((a, b) => {
+                const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(a.fecha);
+                const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(b.fecha);
+                return fechaB.getTime() - fechaA.getTime();
+            });
+            
+            setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
         } catch (error) {
-            console.error('Error obteniendo publicaciones:', error);
-            throw error;
+            console.error('Error cargando comentarios:', error);
+        } finally {
+            setLoadingComments(null);
+        }
+    };
+
+    // Función para verificar si el usuario dio like a una publicación
+    const verificarLikeUsuario = async (postId: string) => {
+        if (!usuarioID) return false;
+        
+        try {
+            const likeQuery = query(
+                collection(db, 'interacciones'),
+                where('usuarioID', '==', usuarioID),
+                where('publicacionID', '==', postId),
+                where('tipo', '==', 'like')
+            );
+            const likeSnapshot = await getDocs(likeQuery);
+            return !likeSnapshot.empty;
+        } catch (error) {
+            console.error('Error verificando like:', error);
+            return false;
+        }
+    };
+
+    // Función para actualizar los conteos de una publicación
+    const actualizarConteosPublicacion = async (postId: string) => {
+        try {
+            console.log('Actualizando conteos para publicación:', postId);
+            
+            // Contar likes
+            const likesQuery = query(
+                collection(db, 'interacciones'),
+                where('publicacionID', '==', postId),
+                where('tipo', '==', 'like')
+            );
+            const likesSnapshot = await getDocs(likesQuery);
+            const likesCount = likesSnapshot.size;
+            console.log('Total de likes encontrados:', likesCount);
+            
+            // Contar comentarios
+            const comentariosQuery = query(
+                collection(db, 'interacciones'),
+                where('publicacionID', '==', postId),
+                where('tipo', '==', 'comentario')
+            );
+            const comentariosSnapshot = await getDocs(comentariosQuery);
+            const comentariosCount = comentariosSnapshot.size;
+            console.log('Total de comentarios encontrados:', comentariosCount);
+            
+            // Actualizar el estado de la publicación específica
+            setPosts(prevPosts => {
+                const updatedPosts = prevPosts.map(post => 
+                    post.id === postId 
+                        ? { ...post, likes: likesCount, comentarios: comentariosCount }
+                        : post
+                );
+                console.log('Publicaciones actualizadas');
+                return updatedPosts;
+            });
+        } catch (error) {
+            console.error('Error actualizando conteos:', error);
+            console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
 
@@ -177,6 +436,7 @@ export default function MainPageScreen() {
             
             if (!storedUsuarioID) {
                 setError('No se encontró información del usuario');
+                setLoading(false);
                 return;
             }
             
@@ -185,15 +445,11 @@ export default function MainPageScreen() {
             
             // Obtener contactos
             const seguidoIDs = await getContactos(storedUsuarioID);
-            
-            // Obtener publicaciones
-            const publicaciones = await getPublicaciones(storedUsuarioID, seguidoIDs);
-            setPosts(publicaciones);
+            setSeguidoIDs(seguidoIDs);
             
         } catch (error) {
             console.error('Error cargando feed:', error);
             setError('Error al cargar las publicaciones');
-        } finally {
             setLoading(false);
         }
     };
@@ -203,46 +459,155 @@ export default function MainPageScreen() {
         loadFeedData();
     }, []);
 
+    // Configurar listener en tiempo real cuando cambien los seguidos
+    useEffect(() => {
+        if (!usuarioID) return;
+
+        const unsubscribe = configurarListenerPublicaciones(usuarioID, seguidoIDs);
+        
+        return () => {
+            unsubscribe();
+        };
+    }, [usuarioID, seguidoIDs]);
+
     const handleComment = async (postId: string) => {
         if (showCommentInput === postId) {
+            // Si ya está abierto, cerrarlo
+            if (!commentText.trim()) {
+                setShowCommentInput(null);
+                return;
+            }
+            
             // Enviar comentario
-            if (commentText.trim()) {
-                try {
-                    await addDoc(collection(db, 'interacciones'), {
-                        usuarioID: usuarioID,
-                        publicacionID: postId,
-                        tipo: 'comentario',
-                        comentario: commentText.trim(),
-                        fecha: new Date()
-                    });
-                    
-                    setCommentText('');
-                    setShowCommentInput(null);
-                    // Recargar feed para actualizar contadores
-                    loadFeedData();
-                } catch (error) {
-                    console.error('Error enviando comentario:', error);
-                }
+            if (!usuarioID) {
+                console.error('No hay usuarioID disponible');
+                return;
+            }
+            
+            try {
+                console.log('Guardando comentario:', {
+                    usuarioID,
+                    publicacionID: postId,
+                    comentario: commentText.trim()
+                });
+                
+                const docRef = await addDoc(collection(db, 'interacciones'), {
+                    usuarioID: usuarioID,
+                    publicacionID: postId,
+                    tipo: 'comentario',
+                    comentario: commentText.trim(),
+                    fecha: new Date()
+                });
+                
+                console.log('Comentario agregado exitosamente con ID:', docRef.id);
+                setCommentText('');
+                setShowCommentInput(null);
+                
+                // Actualizar los conteos de la publicación
+                await actualizarConteosPublicacion(postId);
+                
+                // Recargar los comentarios
+                await cargarComentarios(postId);
+            } catch (error) {
+                console.error('Error enviando comentario:', error);
+                console.error('Detalles del error:', JSON.stringify(error, null, 2));
             }
         } else {
-            // Mostrar input de comentario
+            // Mostrar input de comentario y cargar comentarios existentes
             setShowCommentInput(postId);
+            await cargarComentarios(postId);
+        }
+    };
+
+    const handleSendComment = async (postId: string) => {
+        if (!commentText.trim()) return;
+        
+        if (!usuarioID) {
+            console.error('No hay usuarioID disponible');
+            return;
+        }
+        
+        try {
+            console.log('Guardando comentario:', {
+                usuarioID,
+                publicacionID: postId,
+                comentario: commentText.trim()
+            });
+            
+            const docRef = await addDoc(collection(db, 'interacciones'), {
+                usuarioID: usuarioID,
+                publicacionID: postId,
+                tipo: 'comentario',
+                comentario: commentText.trim(),
+                fecha: new Date()
+            });
+            
+            console.log('Comentario agregado exitosamente con ID:', docRef.id);
+            setCommentText('');
+            
+            // Actualizar los conteos de la publicación
+            await actualizarConteosPublicacion(postId);
+            
+            // Recargar los comentarios
+            await cargarComentarios(postId);
+        } catch (error) {
+            console.error('Error enviando comentario:', error);
+            console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
 
     const handleLike = async (postId: string) => {
+        if (!usuarioID) {
+            console.error('No hay usuarioID disponible');
+            return;
+        }
+        
         try {
-            await addDoc(collection(db, 'interacciones'), {
-                usuarioID: usuarioID,
-                publicacionID: postId,
-                tipo: 'like',
-                fecha: new Date()
-            });
+            console.log('Verificando like:', { usuarioID, publicacionID: postId });
             
-            // Recargar feed para actualizar contadores
-            loadFeedData();
+            // Verificar si el usuario ya dio like a esta publicación
+            const likeQuery = query(
+                collection(db, 'interacciones'),
+                where('usuarioID', '==', usuarioID),
+                where('publicacionID', '==', postId),
+                where('tipo', '==', 'like')
+            );
+            const likeSnapshot = await getDocs(likeQuery);
+            
+            console.log('Likes existentes:', likeSnapshot.size);
+            
+            if (likeSnapshot.empty) {
+                // El usuario no ha dado like, agregar
+                console.log('Agregando nuevo like');
+                const docRef = await addDoc(collection(db, 'interacciones'), {
+                    usuarioID: usuarioID,
+                    publicacionID: postId,
+                    tipo: 'like',
+                    fecha: new Date()
+                });
+                console.log('Like agregado exitosamente con ID:', docRef.id);
+                
+                // Actualizar el estado para indicar que le dio like
+                setLikedPosts(prev => ({ ...prev, [postId]: true }));
+                
+                // Actualizar los conteos de la publicación
+                await actualizarConteosPublicacion(postId);
+            } else {
+                // El usuario ya dio like, eliminarlo
+                console.log('Eliminando like existente');
+                const likeDoc = likeSnapshot.docs[0];
+                await deleteDoc(likeDoc.ref);
+                console.log('Like eliminado exitosamente');
+                
+                // Actualizar el estado para indicar que retiró el like
+                setLikedPosts(prev => ({ ...prev, [postId]: false }));
+                
+                // Actualizar los conteos de la publicación
+                await actualizarConteosPublicacion(postId);
+            }
         } catch (error) {
             console.error('Error dando like:', error);
+            console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
 
@@ -286,15 +651,68 @@ export default function MainPageScreen() {
 
                 <View>
                     <View style={styles.inputContainer}>
-                        <Ionicons name="person" size={20} color="gray" style={styles.icon} />
+                        <Ionicons name="search" size={20} color="gray" style={styles.icon} />
                         <TextInput
                             style={styles.input}
-                            placeholder="Buscar"
+                            placeholder="Buscar usuarios..."
                             placeholderTextColor="gray"
+                            value={searchText}
+                            onChangeText={(text) => {
+                                setSearchText(text);
+                                buscarUsuarios(text);
+                            }}
                         />
+                        {searchText.length > 0 && (
+                            <TouchableOpacity onPress={() => {
+                                setSearchText('');
+                                setSearchResults([]);
+                                setShowSearchResults(false);
+                            }}>
+                                <Ionicons name="close-circle" size={20} color="gray" />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             </LinearGradient>
+
+            {/* Resultados de búsqueda */}
+            {showSearchResults && (
+                <View style={styles.searchResultsContainer}>
+                    <ScrollView style={styles.searchResultsList} nestedScrollEnabled>
+                        {searchResults.map((usuario) => (
+                            <TouchableOpacity 
+                                key={usuario.id} 
+                                style={styles.searchResultItem}
+                                onPress={() => {
+                                    setSearchText('');
+                                    setShowSearchResults(false);
+                                    router.push({
+                                        pathname: './otherProfile',
+                                        params: { id: usuario.id }
+                                    });
+                                }}
+                            >
+                                <ImageButton
+                                    source={usuario.fotoPerfil ? 
+                                        { uri: usuario.fotoPerfil } : 
+                                        require("@/assets/images/react-logo.png")
+                                    }
+                                    onPress={() => {}}
+                                    size={45}
+                                    style={styles.searchResultImage}
+                                    borderWidth={2}
+                                    borderColor="#ddd"
+                                />
+                                <View style={styles.searchResultInfo}>
+                                    <Text style={styles.searchResultName}>
+                                        {usuario.nombres} {usuario.apellidos}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
 
             <ScrollView style={styles.whiteContainer}>
                 {loading ? (
@@ -316,89 +734,27 @@ export default function MainPageScreen() {
                     </View>
                 ) : (
                     posts.map((post) => (
-                        <View key={post.id} style={styles.postCard}>
-                            <View style={styles.postHeader}>
-                                <View style={styles.postUserInfo}>
-                                    <ImageButton
-                                        source={post.autor.fotoPerfil ? 
-                                            { uri: post.autor.fotoPerfil } : 
-                                            require("@/assets/images/react-logo.png")
-                                        }
-                                        onPress={() => { router.push("./otherProfile") }}
-                                        size={45}
-                                        style={styles.postUserImage}
-                                        borderWidth={4}
-                                        borderColor="white"
-                                    />
-                                    <View>
-                                        <Text style={styles.postUserName}>
-                                            {post.autor.nombres} {post.autor.apellidos}
-                                        </Text>
-                                        <Text style={styles.postTimestamp}>
-                                            {formatRelativeTime(post.fechaCreacion)}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity>
-                                    <MaterialIcons name="more-horiz" size={24} color="#666" />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.postContent}>
-                                <Text style={styles.postDescription}>{post.contenido}</Text>
-                            </View>
-
-                            {post.imagen && (
-                                <Image source={{ uri: post.imagen }} style={styles.postImage} />
-                            )}
-
-                            <View style={styles.postActions}>
-                                <TouchableOpacity
-                                    style={styles.actionButton}
-                                    onPress={() => handleLike(post.id)}
-                                >
-                                    <Feather name="heart" size={18} color="#666" />
-                                    <Text style={styles.actionText}>{post.likes}</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.actionButton}
-                                    onPress={() => handleComment(post.id)}
-                                >
-                                    <EvilIcons name="comment" size={25} color="#666" />
-                                    <Text style={styles.actionText}>{post.comentarios}</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Input de comentario */}
-                            {showCommentInput === post.id && (
-                                <View style={styles.commentInputContainer}>
-                                    <TextInput
-                                        style={styles.commentInput}
-                                        placeholder="Escribe un comentario..."
-                                        value={commentText}
-                                        onChangeText={setCommentText}
-                                        multiline
-                                    />
-                                    <View style={styles.commentButtons}>
-                                        <TouchableOpacity
-                                            style={styles.commentButton}
-                                            onPress={() => setShowCommentInput(null)}
-                                        >
-                                            <Text style={styles.commentButtonText}>Cancelar</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[styles.commentButton, styles.commentButtonPrimary]}
-                                            onPress={() => handleComment(post.id)}
-                                        >
-                                            <Text style={[styles.commentButtonText, styles.commentButtonTextPrimary]}>
-                                                Comentar
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            )}
-                        </View>
+                        <PostCard
+                            key={post.id}
+                            post={post}
+                            liked={likedPosts[post.id] || false}
+                            onLike={handleLike}
+                            onComment={handleComment}
+                            formatTime={formatRelativeTime}
+                            comentarios={comentarios[post.id]}
+                            loadingComments={loadingComments === post.id}
+                            showCommentInput={showCommentInput === post.id}
+                            commentText={commentText}
+                            onCommentTextChange={setCommentText}
+                            onSendComment={handleSendComment}
+                            onCloseComment={() => {
+                                setShowCommentInput(null);
+                                setCommentText('');
+                                const newComentarios = { ...comentarios };
+                                delete newComentarios[post.id];
+                                setComentarios(newComentarios);
+                            }}
+                        />
                     ))
                 )}
             </ScrollView>
@@ -529,6 +885,9 @@ const styles = StyleSheet.create({
         color: '#666',
         fontWeight: '500',
     },
+    actionTextLiked: {
+        color: '#ff4444',
+    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -625,5 +984,97 @@ const styles = StyleSheet.create({
     },
     commentButtonTextPrimary: {
         color: 'white',
+    },
+    commentsListContainer: {
+        maxHeight: 300,
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
+        paddingVertical: 10,
+    },
+    commentsLoadingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 20,
+        gap: 10,
+    },
+    commentsLoadingText: {
+        fontSize: 14,
+        color: '#666',
+        fontFamily: 'Montserrat_400Regular',
+    },
+    commentItem: {
+        flexDirection: 'row',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f5f5f5',
+    },
+    commentUserImage: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+    },
+    commentContent: {
+        flex: 1,
+        marginLeft: 10,
+    },
+    commentAuthor: {
+        fontWeight: '600',
+        fontSize: 13,
+        color: '#333',
+        marginBottom: 2,
+    },
+    commentText: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 4,
+        lineHeight: 18,
+    },
+    commentTime: {
+        fontSize: 11,
+        color: '#999',
+    },
+    noCommentsText: {
+        textAlign: 'center',
+        paddingVertical: 20,
+        fontSize: 14,
+        color: '#999',
+        fontFamily: 'Montserrat_400Regular',
+    },
+    searchResultsContainer: {
+        backgroundColor: 'white',
+        maxHeight: 300,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    searchResultsList: {
+        maxHeight: 300,
+    },
+    searchResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f5f5f5',
+    },
+    searchResultImage: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+    },
+    searchResultInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    searchResultName: {
+        fontSize: 14,
+        color: '#333',
+        fontWeight: '500',
     },
 });
