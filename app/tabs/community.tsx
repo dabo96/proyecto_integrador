@@ -1,16 +1,22 @@
 import ModButton from "@/components/ModButton";
 import CommunityCard from "@/components/cards/CommunityCard";
 import CommunityPostCard from "@/components/cards/CommunityPostCard";
+import { db } from '@/services/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { collection, getDocs } from 'firebase/firestore';
 import React, { JSX, useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface Comunidad {
   id: string;
   nombre: string;
-  posts: number;
+  descripcion: string;
   imagen: string;
+  creadorID: string;
+  fechaCreacion: any;
+  miembros: string[];
 }
 
 interface Publicacion {
@@ -21,13 +27,13 @@ interface Publicacion {
   imagen?: string;
 }
 
-
-// Estados para las comunidades y publicaciones del usuario
-// Inicialmente vacíos hasta que se carguen los datos reales
 export default function ComunidadScreen(): JSX.Element {
-  // Estados para las comunidades y publicaciones del usuario
   const [comunidades, setComunidades] = useState<Comunidad[]>([]);
+  const [todasComunidades, setTodasComunidades] = useState<Comunidad[]>([]);
   const [publicaciones, setPublicaciones] = useState<Publicacion[]>([]);
+  const [usuarioID, setUsuarioID] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   // Función para obtener imagen de comunidad
   const obtenerImagenComunidad = (nombreComunidad: string): string => {
@@ -35,18 +41,96 @@ export default function ComunidadScreen(): JSX.Element {
     return comunidad?.imagen || "https://picsum.photos/40/40";
   };
 
-  // TODO: Implementar carga de datos reales del usuario
+  // Función para cargar las comunidades del usuario
+  const cargarComunidades = async () => {
+    try {
+      setLoading(true);
+      
+      // Obtener usuarioID del usuario actual
+      const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+      if (!storedUsuarioID) {
+        setLoading(false);
+        return;
+      }
+      
+      setUsuarioID(storedUsuarioID);
+      
+      // Buscar todas las comunidades donde el usuario es miembro
+      const comunidadesRef = collection(db, 'comunidades');
+      const comunidadesSnapshot = await getDocs(comunidadesRef);
+      
+      const comunidadesArray: Comunidad[] = [];
+      const todasComunidadesArray: Comunidad[] = [];
+      
+      comunidadesSnapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        
+        // Verificar si el usuario es miembro de esta comunidad
+        const miembros = data.miembros || [];
+        const creadorID = data.creadorID || '';
+        
+        // Agregar a todas las comunidades
+        todasComunidadesArray.push({
+          id: docSnapshot.id,
+          nombre: data.nombre,
+          descripcion: data.descripcion,
+          imagen: data.imagenUrl || 'https://picsum.photos/40/40',
+          creadorID: data.creadorID,
+          fechaCreacion: data.fechaCreacion,
+          miembros: data.miembros || []
+        });
+        
+        // Solo agregar a "comunidades" si el usuario es miembro
+        if (miembros.includes(storedUsuarioID)) {
+          comunidadesArray.push({
+            id: docSnapshot.id,
+            nombre: data.nombre,
+            descripcion: data.descripcion,
+            imagen: data.imagenUrl || 'https://picsum.photos/40/40',
+            creadorID: data.creadorID,
+            fechaCreacion: data.fechaCreacion,
+            miembros: data.miembros || []
+          });
+        }
+      });
+      
+      // Filtrar todas las comunidades para excluir las que el usuario creó
+      const comunidadesDisponibles = todasComunidadesArray.filter(
+        comunidad => comunidad.creadorID !== storedUsuarioID && !comunidadesArray.find(c => c.id === comunidad.id)
+      );
+      
+      console.log('Comunidades cargadas (del usuario):', comunidadesArray);
+      console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
+      
+      setComunidades(comunidadesArray);
+      setTodasComunidades(comunidadesDisponibles);
+      
+    } catch (error) {
+      console.error('Error cargando comunidades:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Aquí se cargarían las comunidades y publicaciones reales del usuario
-    // Por ahora se mantienen vacíos
+    cargarComunidades();
   }, []);
   
-  const renderCommunityItem = ({ item }: { item: Comunidad }) => (
-    <CommunityCard
-      comunidad={item}
-      onPress={() => console.log('Navegar a comunidad:', item.nombre)}
-    />
-  );
+  const renderCommunityItem = ({ item }: { item: Comunidad }) => {
+    const communityData = {
+      id: item.id,
+      nombre: item.nombre,
+      posts: 0, // Por ahora sin posts
+      imagen: item.imagen
+    };
+    
+    return (
+      <CommunityCard
+        comunidad={communityData}
+        onPress={() => console.log('Navegar a comunidad:', item.nombre)}
+      />
+    );
+  };
 
   const renderPostItem = ({ item }: { item: Publicacion }) => (
     <CommunityPostCard
@@ -59,56 +143,93 @@ export default function ComunidadScreen(): JSX.Element {
   );
 
   
-  const renderContent = () => [
-    
-    <View key="header" style={styles.header}>
-      <Text style={styles.title}>Comunidad</Text>
-      <View style={styles.verTodoContainer}>
-        <LinearGradient
-          colors={['#2F4AA6', '#0491C6']}
-          style={styles.verTodoButton}
-        >
-          <ModButton 
-            title="Ver todo" 
-            onPress={() => { }} 
-            backgroundColor="transparent" 
-            style={styles.verTodoButtonInner}
-            textStyle={styles.verTodoText}
-          />
-        </LinearGradient>
-        <LinearGradient
-          colors={['#2F4AA6', '#0491C6']}
-          style={styles.addButton}
-        >
-          <TouchableOpacity 
-            style={styles.addButtonInner}
-            onPress={() => console.log('Agregar nueva comunidad')}
-          >
-            <Text style={styles.addButtonText}>+</Text>
-          </TouchableOpacity>
-        </LinearGradient>
-      </View>
-    </View>,
-    
-    <View key="community-section" style={styles.section}>
-      <Text style={styles.sectionTitle}>Tu Comunidad</Text>
-      {comunidades.length > 0 ? (
-        comunidades.map((item) => (
-          <CommunityCard
-            key={item.id}
-            comunidad={item}
-            onPress={() => console.log('Navegar a comunidad:', item.nombre)}
-          />
-        ))
-      ) : (
-        <Text style={styles.emptyMessage}>No hay comunidades para mostrar</Text>
-      )}
-    </View>,
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <View key="loading" style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2F4AA6" />
+          <Text style={styles.loadingText}>Cargando comunidades...</Text>
+        </View>
+      );
+    }
 
-    <View key="posts-section" style={styles.section}>
-      <Text style={styles.sectionTitle}>De tu comunidad</Text>
-    </View>,
-  ];
+    return [
+      <View key="header" style={styles.header}>
+        <Text style={styles.title}>Comunidad</Text>
+        <View style={styles.verTodoContainer}>
+          <LinearGradient
+            colors={['#2F4AA6', '#0491C6']}
+            style={styles.verTodoButton}
+          >
+            <ModButton 
+              title="Ver todo" 
+              onPress={() => { }} 
+              backgroundColor="transparent" 
+              style={styles.verTodoButtonInner}
+              textStyle={styles.verTodoText}
+            />
+          </LinearGradient>
+          <LinearGradient
+            colors={['#2F4AA6', '#0491C6']}
+            style={styles.addButton}
+          >
+            <TouchableOpacity 
+              style={styles.addButtonInner}
+              onPress={() => router.push('/tabs/newCommunity')}
+            >
+              <Text style={styles.addButtonText}>+</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      </View>,
+      
+      <View key="community-section" style={styles.section}>
+        <Text style={styles.sectionTitle}>Tu Comunidad</Text>
+        {comunidades.length > 0 ? (
+          comunidades.map((item) => {
+            const communityData = {
+              id: item.id,
+              nombre: item.nombre,
+              posts: 0,
+              imagen: item.imagen
+            };
+            return (
+              <CommunityCard
+                key={item.id}
+                comunidad={communityData}
+                onPress={() => console.log('Navegar a comunidad:', item.nombre)}
+              />
+            );
+          })
+        ) : (
+          <Text style={styles.emptyMessage}>No hay comunidades para mostrar</Text>
+        )}
+      </View>,
+
+      <View key="posts-section" style={styles.section}>
+        <Text style={styles.sectionTitle}>Comunidades</Text>
+        {todasComunidades.length > 0 ? (
+          todasComunidades.map((item) => {
+            const communityData = {
+              id: item.id,
+              nombre: item.nombre,
+              posts: 0,
+              imagen: item.imagen
+            };
+            return (
+              <CommunityCard
+                key={item.id}
+                comunidad={communityData}
+                onPress={() => console.log('Ver comunidad:', item.nombre)}
+              />
+            );
+          })
+        ) : (
+          <Text style={styles.emptyMessage}>No hay más comunidades disponibles</Text>
+        )}
+      </View>,
+    ];
+  };
 
   return (
     <View style={styles.container}>
@@ -218,5 +339,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    fontFamily: 'Montserrat_400Regular',
   },
 });

@@ -1,11 +1,11 @@
+import { Feather, FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Link, Tabs } from 'expo-router';
 import React from 'react';
-import { FontAwesome, Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { Tabs, Link } from 'expo-router';
 import { Pressable } from 'react-native';
 
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useColorScheme } from '@/components/useColorScheme';
+import { Colors } from '@/constants/Colors';
 
 export default function Layout() {
   const colorScheme = useColorScheme();
@@ -80,6 +80,13 @@ export default function Layout() {
         options={{
           title: 'Perfil',
           tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color="white" />,
+        }}
+      />
+      <Tabs.Screen
+        name="newCommunity"
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
