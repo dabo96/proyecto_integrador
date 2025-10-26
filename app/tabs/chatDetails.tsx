@@ -1,64 +1,70 @@
-import { AntDesign, FontAwesome, FontAwesome6, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { obtenerUsuarioPorId, Usuario } from '@/api/usuariosService';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  Image,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 
 type Message = {
   id: number;
   text: string;
   time: string;
   isMe: boolean;
-  avatar?: any;
 };
 
 const ChatDetails = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { name, avatar } = params; 
+  const { userId } = params; 
+  
+  // Estados para el usuario y mensajes
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      text: '¡Andrea! 😫 ¡Acabo de ver el horario! Es una broma de mal gusto. Programación Avanzada y Cálculo a la misma hora. 🤯 El universo me odia. 😭',
-      time: '10:30',
-      isMe: false,
-      avatar: avatar ? { uri: avatar } : require('@/assets/images/perfil_1.jpg'),
-    },
-    {
-      id: 2,
-      text: '  ¡Qué horror, Ric! 🫠 Yo quiero Bases de Datos pero choca con Ética. Es como si la universidad te forzara a ser un programador sin moral. 😂',
-      time: '10:31',
-      isMe: true,
-    },
-    {
-      id: 3,
-      text: '¡Total! ¡Y solo quedan secciones a las 7 a.m.! ☀️ Tendré que elegir entre mi cama 😴 y mi futuro como desarrollador. Esto es muy tóxico. 💔',
-      time: '10:32',
-      isMe: false,
-      avatar: avatar ? { uri: avatar } : require('@/assets/images/perfil_1.jpg'),
-    },
-    {
-      id: 4,
-      text: '💪 Anótate en la de las 7 a.m.,',
-      time: '10:33',
-      isMe: true,
-    },
-  ]);
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+
+  // Cargar datos del usuario desde la base de datos
+  useEffect(() => {
+    const cargarUsuario = async () => {
+      if (!userId || typeof userId !== 'string') {
+        setError('ID de usuario no válido');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const usuarioData = await obtenerUsuarioPorId(userId);
+
+        if (usuarioData) {
+          setUsuario(usuarioData);
+        } else {
+          setError('Usuario no encontrado');
+        }
+      } catch (err) {
+        console.error('Error al cargar usuario:', err);
+        setError('Error al cargar datos del usuario');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarUsuario();
+  }, [userId]);
 
   const sendMessage = () => {
     if (newMessage.trim() === '') return;
@@ -69,6 +75,7 @@ const ChatDetails = () => {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: true,
     };
+ 
 
     setMessages([...messages, newMsg]);
     setNewMessage('');
@@ -82,7 +89,11 @@ const ChatDetails = () => {
       ]}>
         
         {!message.isMe && (
-          <Image source={message.avatar} style={styles.messageAvatar} />
+          <View style={styles.messageAvatarContainer}>
+            <Text style={styles.messageAvatarText}>
+              {String(usuario?.nombre || 'U').charAt(0).toUpperCase()}
+            </Text>
+          </View>
         )}
         
         <View style={[
@@ -110,6 +121,41 @@ const ChatDetails = () => {
     );
   };
 
+  // Mostrar pantalla de carga
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar backgroundColor="#1e3c72" barStyle="light-content" />
+        <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.topBar} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0491C6" />
+          <Text style={styles.loadingText}>Cargando datos del usuario...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Mostrar pantalla de error
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <StatusBar backgroundColor="#1e3c72" barStyle="light-content" />
+        <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.topBar} />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color="#F44336" />
+          <Text style={styles.errorTitle}>Error</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>Volver</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#1e3c72" barStyle="light-content" />
@@ -124,13 +170,16 @@ const ChatDetails = () => {
   </TouchableOpacity>
 
   <View style={styles.headerUserInfo}>
-    <Image 
-      source={avatar ? { uri: avatar } : require('@/assets/images/perfil_1.jpg')} 
-      style={styles.headerAvatar} 
-    />
+    <View style={styles.headerAvatarContainer}>
+      <Text style={styles.headerAvatarText}>
+        {String(usuario?.nombre || 'U').charAt(0).toUpperCase()}
+      </Text>
+    </View>
     <View>
-      <Text style={styles.headerNameBlack}>{name || 'Ricardo Marin'}</Text>
-      <Text style={styles.headerStatusBlack}>En línea</Text>
+      <Text style={styles.headerNameBlack}>{usuario?.nombre || 'Usuario'}</Text>
+      <Text style={styles.headerStatusBlack}>
+        {usuario?.carrera && usuario?.codigo ? `${usuario.carrera} - ${usuario.codigo}` : 'En línea'}
+      </Text>
     </View>
   </View>
 
@@ -147,9 +196,21 @@ const ChatDetails = () => {
         keyboardVerticalOffset={90}
       >
         <ScrollView style={styles.messagesContainer}>
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+          {messages.length === 0 ? (
+            <View style={styles.emptyChatContainer}>
+              <Text style={styles.emptyChatTitle}>¡Inicia una conversación!</Text>
+              <Text style={styles.emptyChatSubtitle}>
+                Escribe un mensaje para comenzar a chatear con {usuario?.nombre || 'este usuario'}
+              </Text>
+              <Text style={styles.userInfoText}>
+                {usuario?.carrera && usuario?.codigo ? `${usuario.carrera} - ${usuario.codigo}` : ''}
+              </Text>
+            </View>
+          ) : (
+            messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))
+          )}
         </ScrollView>
 
         {/* Input de mensaje */}
@@ -171,25 +232,6 @@ const ChatDetails = () => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-
-      {/* Bottom nav (igual que en notificaciones) */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/')}>
-          <AntDesign name="home" size={20} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('./contacts')}>
-          <MaterialIcons name="people" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => console.log('Ir a crear')}>
-          <FontAwesome6 name="circle-plus" size={19} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => console.log('Ir a buscar')}>
-          <MaterialIcons name="search" size={22} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('./notificaciones')}>
-          <FontAwesome name="user-plus" size={18} color="#666" />
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -243,11 +285,19 @@ headerStatusBlack: {
     marginLeft: 15,
   },
   
-  headerAvatar: {
+  headerAvatarContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: '#0491C6',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 10,
+  },
+  headerAvatarText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   
   headerName: {
@@ -289,11 +339,19 @@ headerStatusBlack: {
     justifyContent: 'flex-start',
   },
   
-  messageAvatar: {
+  messageAvatarContainer: {
     width: 30,
     height: 30,
     borderRadius: 15,
+    backgroundColor: '#0491C6',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 8,
+  },
+  messageAvatarText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   
   bubble: {
@@ -401,6 +459,84 @@ headerStatusBlack: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 5,
+  },
+
+  emptyChatContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 60,
+  },
+
+  emptyChatTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+
+  emptyChatSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  userInfoText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+
+  // Estilos para pantalla de carga
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+
+  // Estilos para pantalla de error
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 32,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#0491C6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

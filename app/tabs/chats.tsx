@@ -1,7 +1,9 @@
-import { Plus } from "lucide-react-native";
-import React from "react";
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Usuario } from "@/api/usuariosService";
 import { useRouter } from "expo-router";
+import { Plus } from "lucide-react-native";
+import { useEffect, useState } from "react";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type Chat = {
   id: string;
@@ -13,130 +15,94 @@ type Chat = {
   unread: number;
 };
 
-const chats: Chat[] = [
-  {
-    id: "1",
-    name: "Henry Cavill",
-    message: "Hola, ¿Hoy te espero en...",
-    time: "Hace 3m",
-    avatar: "https://www.elespectador.com/resizer/v2/ZCA7PPEEJNCXXGYGPQTC3JVQYY.jpg?auth=6ae3ec1db683af768c1ef12d0685442cb6c96a29ae50965aaf5456309ed60e5a&width=920&height=613&smart=true&quality=60",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: "2",
-    name: "Grupo Integrador",
-    message: "La presentación es la siguiente cla...",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/men/1.jpg",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: "3",
-    name: "Sofia",
-    message: "Jajaja no sabes lo que me pasó 😂",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/women/3.jpg",
-    online: true,
-    unread: 8,
-  },
-  {
-    id: "4",
-    name: "Alex",
-    message: "De una, avisa la hora..",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/men/4.jpg",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: "5",
-    name: "Fabio",
-    message: "Aún no, la pongo hoy en la noche...",
-    time: "Hace 3m",
-    avatar: "https://randomuser.me/api/portraits/men/5.jpg",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: "6",
-    name: "Manuel",
-    message: "Sí voy, pero llegaré un poco tarde 🙈",
-    time: "Hace 15m",
-    avatar: "https://randomuser.me/api/portraits/men/6.jpg",
-    online: false,
-    unread: 1,
-  },
-  {
-    id: "7",
-    name: "Alessandra",
-    message: "Lo que pasó en la clase hoy 😂",
-    time: "Hace 1h",
-    avatar: "https://randomuser.me/api/portraits/women/7.jpg",
-    online: false,
-    unread: 1,
-  },
-  {
-    id: "8",
-    name: "Vanesa",
-    message: "Te cuento algo importante 👀",
-    time: "Hace 3h",
-    avatar: "https://randomuser.me/api/portraits/women/8.jpg",
-    online: true,
-    unread: 2,
-  },
-];
-
 const ChatCreem = () => {
     const router = useRouter();
+    const [chats, setChats] = useState<Chat[]>([]);
+    const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // No cargar chats ficticios - la funcionalidad de chat aún no está implementada
+    useEffect(() => {
+      setLoading(false);
+    }, []);
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Chats</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("./seleccionarUsuarios")}>
           <Plus size={28} color="black" />
         </TouchableOpacity>
       </View>
 
       {/* Lista de chats */}
-      <FlatList
-        data={chats}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.chatItem} onPress={()=>router.push("./chatDetails")}>
-            {/* Avatar */}
-            <View style={styles.avatarWrapper}>
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
-              {item.online && <View style={styles.onlineDot} />}
-            </View>
+      {loading ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>Cargando chats...</Text>
+        </View>
+      ) : chats.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>No tienes chats aún</Text>
+          <Text style={styles.emptySubtitle}>Presiona el botón "+" para iniciar un nuevo chat</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={chats}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              style={styles.chatItem} 
+              onPress={() => {
+                // Buscar el usuario completo en la lista de usuarios
+                const usuarioCompleto = usuarios.find(u => u.uid === item.id);
+                router.push({
+                  pathname: "./chatDetails",
+                  params: {
+                    name: item.name,
+                    avatar: item.avatar,
+                    userId: item.id,
+                    codigo: usuarioCompleto?.codigo || '',
+                    carrera: usuarioCompleto?.carrera || '',
+                    correo: usuarioCompleto?.correo || ''
+                  }
+                });
+              }}
+            >
+              {/* Avatar */}
+              <View style={styles.avatarWrapper}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                </View>
+                {item.online && <View style={styles.onlineDot} />}
+              </View>
 
-            {/* Info */}
-            <View style={styles.chatInfo}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.chatName}>{item.name}</Text>
-                <Text style={styles.chatTime}>{item.time}</Text>
+              {/* Info */}
+              <View style={styles.chatInfo}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.chatName}>{item.name}</Text>
+                  <Text style={styles.chatTime}>{item.time}</Text>
+                </View>
+                <View style={styles.rowBetween}>
+                  <Text
+                    style={styles.chatMessage}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {item.message}
+                  </Text>
+                  {item.unread > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadText}>{item.unread}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-              <View style={styles.rowBetween}>
-                <Text
-                  style={styles.chatMessage}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {item.message}
-                </Text>
-                {item.unread > 0 && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{item.unread}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-      />
-    </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </SafeAreaView>
   );
 };
 
@@ -173,6 +139,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+    backgroundColor: "#0491C6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
   },
   onlineDot: {
     position: "absolute",
@@ -222,12 +196,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e5e5",
-    paddingVertical: 8,
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
   },
 });

@@ -1,227 +1,139 @@
-import { AntDesign, FontAwesome, FontAwesome6, MaterialIcons } from '@expo/vector-icons';
+
+import { db } from '@/services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
-import {
-  Image,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import type { ImageSourcePropType } from 'react-native';
-import ModButton from '@/components/ModButton';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
-
-type Noti = {
-  id: number;
+type NotiPublicacion = {
+  id: string;
   name: string;
-  text: string;
-  time: string;
-  avatar: ImageSourcePropType;
-  thumb?: ImageSourcePropType;
+  avatar?: string;
+  publicacionID: string;
+  imagenUrl?: string;
+  timestamp: number;
 };
 
-const Notificaciones = () => {
-  const router = useRouter();
+const relTime = (ms: number) => {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60) return 'Hace un momento';
+  if (s < 3600) return `Hace ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `Hace ${Math.floor(s / 3600)} h`;
+  if (s < 2592000) return `Hace ${Math.floor(s / 86400)} días`;
+  return new Date(ms).toLocaleDateString();
+};
 
-  const [recent] = useState<Noti[]>([
-    {
-      id: 1,
-      name: 'Henry Cavill',
-      text: 'Comenzó a seguirte',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_6.jpg'),
-    },
-    {
-      id: 2,
-      name: 'Ricardo Marín',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_1.jpg'),
-      thumb: require('@/assets/images/publicacion_1.jpg'),
-    },
+export default function Notificaciones() {
+  const [lista, setLista] = useState<NotiPublicacion[]>([]);
+  const [cargando, setCargando] = useState(true);
 
-    {
-      id: 3,
-      name: 'Fernando Vargas',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_7.jpg'),
-      thumb: require('@/assets/images/publicacion_1.jpg'),
-    },
+  const obtenerPublicaciones = async (): Promise<NotiPublicacion[]> => {
+    const publicacionesRef = collection(db, 'publicaciones');
+    const q = query(publicacionesRef, where('estado', '==', 'activo'));
+    const snap = await getDocs(q);
 
-    {
-      id: 4,
-      name: 'Diego Castillo',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_8.jpg'),
-      thumb: require('@/assets/images/publicacion_3.jpg'),
-    },
+    const res: NotiPublicacion[] = [];
+    for (const d of snap.docs) {
+      const data = d.data() as any;
 
-    {
-      id: 5,
-      name: 'Sofía Herrera',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_10.jpg'),
-      thumb: require('@/assets/images/publicacion_1.jpg'),
-    },
+      const uRef = doc(db, 'Usuarios', data.usuarioID);
+      const uDoc = await getDoc(uRef);
+      if (!uDoc.exists()) continue;
+      const u = uDoc.data() as any;
 
-    {
-      id: 6,
-      name: 'Andrés Pineda',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_9.jpg'),
-      thumb: require('@/assets/images/publicacion_2.jpg'),
-    },
+      const nombre = `${u.nombre || ''} ${u.apellidos || ''}`.trim() || 'Usuario';
+      const ts = data.fechaCreacion?.toDate
+        ? data.fechaCreacion.toDate().getTime()
+        : new Date(data.fechaCreacion || Date.now()).getTime();
 
-    {
-      id: 7,
-      name: 'Alejandra Fuentes',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_12.jpg'),
-      thumb: require('@/assets/images/publicacion_3.jpg'),
-    },
-
-    {
-      id: 8,
-      name: 'Miguel Torres',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_15.jpg'),
-      thumb: require('@/assets/images/publicacion_2.jpg'),
-    },
-
-    {
-      id: 9,
-      name: 'Carla Navarro',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_13.jpg'),
-      thumb: require('@/assets/images/publicacion_1.jpg'),
-    },
-
-    {
-      id: 10,
-      name: 'Héctor Gómez',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_16.jpg'),
-      thumb: require('@/assets/images/publicacion_2.jpg'),
-    },
-
-    {
-      id: 11,
-      name: 'Lucía Morales',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_14.jpg'),
-      thumb: require('@/assets/images/publicacion_3.jpg'),
-    },
-
-  ]);
-
-  const previous: Noti[] = [
-    {
-      id: 3,
-      name: 'Javier Reyes',
-      text: 'Le gustó tu comentario',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_3.jpg'),
-    },
-    {
-      id: 4,
-      name: 'Valeria Mendoza',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_4.jpg'),
-      thumb: require('@/assets/images/publicacion_2.jpg'),
-    },
-    {
-      id: 5,
-      name: 'Isabel Ramos',
-      text: 'Le gustó tu publicación',
-      time: '1 d',
-      avatar: require('@/assets/images/perfil_2.jpg'),
-      thumb: require('@/assets/images/publicacion_3.jpg'),
-    },
-  ];
-
-  const NotificationItem = ({ item }: { item: Noti }) => {
-    const [following, setFollowing] = useState(false);
-
-    return (
-      <View style={styles.rowItem}>
-        <Image source={item.avatar} style={styles.avatar} />
-
-        <View style={styles.rowInfo}>
-          <Text style={styles.rowTitle}>{item.name}</Text>
-          <Text style={styles.rowSub}>{item.text}</Text>
-          <Text style={styles.rowTime}>{item.time}</Text>
-        </View>
-
-        {item.thumb ? (
-          <Image source={item.thumb} style={styles.thumb} />
-        ) : (
-          <ModButton
-            title={following ? 'Siguiendo' : 'Seguir'}
-            onPress={() => setFollowing((p) => !p)}
-            textColor="#fff"
-            fontWeight="600"
-            style={styles.iconBtn}
-          />
-        )}
-      </View>
-    );
+      res.push({
+        id: d.id,
+        name: nombre,
+        avatar: u.fotoPerfil,
+        publicacionID: d.id,
+        imagenUrl: data.imagenUrl,
+        timestamp: ts,
+      });
+    }
+    res.sort((a, b) => b.timestamp - a.timestamp);
+    return res;
   };
+
+  const cargar = async () => {
+    setCargando(true);
+    try {
+      setLista(await obtenerPublicaciones());
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  const Item = ({ n }: { n: NotiPublicacion }) => (
+    <View style={styles.rowItem}>
+      {n.avatar ? (
+        <Image source={{ uri: n.avatar }} style={styles.avatar} />
+      ) : (
+        <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
+      )}
+
+      <View style={styles.rowInfo}>
+        <Text style={styles.rowTitle}>{n.name}</Text>
+        <Text style={styles.rowTime}>hizo una publicación • {relTime(n.timestamp)}</Text>
+      </View>
+
+      {n.imagenUrl ? <Image source={{ uri: n.imagenUrl }} style={styles.thumbnail} /> : null}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#1e3c72" barStyle="light-content" />
-
+      {/* Franja superior con gradiente */}
       <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.header} />
+
+      {/* Título centrado como en tu formato */}
       <Text style={styles.mainTitle}>Notificaciones</Text>
 
       <ScrollView style={styles.scrollContainer}>
-        <Text style={styles.Subtitulos}>Nuevas</Text>
         <View style={styles.section}>
-          {recent.map((n) => (
-            <NotificationItem key={`new-${n.id}`} item={n} />
-          ))}
-        </View>
+          <Text style={styles.Subtitulos}>Todas las Notificaciones</Text>
 
-        <View style={styles.section}>
-          <Text style={styles.Subtitulos}>Anteriores</Text>
-          {previous.map((n) => (
-            <NotificationItem key={`old-${n.id}`} item={n} />
-          ))}
+          {cargando ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2F4AA6" />
+              <Text style={styles.loadingText}>Cargando notificaciones...</Text>
+            </View>
+          ) : lista.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No hay publicaciones</Text>
+              <Text style={styles.emptySubtext}>Aún no hay actividad reciente</Text>
+            </View>
+          ) : (
+            lista.map(n => <Item key={n.id} n={n} />)
+          )}
         </View>
       </ScrollView>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
+
+  // === Formato pedido ===
   header: { paddingVertical: 16, paddingHorizontal: 10, alignItems: 'center' },
-
   mainTitle: {
-  fontSize: 23,
-  fontWeight: '700',
-  color: '#111',
-  backgroundColor: 'white',
-  paddingVertical: 12,
-  paddingRight: 20,
-  textAlign:'right',
-},
-
-
+    fontSize: 23,
+    fontWeight: '700',
+    color: '#111',
+    backgroundColor: 'white',
+    paddingVertical: 12,
+    textAlign: 'center', // centrado como la captura
+  },
   Subtitulos: {
     paddingTop: 10,
     paddingLeft: 15,
@@ -230,9 +142,11 @@ const styles = StyleSheet.create({
     color: 'black',
     backgroundColor: 'white',
   },
+
   scrollContainer: { flex: 1 },
   section: { backgroundColor: 'white', marginBottom: 10, paddingVertical: 10 },
 
+  // Ítems de publicación
   rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -240,28 +154,25 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: '#E0E0E0',
+    justifyContent: 'space-between',
   },
   avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
   rowInfo: { flex: 1 },
   rowTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 2 },
-  rowSub: { fontSize: 13, color: '#666', marginBottom: 1 },
-  rowTime: { fontSize: 12, color: '#999' },
-
-  iconBtn: {
-    minWidth: 90,
-    alignSelf: 'center',
+  rowTime: { fontSize: 13, color: '#666' },
+  thumbnail: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
 
-  thumb: { width: 40, height: 40, borderRadius: 8 },
-
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    paddingVertical: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: '#E0E0E0',
-  },
-  navItem: { flex: 1, alignItems: 'center', paddingVertical: 5 },
+  // Estados
+  loadingContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
+  loadingText: { marginTop: 8, fontSize: 16, color: '#666' },
+  emptyContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
+  emptyText: { fontSize: 18, color: '#666', textAlign: 'center', marginBottom: 8, fontWeight: '600' },
+  emptySubtext: { fontSize: 14, color: '#999', textAlign: 'center' },
 });
-
-export default Notificaciones;
