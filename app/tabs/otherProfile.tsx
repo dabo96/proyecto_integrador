@@ -53,11 +53,11 @@ export default function OtherProfileScreen() {
     // Función para formatear fecha relativa
     const formatRelativeTime = (timestamp: any) => {
         if (!timestamp) return 'Hace un momento';
-        
+
         const now = new Date();
         const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
         const diffInSeconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
-        
+
         if (diffInSeconds < 60) return 'Hace un momento';
         if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
         if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
@@ -69,13 +69,13 @@ export default function OtherProfileScreen() {
     const loadUserData = async () => {
         try {
             setLoading(true);
-            
+
             const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
             if (!storedUsuarioID) {
                 console.error('No se encontró usuarioID');
                 return;
             }
-            
+
             setCurrentUserID(storedUsuarioID);
 
             // Si es el mismo usuario, redirigir a profile
@@ -95,7 +95,7 @@ export default function OtherProfileScreen() {
 
             // Obtener publicaciones del usuario
             const publicacionesData = await obtenerPublicacionesPerfil(usuarioIDObjetivo as string);
-            
+
             // Convertir publicaciones al formato esperado por PostCard
             const posts: Post[] = publicacionesData.map((pub) => ({
                 id: pub.id,
@@ -148,22 +148,22 @@ export default function OtherProfileScreen() {
                 where('tipo', '==', 'comentario')
             );
             const comentariosSnapshot = await getDocs(comentariosQuery);
-            
+
             const comentariosList: Comentario[] = [];
-            
+
             for (const docSnapshot of comentariosSnapshot.docs) {
                 const data = docSnapshot.data();
-                
+
                 const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
                 const usuarioDoc = await getDoc(usuarioRef);
-                
+
                 if (usuarioDoc.exists()) {
                     const usuarioData = usuarioDoc.data() as any;
                     const nombreCompleto = usuarioData.nombre || '';
                     const partesNombre = nombreCompleto.split(' ');
                     const nombres = partesNombre[0] || '';
                     const apellidos = partesNombre.slice(1).join(' ') || '';
-                    
+
                     comentariosList.push({
                         id: docSnapshot.id,
                         usuarioID: data.usuarioID,
@@ -177,13 +177,13 @@ export default function OtherProfileScreen() {
                     });
                 }
             }
-            
+
             comentariosList.sort((a, b) => {
                 const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(a.fecha);
                 const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(b.fecha);
                 return fechaB.getTime() - fechaA.getTime();
             });
-            
+
             setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
         } catch (error) {
             console.error('Error cargando comentarios:', error);
@@ -198,9 +198,9 @@ export default function OtherProfileScreen() {
                 setShowCommentInput(null);
                 return;
             }
-            
+
             if (!currentUserID) return;
-            
+
             try {
                 await addDoc(collection(db, 'interacciones'), {
                     usuarioID: currentUserID,
@@ -209,10 +209,10 @@ export default function OtherProfileScreen() {
                     comentario: commentText.trim(),
                     fecha: new Date()
                 });
-                
+
                 setCommentText('');
                 setShowCommentInput(null);
-                
+
                 // Actualizar conteos
                 await actualizarConteos(postId);
                 await cargarComentarios(postId);
@@ -228,7 +228,7 @@ export default function OtherProfileScreen() {
     const handleSendComment = async (postId: string) => {
         if (!commentText.trim()) return;
         if (!currentUserID) return;
-        
+
         try {
             await addDoc(collection(db, 'interacciones'), {
                 usuarioID: currentUserID,
@@ -237,7 +237,7 @@ export default function OtherProfileScreen() {
                 comentario: commentText.trim(),
                 fecha: new Date()
             });
-            
+
             setCommentText('');
             await actualizarConteos(postId);
             await cargarComentarios(postId);
@@ -248,7 +248,7 @@ export default function OtherProfileScreen() {
 
     const handleLike = async (postId: string) => {
         if (!currentUserID) return;
-        
+
         try {
             const likeQuery = query(
                 collection(db, 'interacciones'),
@@ -257,7 +257,7 @@ export default function OtherProfileScreen() {
                 where('tipo', '==', 'like')
             );
             const likeSnapshot = await getDocs(likeQuery);
-            
+
             if (likeSnapshot.empty) {
                 await addDoc(collection(db, 'interacciones'), {
                     usuarioID: currentUserID,
@@ -286,17 +286,17 @@ export default function OtherProfileScreen() {
                 where('tipo', '==', 'like')
             );
             const likesSnapshot = await getDocs(likesQuery);
-            
+
             const comentariosQuery = query(
                 collection(db, 'interacciones'),
                 where('publicacionID', '==', postId),
                 where('tipo', '==', 'comentario')
             );
             const comentariosSnapshot = await getDocs(comentariosQuery);
-            
-            setUserPosts(prevPosts => 
-                prevPosts.map(post => 
-                    post.id === postId 
+
+            setUserPosts(prevPosts =>
+                prevPosts.map(post =>
+                    post.id === postId
                         ? { ...post, likes: likesSnapshot.size, comentarios: comentariosSnapshot.size }
                         : post
                 )
@@ -308,7 +308,7 @@ export default function OtherProfileScreen() {
 
     const handleFollow = async () => {
         if (!currentUserID || !usuarioIDObjetivo) return;
-        
+
         try {
             if (isFollowing) {
                 await dejarDeSeguirUsuario(currentUserID, usuarioIDObjetivo as string);
@@ -316,7 +316,7 @@ export default function OtherProfileScreen() {
                 await seguirUsuario(currentUserID, usuarioIDObjetivo as string);
             }
             setIsFollowing(!isFollowing);
-            
+
             // Recargar datos para actualizar contador de seguidores
             await loadUserData();
         } catch (error) {
@@ -326,6 +326,20 @@ export default function OtherProfileScreen() {
 
     const handleMessage = () => {
         console.log('Abrir chat con usuario');
+    };
+
+    const seleccionarUsuario = (usuario: Usuario) => {
+        // Navegar a los detalles del chat con toda la información del usuario
+        router.push({
+            pathname: './chatDetails',
+            params: {
+                userId: usuario.id,
+                name: usuario.nombre,
+                codigo: usuario.codigo,
+                carrera: usuario.carrera,
+                correo: usuario.correo,
+            }
+        });
     };
 
     if (loading || !userProfile) {
@@ -343,8 +357,8 @@ export default function OtherProfileScreen() {
             liked={likedPosts[item.id] || false}
             onLike={handleLike}
             onComment={handleComment}
-            onReport={() => {}}
-            onDelete={() => {}}
+            onReport={() => { }}
+            onDelete={() => { }}
             formatTime={formatRelativeTime}
             comentarios={comentarios[item.id]}
             loadingComments={loadingComments === item.id}
@@ -365,7 +379,7 @@ export default function OtherProfileScreen() {
     return (
         <View style={styles.container}>
             <StatusBar backgroundColor="#2F4AA6" barStyle="light-content" />
-            
+
             <FlatList
                 data={userPosts}
                 keyExtractor={(item) => item.id}
@@ -386,7 +400,7 @@ export default function OtherProfileScreen() {
                                 {userProfile.nombre} {userProfile.apellido}
                             </Text>
                             <Text style={styles.profession}>{userProfile.carrera || 'Sin carrera'}</Text>
-                            
+
                             <View style={styles.statsContainer}>
                                 <View style={styles.statBox}>
                                     <Text style={styles.statNumber}>{userProfile.seguidores}</Text>
@@ -413,22 +427,26 @@ export default function OtherProfileScreen() {
                                 />
                                 <ModButton
                                     title="Mensaje"
-                                    onPress={handleMessage}
+                                    onPress={() => seleccionarUsuario({
+                                        id: usuarioIDObjetivo as string,
+                                        nombre: userProfile.nombre + ' ' + userProfile.apellido,
+                                        codigo: userProfile.codigo,
+                                        carrera: userProfile.carrera,
+                                        correo: userProfile.correo
+                                    })}
                                     iconName="message-plus-outline"
                                     iconLib="MaterialCommunityIcons"
                                     backgroundColor="#1d4ed8"
                                     style={styles.button}
                                 />
+
                             </View>
                         </LinearGradient>
                     </>
-                }
-                contentContainerStyle={styles.scrollContent}
-            />
+                } contentContainerStyle={styles.scrollContent} />
         </View>
     );
 }
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
