@@ -12,11 +12,14 @@ export default function AutCuenta() {
     const router = useRouter();
 
     const manejarCambios = (texto: string, indice: number) => {
+        // Filtrar solo números
+        const soloNumeros = texto.replace(/[^0-9]/g, '');
+        
         const nuevosInputs = [...input];
-        nuevosInputs[indice] = texto;
+        nuevosInputs[indice] = soloNumeros;
         setInput(nuevosInputs);
 
-        if (texto && indice < inputsRef.current.length - 1) {
+        if (soloNumeros && indice < inputsRef.current.length - 1) {
             inputsRef.current[indice + 1]?.focus();
         }
     }
@@ -84,6 +87,9 @@ export default function AutCuenta() {
                                     keyboardType="numeric"
                                     value={valor}
                                     onChangeText={(t) => manejarCambios(t, i)}
+                                    selectTextOnFocus={true}
+                                    autoCorrect={false}
+                                    autoCapitalize="none"
                                 />
                             ))}
                         </View>
