@@ -1,15 +1,17 @@
 
 import { db } from '@/services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type NotiPublicacion = {
   id: string;
   name: string;
   avatar?: string;
   publicacionID: string;
+  usuarioID: string;
   imagenUrl?: string;
   timestamp: number;
 };
@@ -24,8 +26,10 @@ const relTime = (ms: number) => {
 };
 
 export default function Notificaciones() {
+  const router = useRouter();
   const [lista, setLista] = useState<NotiPublicacion[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [currentUserID, setCurrentUserID] = useState<string>('');
 
   const obtenerPublicaciones = async (): Promise<NotiPublicacion[]> => {
     const publicacionesRef = collection(db, 'publicaciones');
@@ -51,6 +55,7 @@ export default function Notificaciones() {
         name: nombre,
         avatar: u.fotoPerfil,
         publicacionID: d.id,
+        usuarioID: data.usuarioID,
         imagenUrl: data.imagenUrl,
         timestamp: ts,
       });
@@ -62,6 +67,9 @@ export default function Notificaciones() {
   const cargar = async () => {
     setCargando(true);
     try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const userID = await AsyncStorage.getItem('usuarioID');
+      if (userID) setCurrentUserID(userID);
       setLista(await obtenerPublicaciones());
     } finally {
       setCargando(false);
@@ -73,7 +81,20 @@ export default function Notificaciones() {
   }, []);
 
   const Item = ({ n }: { n: NotiPublicacion }) => (
-    <View style={styles.rowItem}>
+    <TouchableOpacity 
+      style={styles.rowItem}
+      onPress={() => {
+        // Si es el mismo usuario, ir a profile.tsx, sino a otherProfile.tsx
+        if (currentUserID === n.usuarioID) {
+          router.push('./profile');
+        } else {
+          router.push({
+            pathname: './otherProfile',
+            params: { userId: n.usuarioID }
+          });
+        }
+      }}
+    >
       {n.avatar ? (
         <Image source={{ uri: n.avatar }} style={styles.avatar} />
       ) : (
@@ -86,7 +107,7 @@ export default function Notificaciones() {
       </View>
 
       {n.imagenUrl ? <Image source={{ uri: n.imagenUrl }} style={styles.thumbnail} /> : null}
-    </View>
+    </TouchableOpacity>
   );
 
   return (
