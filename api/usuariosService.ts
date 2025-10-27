@@ -1,43 +1,44 @@
 import { db } from "@/services/firebase";
-import { getAuth } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { doc, getDoc } from "firebase/firestore";
 
-export interface Usuario {
-    uid: string;
-    nombre: string;
-    codigo: string;
-    carrera: string;
-    correo: string;
-    contrasena?: string;
-    verificado?: boolean;
-    createdAt?: any;
-    updatedAt?: any;
-    [key: string]: any;
-}
+export type Usuario = {
+  id: string;
+  nombres?: string;
+  apellidos?: string;
+  nombre?: string;
+  email?: string;
+  fotoPerfil?: string | null;
+  [key: string]: any;
+};
 
-export const obtenerUsuarioActivo = async (): Promise<Usuario | null> => {
-    const auth = getAuth();
-    const user = auth.currentUser;
 
-    if (!user) {
-        console.warn("Usuario no autenticado");
-        return null;
+export const obtenerUsuarioActual = async (): Promise<Usuario | null> => {
+  try {
+    const usuarioID = await AsyncStorage.getItem("usuarioID");
+
+    if (!usuarioID) {
+      console.warn("⚠️ No hay usuarioID guardado en AsyncStorage.");
+      return null;
     }
 
-    // Suponiendo que en Firestore guardaste el UID como ID del documento
-    const userRef = doc(db, "Usuarios", user.uid);
-    const snapshot = await getDoc(userRef);
+    console.log("🔹 UsuarioID obtenido:", usuarioID);
 
-    if (!snapshot.exists()) {
-        console.warn("No se encontró el usuario en la base de datos");
-        return null;
+    const usuarioRef = doc(db, "Usuarios", usuarioID);
+    const usuarioSnap = await getDoc(usuarioRef);
+    
+    if (usuarioSnap.exists()) {
+      const data = usuarioSnap.data();
+      console.log("👤 Datos del usuario actual:", data);
+      return { id: usuarioID, ...data } as Usuario;
+    } else {
+      console.warn("⚠️ No se encontró el usuario en Firestore.");
+      return null;
     }
-
-    const data = snapshot.data() as Usuario;
-    const usuario: Usuario = { ...data, uid: user.uid };
-    console.log("🧑 Usuario activo:", usuario);
-
-    return usuario;
+  } catch (error) {
+    console.error("❌ Error al obtener usuario:", error);
+    return null;
+  }
 };
 
 export const obtenerTodosLosUsuarios = async (): Promise<Usuario[]> => {
@@ -46,12 +47,11 @@ export const obtenerTodosLosUsuarios = async (): Promise<Usuario[]> => {
         const usuariosRef = collection(db, "Usuarios");
         const snapshot = await getDocs(usuariosRef);
         const usuarios: Usuario[] = [];
-        
+
         snapshot.forEach((doc) => {
-            usuarios.push({ ...doc.data(), uid: doc.id } as Usuario);
+            usuarios.push({ ...doc.data(), id: doc.id } as Usuario);
         });
         
-        console.log("📋 Usuarios obtenidos:", usuarios.length);
         return usuarios;
     } catch (error) {
         console.error("Error al obtener usuarios:", error);
@@ -71,7 +71,6 @@ export const obtenerUsuarioPorId = async (userId: string): Promise<Usuario | nul
 
         const data = snapshot.data() as Usuario;
         const usuario: Usuario = { ...data, uid: userId };
-        console.log("👤 Usuario obtenido por ID:", usuario);
 
         return usuario;
     } catch (error) {
