@@ -132,6 +132,20 @@ export default function Layout() {
           tabBarItemStyle: { display: 'none' },
         }}
       />
+      <Tabs.Screen
+        name="cambiarContrasena"
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="score"
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
     </Tabs>
   );
 }
