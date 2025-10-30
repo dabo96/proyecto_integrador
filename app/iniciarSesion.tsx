@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignInScreen() {
     const router = useRouter();
@@ -38,6 +39,22 @@ export default function SignInScreen() {
             });
 
             if (userFound?.contrasena === contrasena) {
+                try {
+                    const { contrasena: _removed, ...userToStore } = userFound || {};
+                    await AsyncStorage.multiSet([
+                        // Compatibilidad antigua
+                        ['userId', String(userFound.id)],
+                        ['user', JSON.stringify(userToStore)],
+                        // Claves usadas por homeScreen
+                        ['usuarioID', String(userFound.id)],
+                        ['usuarioNombre', String(userFound.nombre || '')],
+                    ]);
+                } catch (storageError) {
+                    console.error('Error guardando sesión en AsyncStorage', storageError);
+                    // Continuar navegación aunque falle el guardado, pero notificar
+                    Alert.alert('Aviso', 'No se pudo guardar la sesión localmente.');
+                }
+
                 Alert.alert("Éxito", `Bienvenido ${userFound.nombre}`);
                 router.push('./tabs/homeScreen');
             } else {
