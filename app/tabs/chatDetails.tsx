@@ -1,10 +1,10 @@
+import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, } from "@/api/messageService";
+import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, } from "react-native";
-import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
-import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, } from "@/api/messageService";
 
 type Message = {
   id: string;
@@ -194,7 +194,29 @@ const ChatDetails = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
 
-        <View style={styles.headerUserInfo}>
+        <TouchableOpacity 
+          style={styles.headerUserInfo}
+          onPress={() => {
+            console.log('Click en perfil - usuario:', usuario);
+            console.log('userId del parámetro:', userId);
+            console.log('usuario.id:', usuario?.id);
+            
+            // Usar el userId del parámetro directamente, que es más confiable
+            if (userId) {
+              router.push({
+                pathname: './otherProfile',
+                params: { userId: String(userId) }
+              });
+            } else if (usuario?.id) {
+              router.push({
+                pathname: './otherProfile',
+                params: { userId: usuario.id }
+              });
+            } else {
+              console.error('No se encontró userId para navegar al perfil');
+            }
+          }}
+        >
           <View style={styles.headerAvatarContainer}>
             <Text style={styles.headerAvatarText}>
               {String(usuario?.nombre || "U").charAt(0).toUpperCase()}
@@ -208,7 +230,7 @@ const ChatDetails = () => {
                 : "En línea"}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuButton}>
           <Ionicons name="ellipsis-vertical" size={20} color="#333" />
@@ -274,7 +296,16 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E0E0E0",
   },
   backButton: { padding: 5 },
-  headerUserInfo: { flexDirection: "row", alignItems: "center", flex: 1, marginLeft: 15 },
+  headerUserInfo: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    flex: 1, 
+    marginLeft: 15,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+  },
   headerAvatarContainer: {
     width: 40,
     height: 40,

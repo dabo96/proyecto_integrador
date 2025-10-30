@@ -1,4 +1,4 @@
-
+import { obtenerListaSeguidos, seguirUsuario, verificarSiSigue } from '@/api/profileService';
 import { db } from '@/services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -6,14 +6,17 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-type NotiPublicacion = {
+type Notificacion = {
   id: string;
+  tipo: 'publicacion' | 'comentario' | 'like' | 'seguidor';
   name: string;
   avatar?: string;
-  publicacionID: string;
+  publicacionID?: string;
   usuarioID: string;
   imagenUrl?: string;
   timestamp: number;
+  publicacionTexto?: string;
+  yaSeguido?: boolean;
 };
 
 const relTime = (ms: number) => {
@@ -27,41 +30,166 @@ const relTime = (ms: number) => {
 
 export default function Notificaciones() {
   const router = useRouter();
-  const [lista, setLista] = useState<NotiPublicacion[]>([]);
+  const [lista, setLista] = useState<Notificacion[]>([]);
   const [cargando, setCargando] = useState(true);
   const [currentUserID, setCurrentUserID] = useState<string>('');
 
-  const obtenerPublicaciones = async (): Promise<NotiPublicacion[]> => {
-    const publicacionesRef = collection(db, 'publicaciones');
-    const q = query(publicacionesRef, where('estado', '==', 'activo'));
-    const snap = await getDocs(q);
+  const obtenerNotificaciones = async (userID?: string): Promise<Notificacion[]> => {
+    const userId = userID || currentUserID;
+    if (!userId) return [];
 
-    const res: NotiPublicacion[] = [];
-    for (const d of snap.docs) {
-      const data = d.data() as any;
+    const notificaciones: Notificacion[] = [];
+    const usuarioCache = new Map<string, any>();
 
-      const uRef = doc(db, 'Usuarios', data.usuarioID);
+    const getUsuario = async (uid: string) => {
+      if (usuarioCache.has(uid)) return usuarioCache.get(uid);
+      const uRef = doc(db, 'Usuarios', uid);
       const uDoc = await getDoc(uRef);
-      if (!uDoc.exists()) continue;
-      const u = uDoc.data() as any;
+      const data = uDoc.exists() ? uDoc.data() : null;
+      usuarioCache.set(uid, data);
+      return data;
+    };
 
-      const nombre = `${u.nombre || ''} ${u.apellidos || ''}`.trim() || 'Usuario';
-      const ts = data.fechaCreacion?.toDate
-        ? data.fechaCreacion.toDate().getTime()
-        : new Date(data.fechaCreacion || Date.now()).getTime();
-
-      res.push({
-        id: d.id,
-        name: nombre,
-        avatar: u.fotoPerfil,
-        publicacionID: d.id,
-        usuarioID: data.usuarioID,
-        imagenUrl: data.imagenUrl,
-        timestamp: ts,
-      });
+    // === Publicaciones de usuarios seguidos ===
+    try {
+      const seguidosIDs = await obtenerListaSeguidos(userId);
+      if (seguidosIDs.length > 0) {
+        const chunkSize = 10;
+        for (let i = 0; i < seguidosIDs.length; i += chunkSize) {
+          const chunk = seguidosIDs.slice(i, i + chunkSize);
+          const publicacionesRef = collection(db, 'publicaciones');
+          const qPub = query(publicacionesRef, where('usuarioID', 'in', chunk), where('estado', '==', 'activo'));
+          const snapPub = await getDocs(qPub);
+          for (const d of snapPub.docs) {
+            const data = d.data() as any;
+            const u = await getUsuario(data.usuarioID);
+            if (!u) continue;
+            const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+            const ts = data.fechaCreacion?.toDate
+              ? data.fechaCreacion.toDate().getTime()
+              : new Date(data.fechaCreacion || Date.now()).getTime();
+            notificaciones.push({
+              id: `pub_${d.id}`,
+              tipo: 'publicacion',
+              name: nombre,
+              avatar: u.fotoPerfil,
+              publicacionID: d.id,
+              usuarioID: data.usuarioID,
+              imagenUrl: data.imagenUrl,
+              timestamp: ts,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando publicaciones:', e);
     }
-    res.sort((a, b) => b.timestamp - a.timestamp);
-    return res;
+
+    // === Mis publicaciones (para filtrar interacciones) ===
+    const misPublicacionesRef = collection(db, 'publicaciones');
+    const qMis = query(misPublicacionesRef, where('usuarioID', '==', userId), where('estado', '==', 'activo'));
+    const misSnap = await getDocs(qMis);
+    const misIds = new Set<string>();
+    const mapaMisPublicaciones = new Map<string, any>();
+    for (const d of misSnap.docs) {
+      misIds.add(d.id);
+      mapaMisPublicaciones.set(d.id, d.data());
+    }
+
+    // === Comentarios (sin mostrar texto del comentario) ===
+    try {
+      const comentariosQ = query(collection(db, 'interacciones'), where('tipo', '==', 'comentario'));
+      const comSnap = await getDocs(comentariosQ);
+      for (const d of comSnap.docs) {
+        const data = d.data() as any;
+        if (!misIds.has(data.publicacionID)) continue;
+        const u = await getUsuario(data.usuarioID);
+        if (!u) continue;
+        const ts = data.fecha?.toDate
+          ? data.fecha.toDate().getTime()
+          : new Date(data.fecha || Date.now()).getTime();
+        const postData = mapaMisPublicaciones.get(data.publicacionID) || {};
+        const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+        notificaciones.push({
+          id: `com_${d.id}`,
+          tipo: 'comentario',
+          name: nombre,
+          avatar: u.fotoPerfil,
+          publicacionID: data.publicacionID,
+          usuarioID: data.usuarioID,
+          imagenUrl: postData.imagenUrl,
+          timestamp: ts,
+          publicacionTexto: postData.texto,
+        });
+      }
+    } catch (e) {
+      console.error('Error cargando comentarios:', e);
+    }
+
+    // === Likes ===
+    try {
+      const likesQ = query(collection(db, 'interacciones'), where('tipo', '==', 'like'));
+      const likesSnap = await getDocs(likesQ);
+      for (const d of likesSnap.docs) {
+        const data = d.data() as any;
+        if (!misIds.has(data.publicacionID)) continue;
+        const u = await getUsuario(data.usuarioID);
+        if (!u) continue;
+        const ts = data.fecha?.toDate
+          ? data.fecha.toDate().getTime()
+          : new Date(data.fecha || Date.now()).getTime();
+        const postData = mapaMisPublicaciones.get(data.publicacionID) || {};
+        const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+        notificaciones.push({
+          id: `like_${d.id}`,
+          tipo: 'like',
+          name: nombre,
+          avatar: u.fotoPerfil,
+          publicacionID: data.publicacionID,
+          usuarioID: data.usuarioID,
+          imagenUrl: postData.imagenUrl,
+          timestamp: ts,
+          publicacionTexto: postData.texto,
+        });
+      }
+    } catch (e) {
+      console.error('Error cargando likes:', e);
+    }
+
+    // === Seguidores ===
+    try {
+      const todosUsuarios = await getDocs(collection(db, 'Usuarios'));
+      for (const usuarioDoc of todosUsuarios.docs) {
+        const contactosRef = collection(db, 'Usuarios', usuarioDoc.id, 'contactos');
+        const contactosSnapshot = await getDocs(contactosRef);
+        for (const contactoDoc of contactosSnapshot.docs) {
+          const contactoData = contactoDoc.data();
+          if (contactoData.seguidoID === userId) {
+            const u = await getUsuario(usuarioDoc.id);
+            if (!u) continue;
+            const yaLoEstoySiguiendo = await verificarSiSigue(userId, usuarioDoc.id);
+            const ts = contactoData.fechaSeguimiento?.toDate
+              ? contactoData.fechaSeguimiento.toDate().getTime()
+              : new Date(contactoData.fechaSeguimiento || Date.now()).getTime();
+            const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+            notificaciones.push({
+              id: `seguidor_${contactoDoc.id}`,
+              tipo: 'seguidor',
+              name: nombre,
+              avatar: u.fotoPerfil,
+              usuarioID: usuarioDoc.id,
+              timestamp: ts,
+              yaSeguido: yaLoEstoySiguiendo,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando seguidores:', e);
+    }
+
+    notificaciones.sort((a, b) => b.timestamp - a.timestamp);
+    return notificaciones;
   };
 
   const cargar = async () => {
@@ -69,8 +197,14 @@ export default function Notificaciones() {
     try {
       const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       const userID = await AsyncStorage.getItem('usuarioID');
-      if (userID) setCurrentUserID(userID);
-      setLista(await obtenerPublicaciones());
+      if (userID) {
+        setCurrentUserID(userID);
+        const datos = await obtenerNotificaciones(userID);
+        setLista(datos);
+      } else setLista([]);
+    } catch (error) {
+      console.error('Error en cargar:', error);
+      setLista([]);
     } finally {
       setCargando(false);
     }
@@ -80,49 +214,90 @@ export default function Notificaciones() {
     cargar();
   }, []);
 
-  const Item = ({ n }: { n: NotiPublicacion }) => (
-    <TouchableOpacity 
-      style={styles.rowItem}
-      onPress={() => {
-        // Si es el mismo usuario, ir a profile.tsx, sino a otherProfile.tsx
-        if (currentUserID === n.usuarioID) {
-          router.push('./profile');
-        } else {
-          router.push({
-            pathname: './otherProfile',
-            params: { userId: n.usuarioID }
-          });
+  const getNotificationText = (n: Notificacion) => {
+    if (n.tipo === 'publicacion') return 'hizo una publicación';
+    if (n.tipo === 'comentario') return 'comentó en tu publicación';
+    if (n.tipo === 'like') return 'le gustó tu publicación';
+    if (n.tipo === 'seguidor') return 'comenzó a seguirte';
+    return '';
+  };
+
+  const handleSeguir = async (usuarioID: string, notificacionId: string) => {
+    if (!currentUserID) return;
+    try {
+      await seguirUsuario(currentUserID, usuarioID);
+      setLista(prev =>
+        prev.map(n => (n.id === notificacionId ? { ...n, yaSeguido: true } : n))
+      );
+    } catch (error) {
+      console.error('Error siguiendo usuario:', error);
+    }
+  };
+
+  const Item = ({ n }: { n: Notificacion }) => (
+    <View style={styles.rowItem}>
+      <TouchableOpacity
+        style={styles.userInfoContainer}
+        onPress={() =>
+          currentUserID === n.usuarioID
+            ? router.push('./profile')
+            : router.push({ pathname: './otherProfile', params: { userId: n.usuarioID } })
         }
-      }}
-    >
-      {n.avatar ? (
-        <Image source={{ uri: n.avatar }} style={styles.avatar} />
-      ) : (
-        <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
+      >
+        <View style={styles.avatarContainer}>
+          {n.avatar ? (
+            <Image source={{ uri: n.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
+          )}
+        </View>
+
+        <View style={styles.rowInfo}>
+          <Text style={styles.rowTitle}>{n.name}</Text>
+          <Text style={styles.rowTime}>
+            {getNotificationText(n)} • {relTime(n.timestamp)}
+          </Text>
+          {n.publicacionTexto && n.tipo !== 'publicacion' && (
+            <Text style={styles.postPreview} numberOfLines={1}>
+              En: {n.publicacionTexto}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {/* ✅ Miniatura restaurada */}
+      {n.imagenUrl ? (
+        <Image source={{ uri: n.imagenUrl }} style={styles.thumbnail} />
+      ) : null}
+
+      {/* ✅ Botón seguir con degradado */}
+      {n.tipo === 'seguidor' && (
+        n.yaSeguido ? (
+          <View style={[styles.followButton, styles.followingButton]}>
+            <Text style={[styles.followButtonText, styles.followingButtonText]}>Siguiendo</Text>
+          </View>
+        ) : (
+          <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.gradientButton}>
+            <TouchableOpacity
+              style={styles.followButton}
+              onPress={() => handleSeguir(n.usuarioID, n.id)}
+            >
+              <Text style={styles.followButtonText}>Seguir</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        )
       )}
-
-      <View style={styles.rowInfo}>
-        <Text style={styles.rowTitle}>{n.name}</Text>
-        <Text style={styles.rowTime}>hizo una publicación • {relTime(n.timestamp)}</Text>
-      </View>
-
-      {n.imagenUrl ? <Image source={{ uri: n.imagenUrl }} style={styles.thumbnail} /> : null}
-    </TouchableOpacity>
+    </View>
   );
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#1e3c72" barStyle="light-content" />
-      {/* Franja superior con gradiente */}
       <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.header} />
-
-      {/* Título centrado como en tu formato */}
       <Text style={styles.mainTitle}>Notificaciones</Text>
-
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
           <Text style={styles.Subtitulos}>Todas las Notificaciones</Text>
-
           {cargando ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2F4AA6" />
@@ -144,8 +319,6 @@ export default function Notificaciones() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
-
-  // === Formato pedido ===
   header: { paddingVertical: 16, paddingHorizontal: 10, alignItems: 'center' },
   mainTitle: {
     fontSize: 23,
@@ -153,7 +326,7 @@ const styles = StyleSheet.create({
     color: '#111',
     backgroundColor: 'white',
     paddingVertical: 12,
-    textAlign: 'center', // centrado como la captura
+    textAlign: 'center',
   },
   Subtitulos: {
     paddingTop: 10,
@@ -163,11 +336,8 @@ const styles = StyleSheet.create({
     color: 'black',
     backgroundColor: 'white',
   },
-
   scrollContainer: { flex: 1 },
   section: { backgroundColor: 'white', marginBottom: 10, paddingVertical: 10 },
-
-  // Ítems de publicación
   rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -177,7 +347,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0E0E0',
     justifyContent: 'space-between',
   },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
+  userInfoContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  avatarContainer: { marginRight: 15 },
+  avatar: { width: 50, height: 50, borderRadius: 25 },
   rowInfo: { flex: 1 },
   rowTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 2 },
   rowTime: { fontSize: 13, color: '#666' },
@@ -189,11 +361,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-
-  // Estados
+  gradientButton: {
+    borderRadius: 20,
+    marginLeft: 10,
+  },
+  followButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  followButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  followingButton: {
+    backgroundColor: '#d3d3d3',
+    marginLeft: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  followingButtonText: { color: '#555' },
   loadingContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
   loadingText: { marginTop: 8, fontSize: 16, color: '#666' },
-  emptyContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
-  emptyText: { fontSize: 18, color: '#666', textAlign: 'center', marginBottom: 8, fontWeight: '600' },
-  emptySubtext: { fontSize: 14, color: '#999', textAlign: 'center' },
+  emptyContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
+  emptyText: { fontSize: 18, color: '#666', marginBottom: 8, fontWeight: '600' },
+  emptySubtext: { fontSize: 14, color: '#999' },
+  postPreview: { fontSize: 12, color: '#888', marginTop: 2, fontStyle: 'italic' },
 });
