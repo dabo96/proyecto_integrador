@@ -85,15 +85,15 @@ export default function NewCommunityScreen() {
       // Sube la imagen
       await uploadBytes(storageRef, blob);
 
-      console.log('✅ Imagen subida, obteniendo URL...');
+      console.log('Imagen subida, obteniendo URL...');
       
       // Obtiene la URL pública
       const downloadURL = await getDownloadURL(storageRef);
-      console.log('✅ Imagen subida correctamente:', downloadURL);
+      console.log('Imagen subida correctamente:', downloadURL);
 
       return downloadURL;
     } catch (error) {
-      console.error('❌ Error subiendo imagen:', error);
+      console.error('Error subiendo imagen:', error);
       throw error;
     }
   };

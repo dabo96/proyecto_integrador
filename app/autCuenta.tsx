@@ -57,7 +57,7 @@ export default function AutCuenta() {
             }
 
             console.log('Éxito', 'Cuenta verificada exitosamente.');
-            router.push('./tabs/homeScreen');
+            router.push('./iniciarSesion');
         } catch (error) {
             console.error(error);
             Alert.alert('Error', 'Ocurrió un error al verificar el código. Intenta nuevamente.');

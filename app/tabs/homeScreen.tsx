@@ -973,25 +973,19 @@ export default function MainPageScreen() {
                     posts.map((post) => (
                         <PostCard
                             key={post.id}
-                            post={post}
-                            liked={likedPosts[post.id] || false}
+                            post={{
+                                id: post.id,
+                                author: `${post.autor.nombres} ${post.autor.apellidos}`.trim(),
+                                time: formatRelativeTime(post.fechaCreacion),
+                                content: post.contenido,
+                                image: post.imagen,
+                                likes: post.likes,
+                                comments: post.comentarios,
+                                isOwner: post.usuarioID === usuarioID,
+                            }}
                             onLike={handleLike}
                             onComment={handleComment}
                             onReport={handleReport}
-                            formatTime={formatRelativeTime}
-                            comentarios={comentarios[post.id]}
-                            loadingComments={loadingComments === post.id}
-                            showCommentInput={showCommentInput === post.id}
-                            commentText={commentText}
-                            onCommentTextChange={setCommentText}
-                            onSendComment={handleSendComment}
-                            onCloseComment={() => {
-                                setShowCommentInput(null);
-                                setCommentText('');
-                                const newComentarios = { ...comentarios };
-                                delete newComentarios[post.id];
-                                setComentarios(newComentarios);
-                            }}
                         />
                     ))
                 )}

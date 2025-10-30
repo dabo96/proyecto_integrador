@@ -5,7 +5,7 @@ import { db } from '@/services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import React, { JSX, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -41,35 +41,30 @@ export default function ComunidadScreen(): JSX.Element {
     return comunidad?.imagen || "https://picsum.photos/40/40";
   };
 
-  // Función para cargar las comunidades del usuario
-  const cargarComunidades = async () => {
-    try {
-      setLoading(true);
-      
-      // Obtener usuarioID del usuario actual
+  // Inicializar usuarioID y suscribirse en tiempo real a comunidades
+  useEffect(() => {
+    const init = async () => {
       const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
-      if (!storedUsuarioID) {
-        setLoading(false);
-        return;
+      if (storedUsuarioID) {
+        setUsuarioID(storedUsuarioID);
       }
-      
-      setUsuarioID(storedUsuarioID);
-      
-      // Buscar todas las comunidades donde el usuario es miembro
-      const comunidadesRef = collection(db, 'comunidades');
-      const comunidadesSnapshot = await getDocs(comunidadesRef);
-      
+    };
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (!usuarioID) return;
+    setLoading(true);
+    const comunidadesRef = collection(db, 'comunidades');
+    const unsubscribe = onSnapshot(comunidadesRef, (snapshot) => {
       const comunidadesArray: Comunidad[] = [];
       const todasComunidadesArray: Comunidad[] = [];
-      
-      comunidadesSnapshot.forEach((docSnapshot) => {
-        const data = docSnapshot.data();
-        
-        // Verificar si el usuario es miembro de esta comunidad
+
+      snapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data() as any;
         const miembros = data.miembros || [];
-        const creadorID = data.creadorID || '';
-        
-        // Agregar a todas las comunidades
+
+        // Todas las comunidades
         todasComunidadesArray.push({
           id: docSnapshot.id,
           nombre: data.nombre,
@@ -79,9 +74,9 @@ export default function ComunidadScreen(): JSX.Element {
           fechaCreacion: data.fechaCreacion,
           miembros: data.miembros || []
         });
-        
-        // Solo agregar a "comunidades" si el usuario es miembro
-        if (miembros.includes(storedUsuarioID)) {
+
+        // Comunidades del usuario
+        if (miembros.includes(usuarioID)) {
           comunidadesArray.push({
             id: docSnapshot.id,
             nombre: data.nombre,
@@ -93,28 +88,21 @@ export default function ComunidadScreen(): JSX.Element {
           });
         }
       });
-      
-      // Filtrar todas las comunidades para excluir las que el usuario creó
+
       const comunidadesDisponibles = todasComunidadesArray.filter(
-        comunidad => comunidad.creadorID !== storedUsuarioID && !comunidadesArray.find(c => c.id === comunidad.id)
+        comunidad => comunidad.creadorID !== usuarioID && !comunidadesArray.find(c => c.id === comunidad.id)
       );
-      
-      console.log('Comunidades cargadas (del usuario):', comunidadesArray);
-      console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
-      
+
       setComunidades(comunidadesArray);
       setTodasComunidades(comunidadesDisponibles);
-      
-    } catch (error) {
-      console.error('Error cargando comunidades:', error);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error('Error en listener de comunidades:', error);
+      setLoading(false);
+    });
 
-  useEffect(() => {
-    cargarComunidades();
-  }, []);
+    return () => unsubscribe();
+  }, [usuarioID]);
   
   const renderCommunityItem = ({ item }: { item: Comunidad }) => {
     const communityData = {
@@ -175,7 +163,7 @@ export default function ComunidadScreen(): JSX.Element {
           >
             <TouchableOpacity 
               style={styles.addButtonInner}
-              onPress={() => router.push('/tabs/newCommunity')}
+              onPress={() => router.push('./tabs/newCommunity')}
             >
               <Text style={styles.addButtonText}>+</Text>
             </TouchableOpacity>
