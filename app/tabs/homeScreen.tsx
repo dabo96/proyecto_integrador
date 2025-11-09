@@ -1,6 +1,6 @@
 import IconButton from '@/components/IconButton';
 import ImageButton from '@/components/ImageButton';
-import PostCard from '@/components/cards/PostCard';
+import PostCard from '@/components/cards/PostCard'
 import { db } from '@/services/firebase';
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';

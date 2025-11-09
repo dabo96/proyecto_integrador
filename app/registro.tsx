@@ -122,6 +122,9 @@ export default function RegisterScreen() {
     };
 
     const validateCodigo = (codigo: string) => {
+        if (codigo.length !== 9) {
+            return 'El código debe tener exactamente 9 caracteres';
+        }
         const codigoRegex = /^u\d+$/;
         if (!codigoRegex.test(codigo)) {
             return 'El código debe comenzar con "u" seguido de números (ej: u20201234)';

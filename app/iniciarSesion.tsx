@@ -42,6 +42,21 @@ export default function SignInScreen() {
                 // Guardar el usuarioID en AsyncStorage
                 await AsyncStorage.setItem('usuarioID', userFound.id);
                 await AsyncStorage.setItem('usuarioNombre', userFound.nombre);
+                try {
+                    const { contrasena: _removed, ...userToStore } = userFound || {};
+                    await AsyncStorage.multiSet([
+                        // Compatibilidad antigua
+                        ['userId', String(userFound.id)],
+                        ['user', JSON.stringify(userToStore)],
+                        // Claves usadas por homeScreen
+                        ['usuarioID', String(userFound.id)],
+                        ['usuarioNombre', String(userFound.nombre || '')],
+                    ]);
+                } catch (storageError) {
+                    console.error('Error guardando sesión en AsyncStorage', storageError);
+                    // Continuar navegación aunque falle el guardado, pero notificar
+                    Alert.alert('Aviso', 'No se pudo guardar la sesión localmente.');
+                }
                 Alert.alert("Éxito", `Bienvenido ${userFound.nombre}`);
                 router.push('./tabs/homeScreen');
             } else {

@@ -2,9 +2,20 @@ import ModButton from '@/components/ModButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
   const router = useRouter();
+
+  useEffect(() => {
+    const clearPersistedData = async () => {
+      try {
+        await AsyncStorage.clear();
+      } catch {}
+    };
+    clearPersistedData();
+  }, []);
 
   return (
     <LinearGradient
