@@ -91,6 +91,13 @@ export default function Layout() {
         }}
       />
       <Tabs.Screen
+        name="communityDetails"
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="otherProfile"
         options={{
           tabBarButton: () => null, 

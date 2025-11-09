@@ -1,5 +1,6 @@
+import { enviarSolicitudSeguimiento, verificarSolicitudPendiente as verificarSolicitudPendienteInterno, cancelarSolicitudPendiente, SolicitudEstado } from "./contactsService";
 import { db } from "@/services/firebase";
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 
 export interface PerfilUsuario {
   id: string;
@@ -55,15 +56,20 @@ export const obtenerPerfilUsuario = async (usuarioID: string): Promise<PerfilUsu
     // Contar publicaciones
     const totalPublicaciones = await contarPublicaciones(usuarioID);
 
+    const nombreFuente = userData.nombreCompleto || userData.nombre || '';
+    const partesNombre = nombreFuente.trim().split(' ');
+    const nombres = userData.nombres || partesNombre[0] || '';
+    const apellidos = userData.apellidos || partesNombre.slice(1).join(' ') || '';
+
     return {
       id: usuarioID,
-      nombre: userData.nombre || "",
-      apellido: userData.apellido || "",
+      nombre: nombres,
+      apellido: apellidos,
       fotoPerfil: userData.fotoPerfil,
       bio: userData.bio || "Sin biografía",
       correo: userData.correo,
       carrera: userData.carrera,
-      codigo: userData.codigo,
+      codigo: userData.codigoUniversitario || userData.codigo,
       seguidores,
       seguidos,
       totalPublicaciones,
@@ -262,18 +268,13 @@ export const verificarSiSigue = async (
 export const seguirUsuario = async (
   usuarioActualID: string, 
   usuarioASeguirID: string
-): Promise<void> => {
+): Promise<SolicitudEstado> => {
   try {
-    const contactosRef = collection(db, "Usuarios", usuarioActualID, "contactos");
-    
-    await addDoc(contactosRef, {
-      seguidoID: usuarioASeguirID,
-      fechaSeguimiento: serverTimestamp(),
-    });
-
-    console.log("✅ Usuario seguido correctamente");
+    const resultado = await enviarSolicitudSeguimiento(usuarioActualID, usuarioASeguirID);
+    console.log("Resultado de solicitud de seguimiento:", resultado);
+    return resultado;
   } catch (error) {
-    console.error("❌ Error siguiendo usuario:", error);
+    console.error("❌ Error enviando solicitud de seguimiento:", error);
     throw error;
   }
 };
@@ -322,5 +323,29 @@ export const obtenerListaSeguidos = async (usuarioID: string): Promise<string[]>
   } catch (error) {
     console.error("❌ Error obteniendo seguidos:", error);
     return [];
+  }
+};
+
+export const verificarSolicitudPendiente = async (
+  solicitanteID: string,
+  usuarioObjetivoID: string
+) => {
+  try {
+    return await verificarSolicitudPendienteInterno(solicitanteID, usuarioObjetivoID);
+  } catch (error) {
+    console.error("❌ Error verificando solicitud pendiente:", error);
+    return false;
+  }
+};
+
+export const cancelarSolicitudSeguimiento = async (
+  solicitanteID: string,
+  usuarioObjetivoID: string
+) => {
+  try {
+    await cancelarSolicitudPendiente(solicitanteID, usuarioObjetivoID);
+  } catch (error) {
+    console.error("❌ Error cancelando solicitud de seguimiento:", error);
+    throw error;
   }
 };

@@ -1,4 +1,4 @@
-import { dejarDeSeguirUsuario, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, seguirUsuario, verificarSiSigue } from '@/api/profileService';
+import { cancelarSolicitudSeguimiento, dejarDeSeguirUsuario, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, seguirUsuario, verificarSiSigue, verificarSolicitudPendiente } from '@/api/profileService';
 import PostCard from '@/components/cards/PostCard';
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
@@ -43,7 +43,7 @@ export default function OtherProfileScreen() {
     const [loading, setLoading] = useState(true);
     const [userProfile, setUserProfile] = useState<PerfilUsuario | null>(null);
     const [userPosts, setUserPosts] = useState<Post[]>([]);
-    const [isFollowing, setIsFollowing] = useState(false);
+    const [followStatus, setFollowStatus] = useState<'none' | 'pending' | 'following'>('none');
     const [showCommentInput, setShowCommentInput] = useState<string | null>(null);
     const [commentText, setCommentText] = useState('');
     const [comentarios, setComentarios] = useState<{ [postId: string]: Comentario[] }>({});
@@ -91,7 +91,12 @@ export default function OtherProfileScreen() {
 
             // Verificar si el usuario actual sigue al usuario objetivo
             const sigue = await verificarSiSigue(storedUsuarioID, usuarioIDObjetivo as string);
-            setIsFollowing(sigue);
+            if (sigue) {
+                setFollowStatus('following');
+            } else {
+                const pendiente = await verificarSolicitudPendiente(storedUsuarioID, usuarioIDObjetivo as string);
+                setFollowStatus(pendiente ? 'pending' : 'none');
+            }
 
             // Obtener publicaciones del usuario
             const publicacionesData = await obtenerPublicacionesPerfil(usuarioIDObjetivo as string);
@@ -159,10 +164,10 @@ export default function OtherProfileScreen() {
 
                 if (usuarioDoc.exists()) {
                     const usuarioData = usuarioDoc.data() as any;
-                    const nombreCompleto = usuarioData.nombre || '';
-                    const partesNombre = nombreCompleto.split(' ');
-                    const nombres = partesNombre[0] || '';
-                    const apellidos = partesNombre.slice(1).join(' ') || '';
+                    const nombreFuente = usuarioData.nombreCompleto || usuarioData.nombre || '';
+                    const partesNombre = nombreFuente.trim().split(' ');
+                    const nombres = usuarioData.nombres || partesNombre[0] || '';
+                    const apellidos = usuarioData.apellidos || partesNombre.slice(1).join(' ') || '';
 
                     comentariosList.push({
                         id: docSnapshot.id,
@@ -310,15 +315,22 @@ export default function OtherProfileScreen() {
         if (!currentUserID || !usuarioIDObjetivo) return;
 
         try {
-            if (isFollowing) {
+            if (followStatus === 'following') {
                 await dejarDeSeguirUsuario(currentUserID, usuarioIDObjetivo as string);
+                setFollowStatus('none');
+                await loadUserData();
+            } else if (followStatus === 'pending') {
+                await cancelarSolicitudSeguimiento(currentUserID, usuarioIDObjetivo as string);
+                setFollowStatus('none');
             } else {
-                await seguirUsuario(currentUserID, usuarioIDObjetivo as string);
+                const resultado = await seguirUsuario(currentUserID, usuarioIDObjetivo as string);
+                if (resultado === 'ya_sigue') {
+                    setFollowStatus('following');
+                    await loadUserData();
+                } else if (resultado === 'pendiente' || resultado === 'enviada') {
+                    setFollowStatus('pending');
+                }
             }
-            setIsFollowing(!isFollowing);
-
-            // Recargar datos para actualizar contador de seguidores
-            await loadUserData();
         } catch (error) {
             console.error('Error manejando seguimiento:', error);
         }
@@ -418,11 +430,23 @@ export default function OtherProfileScreen() {
 
                             <View style={styles.buttonsContainer}>
                                 <ModButton
-                                    title={isFollowing ? 'Dejar de seguir' : 'Seguir'}
+                                    title={
+                                        followStatus === 'following'
+                                            ? 'Dejar de seguir'
+                                            : followStatus === 'pending'
+                                                ? 'Cancelar solicitud'
+                                                : 'Seguir'
+                                    }
                                     onPress={handleFollow}
                                     iconName="user-plus"
                                     iconLib="Feather"
-                                    backgroundColor={isFollowing ? "#e74c3c" : "#2563eb"}
+                                    backgroundColor={
+                                        followStatus === 'following'
+                                            ? "#e74c3c"
+                                            : followStatus === 'pending'
+                                                ? "#9ca3af"
+                                                : "#2563eb"
+                                    }
                                     style={styles.button}
                                 />
                                 <ModButton

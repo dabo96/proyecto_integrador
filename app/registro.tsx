@@ -1,11 +1,14 @@
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
+// eslint-disable-next-line import/no-unresolved
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// eslint-disable-next-line import/no-unresolved
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 // Datos de facultades y carreras
 const facultades = [
@@ -62,38 +65,42 @@ const carreras = {
 };
 
 export default function RegisterScreen() {
-    const [nombre, setNombre] = useState('');
-    const [codigo, setCodigo] = useState('');
+    const [nombres, setNombres] = useState('');
+    const [apellidos, setApellidos] = useState('');
+    const [codigoUniversitario, setCodigoUniversitario] = useState('');
     const [facultadSeleccionada, setFacultadSeleccionada] = useState('');
     const [carreraSeleccionada, setCarreraSeleccionada] = useState('');
     const [correo, setCorreo] = useState('');
     const [contrasena, setContrasena] = useState('');
-    
+
     // Estados para manejar errores de validación
     const [errors, setErrors] = useState({
-        nombre: '',
-        codigo: '',
+        nombres: '',
+        apellidos: '',
+        codigoUniversitario: '',
         facultad: '',
         carrera: '',
         correo: '',
         contrasena: ''
     });
-    
+
     const router = useRouter();
 
     // Función para validar campos vacíos
     const validateEmptyFields = () => {
         const newErrors = {
-            nombre: '',
-            codigo: '',
+            nombres: '',
+            apellidos: '',
+            codigoUniversitario: '',
             facultad: '',
             carrera: '',
             correo: '',
             contrasena: ''
         };
 
-        if (!nombre.trim()) newErrors.nombre = 'El nombre es requerido';
-        if (!codigo.trim()) newErrors.codigo = 'El código universitario es requerido';
+        if (!nombres.trim()) newErrors.nombres = 'Los nombres son requeridos';
+        if (!apellidos.trim()) newErrors.apellidos = 'Los apellidos son requeridos';
+        if (!codigoUniversitario.trim()) newErrors.codigoUniversitario = 'El código universitario es requerido';
         if (!facultadSeleccionada) newErrors.facultad = 'La facultad es requerida';
         if (!carreraSeleccionada) newErrors.carrera = 'La carrera es requerida';
         if (!correo.trim()) newErrors.correo = 'El correo es requerido';
@@ -109,15 +116,15 @@ export default function RegisterScreen() {
         if (!email.endsWith('@utp.edu.pe')) {
             return 'El correo debe tener el dominio @utp.edu.pe';
         }
-        
+
         // Validar que comience con 'u' y el resto sean números
         const emailPrefix = email.split('@')[0];
         const emailRegex = /^u\d+$/;
-        
+
         if (!emailRegex.test(emailPrefix)) {
             return 'El correo debe comenzar con "u" seguido de números (ej: u20201234@utp.edu.pe)';
         }
-        
+
         return '';
     };
 
@@ -162,19 +169,16 @@ export default function RegisterScreen() {
         return carrera ? carrera.nombre : '';
     };
 
-    const generateUniqueCode = async (): Promise<string> => {
+    const generateUniqueVerificationCode = async (): Promise<string> => {
         let unique = false;
         let newCode = '';
-        const codesRef = collection(db, 'Codigos');
+        const codesRef = collection(db, 'codAuth');
 
-        while(!unique) {
+        while (!unique) {
             newCode = Math.floor(10000 + Math.random() * 90000).toString();
-
-            const q = query(codesRef, where('code', '==', newCode));
+            const q = query(codesRef, where('code', '==', newCode), where('used', '==', false));
             const querySnapshot = await getDocs(q);
-            if(querySnapshot.empty) {
-                unique = true;
-            }
+            unique = querySnapshot.empty;
         }
         return newCode;
     }
@@ -186,171 +190,227 @@ export default function RegisterScreen() {
         }
 
         // Validar formato de correo
-        const emailError = validateEmail(correo);
+        const correoNormalizado = correo.trim().toLowerCase();
+        const emailError = validateEmail(correoNormalizado);
         if (emailError) {
             setErrors(prev => ({ ...prev, correo: emailError }));
             return;
         }
 
-        const codigoError = validateCodigo(codigo);
+        const codigoError = validateCodigo(codigoUniversitario.trim());
         if (codigoError) {
-            setErrors(prev => ({ ...prev, codigo: codigoError }));
+            setErrors(prev => ({ ...prev, codigoUniversitario: codigoError }));
             return;
         }
 
-        try{
-            const codigo = await generateUniqueCode();
-            const userRef = await addDoc(collection(db, 'Usuarios'), {
-                nombre,
-                codigo,
+        try {
+            const usuariosRef = collection(db, 'Usuarios');
+
+            // Validar que no exista usuario con el mismo correo
+            const correoQuery = query(usuariosRef, where('correo', '==', correoNormalizado));
+            const correoSnapshot = await getDocs(correoQuery);
+            if (!correoSnapshot.empty) {
+                Alert.alert("Correo en uso", "Ya existe una cuenta registrada con este correo institucional.");
+                return;
+            }
+
+            // Validar que no exista usuario con el mismo código universitario
+            const codigoQuery = query(usuariosRef, where('codigoUniversitario', '==', codigoUniversitario.trim()));
+            const codigoSnapshot = await getDocs(codigoQuery);
+            if (!codigoSnapshot.empty) {
+                Alert.alert("Código en uso", "Ya existe una cuenta registrada con este código universitario.");
+                return;
+            }
+
+            const verificationCode = await generateUniqueVerificationCode();
+            const nombreCompleto = `${nombres.trim()} ${apellidos.trim()}`.replace(/\s+/g, ' ').trim();
+
+            const userRef = await addDoc(usuariosRef, {
+                nombres: nombres.trim(),
+                apellidos: apellidos.trim(),
+                nombreCompleto,
+                codigoUniversitario: codigoUniversitario.trim(),
                 facultad: getFacultadNombre(),
                 carrera: getCarreraNombre(),
-                correo,
-                contrasena,
+                correo: correoNormalizado,
+                contrasena: contrasena.trim(),
                 verificado: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
+                indice_conducta: 5,
+                fotoPerfil: null,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
             });
 
-            console.log("Usuario creado: ", userRef.id);
-
-            const codeRef = await addDoc(collection(db, 'codAuth'), {
-                code: codigo,
-                correo,
+            await setDoc(doc(db, 'codAuth', userRef.id), {
+                usuarioID: userRef.id,
+                correo: correoNormalizado,
+                code: verificationCode,
                 used: false,
-                createdAt: new Date(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
             });
 
-            console.log("Codigo creado: ", codeRef.id);
-            
-            const mailRef = await addDoc(collection(db, "mailEnviado"), {
-                to: correo,
+            await addDoc(collection(db, "mailEnviado"), {
+                to: correoNormalizado,
                 message: {
-                    subject: "Código de verificación",
-                    text: `Tu código de verificación es: ${codigo}`,
-                    html: `<p>Tu código de verificación es: <b>${codigo}</b></p>`,
+                    subject: "Código de verificación | Link U",
+                    text: `Hola ${nombreCompleto}, tu código de verificación es: ${verificationCode}`,
+                    html: `<p>Hola <strong>${nombreCompleto}</strong>,</p><p>Tu código de verificación es: <strong>${verificationCode}</strong></p>`,
                 },
             });
 
-            console.log("Mail creado: ", mailRef.id);
-            console.log("db: " + db.app.name);
-            console.log("id: " + db.app.options.projectId);
+            await AsyncStorage.multiSet([
+                ['pendingVerificationUserID', userRef.id],
+                ['pendingVerificationEmail', correoNormalizado],
+            ]);
 
-            router.push('./autCuenta');
-        } catch (error : any) {
+            Alert.alert(
+                "Registro exitoso",
+                "Hemos enviado un código de verificación a tu correo institucional. Ingrésalo en la siguiente pantalla."
+            );
+
+            router.push({ pathname: './autCuenta', params: { correo: correoNormalizado } });
+        } catch (error: any) {
             console.error(error);
             Alert.alert("Error", "Hubo un problema al registrar el usuario. Inténtalo de nuevo.");
         }
     }
 
     return (
-        <LinearGradient
-            colors={['#2F4AA6', '#0491C6']}
-            style={StyleSheet.absoluteFill}
-        >
-            <View style={styles.background}>
-                <Text style={styles.subtitle}>Empecemos</Text>
-                <View style={{ height: 50 }}></View>
-                <Text style={styles.texto}>Nombre y Apellido</Text>
-                <View style={{ height: 10 }}></View>
-                <TextInput
-                    style={[styles.input, errors.nombre && styles.inputError]}
-                    placeholder="Nombre y apellido"
-                    value={nombre}
-                    onChangeText={(text) => {
-                        setNombre(text);
-                        clearError('nombre');
-                    }}
-                />
-                {errors.nombre ? <Text style={styles.errorText}>{errors.nombre}</Text> : null}
-                <View style={{ height: 10 }}></View>
-                <Text style={styles.texto}>Codigo Universitario</Text>
-                <View style={{ height: 10 }}></View>
-                <TextInput
-                    style={[styles.input, errors.codigo && styles.inputError]}
-                    placeholder="Código"
-                    value={codigo}
-                    onChangeText={(text) => {
-                        setCodigo(text);
-                        clearError('codigo');
-                    }}
-                />
-                {errors.codigo ? <Text style={styles.errorText}>{errors.codigo}</Text> : null}
-                <View style={{ height: 10 }}></View>
-                <Text style={styles.texto}>Facultad</Text>
-                <View style={{ height: 10 }}></View>
-                <View style={[styles.pickerContainer, errors.facultad && styles.inputError]}>
-                    <Picker
-                        selectedValue={facultadSeleccionada}
-                        onValueChange={handleFacultadChange}
-                        style={styles.picker}
-                    >
-                        <Picker.Item label="Selecciona una facultad" value="" />
-                        {facultades.map((facultad) => (
-                            <Picker.Item 
-                                key={facultad.id} 
-                                label={facultad.nombre} 
-                                value={facultad.id} 
-                            />
-                        ))}
-                    </Picker>
-                </View>
-                {errors.facultad ? <Text style={styles.errorText}>{errors.facultad}</Text> : null}
-                <View style={{ height: 10 }}></View>
-                <Text style={styles.texto}>Carrera</Text>
-                <View style={{ height: 10 }}></View>
-                <View style={[styles.pickerContainer, errors.carrera && styles.inputError]}>
-                    <Picker
-                        selectedValue={carreraSeleccionada}
-                        onValueChange={handleCarreraChange}
-                        style={styles.picker}
-                        enabled={!!facultadSeleccionada}
-                    >
-                        <Picker.Item label="Selecciona una carrera" value="" />
-                        {facultadSeleccionada && carreras[facultadSeleccionada as keyof typeof carreras]?.map((carrera) => (
-                            <Picker.Item 
-                                key={carrera.id} 
-                                label={carrera.nombre} 
-                                value={carrera.id} 
-                            />
-                        ))}
-                    </Picker>
-                </View>
-                {errors.carrera ? <Text style={styles.errorText}>{errors.carrera}</Text> : null}
-                <View style={{ height: 10 }}></View>
-                <Text style={styles.texto}>Correo</Text>
-                <View style={{ height: 10 }}></View>
-                <TextInput
-                    style={[styles.input, errors.correo && styles.inputError]}
-                    placeholder="Correo"
-                    value={correo}
-                    onChangeText={(text) => {
-                        setCorreo(text);
-                        clearError('correo');
-                    }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                />
-                {errors.correo ? <Text style={styles.errorText}>{errors.correo}</Text> : null}
-                <View style={{ height: 10 }}></View>
-                <Text style={styles.texto}>Contraseña</Text>
-                <View style={{ height: 10 }}></View>
-                <TextInput
-                    style={[styles.input, errors.contrasena && styles.inputError]}
-                    placeholder="Contraseña"
-                    value={contrasena}
-                    secureTextEntry
-                    onChangeText={(text) => {
-                        setContrasena(text);
-                        clearError('contrasena');
-                    }}
-                />
-                {errors.contrasena ? <Text style={styles.errorText}>{errors.contrasena}</Text> : null}
-                <View style={{ height: 50 }}></View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
+            <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+                <LinearGradient
+                    colors={['#2F4AA6', '#0491C6']}
+                    style={StyleSheet.absoluteFill}
+                >
+                    <View style={styles.background}>
+                        <Text style={styles.subtitle}>Crea tu cuenta</Text>
+                        <View style={{ height: 40 }} />
 
-                <ModButton title="Registrar" style={styles.button} onPress={() => { handleRegister(); }} />
-            </View>
-        </LinearGradient>
+                        <Text style={styles.texto}>Nombres</Text>
+                        <View style={{ height: 10 }} />
+                        <TextInput
+                            style={[styles.input, errors.nombres && styles.inputError]}
+                            placeholder="Tus nombres"
+                            value={nombres}
+                            onChangeText={(text) => {
+                                setNombres(text);
+                                clearError('nombres');
+                            }}
+                        />
+                        {errors.nombres ? <Text style={styles.errorText}>{errors.nombres}</Text> : null}
+
+                        <View style={{ height: 10 }} />
+                        <Text style={styles.texto}>Apellidos</Text>
+                        <View style={{ height: 10 }} />
+                        <TextInput
+                            style={[styles.input, errors.apellidos && styles.inputError]}
+                            placeholder="Tus apellidos"
+                            value={apellidos}
+                            onChangeText={(text) => {
+                                setApellidos(text);
+                                clearError('apellidos');
+                            }}
+                        />
+                        {errors.apellidos ? <Text style={styles.errorText}>{errors.apellidos}</Text> : null}
+
+                        <View style={{ height: 10 }} />
+                        <Text style={styles.texto}>Código Universitario</Text>
+                        <View style={{ height: 10 }} />
+                        <TextInput
+                            style={[styles.input, errors.codigoUniversitario && styles.inputError]}
+                            placeholder="Ej: u20201234"
+                            value={codigoUniversitario}
+                            onChangeText={(text) => {
+                                setCodigoUniversitario(text);
+                                clearError('codigoUniversitario');
+                            }}
+                            autoCapitalize="none"
+                        />
+                        {errors.codigoUniversitario ? <Text style={styles.errorText}>{errors.codigoUniversitario}</Text> : null}
+
+                        <View style={{ height: 10 }} />
+                        <Text style={styles.texto}>Facultad</Text>
+                        <View style={{ height: 10 }} />
+                        <View style={[styles.pickerContainer, errors.facultad && styles.inputError]}>
+                            <Picker
+                                selectedValue={facultadSeleccionada}
+                                onValueChange={handleFacultadChange}
+                                style={styles.picker}
+                            >
+                                <Picker.Item label="Selecciona una facultad" value="" />
+                                {facultades.map((facultad) => (
+                                    <Picker.Item
+                                        key={facultad.id}
+                                        label={facultad.nombre}
+                                        value={facultad.id}
+                                    />
+                                ))}
+                            </Picker>
+                        </View>
+                        {errors.facultad ? <Text style={styles.errorText}>{errors.facultad}</Text> : null}
+
+                        <View style={{ height: 10 }} />
+                        <Text style={styles.texto}>Carrera</Text>
+                        <View style={{ height: 10 }} />
+                        <View style={[styles.pickerContainer, errors.carrera && styles.inputError]}>
+                            <Picker
+                                selectedValue={carreraSeleccionada}
+                                onValueChange={handleCarreraChange}
+                                style={styles.picker}
+                                enabled={!!facultadSeleccionada}
+                            >
+                                <Picker.Item label="Selecciona una carrera" value="" />
+                                {facultadSeleccionada && carreras[facultadSeleccionada as keyof typeof carreras]?.map((carrera) => (
+                                    <Picker.Item
+                                        key={carrera.id}
+                                        label={carrera.nombre}
+                                        value={carrera.id}
+                                    />
+                                ))}
+                            </Picker>
+                        </View>
+                        {errors.carrera ? <Text style={styles.errorText}>{errors.carrera}</Text> : null}
+
+                        <View style={{ height: 10 }} />
+                        <Text style={styles.texto}>Correo institucional</Text>
+                        <View style={{ height: 10 }} />
+                        <TextInput
+                            style={[styles.input, errors.correo && styles.inputError]}
+                            placeholder="Ej: u20201234@utp.edu.pe"
+                            value={correo}
+                            onChangeText={(text) => {
+                                setCorreo(text);
+                                clearError('correo');
+                            }}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                        {errors.correo ? <Text style={styles.errorText}>{errors.correo}</Text> : null}
+
+                        <View style={{ height: 10 }} />
+                        <Text style={styles.texto}>Contraseña</Text>
+                        <View style={{ height: 10 }} />
+                        <TextInput
+                            style={[styles.input, errors.contrasena && styles.inputError]}
+                            placeholder="Contraseña"
+                            value={contrasena}
+                            secureTextEntry
+                            onChangeText={(text) => {
+                                setContrasena(text);
+                                clearError('contrasena');
+                            }}
+                        />
+                        {errors.contrasena ? <Text style={styles.errorText}>{errors.contrasena}</Text> : null}
+
+                        <View style={{ height: 40 }} />
+
+                        <ModButton title="Registrarme" style={styles.button} onPress={handleRegister} />
+                        <View style={{ height: 40 }} />
+                    </View>
+                </LinearGradient>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 

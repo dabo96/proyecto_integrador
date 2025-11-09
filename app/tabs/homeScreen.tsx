@@ -108,7 +108,8 @@ export default function MainPageScreen() {
                 });
                 
                 // Usar el campo "nombre" que contiene el nombre completo
-                const nombreCompleto = String(data.nombre || '').trim().toLowerCase();
+                const nombreOrigen = data.nombreCompleto || data.nombre || [data.nombres, data.apellidos].filter(Boolean).join(' ');
+                const nombreCompleto = String(nombreOrigen || '').trim().toLowerCase();
                 const textoBusqueda = texto.trim().toLowerCase();
                 
                 console.log('Comparando:', {
@@ -125,15 +126,15 @@ export default function MainPageScreen() {
                     console.log('✓ Coincidencia encontrada:', data.nombre);
                     
                     // Dividir el nombre completo para separar nombres y apellidos
-                    const partesNombre = (data.nombre || '').split(' ');
-                    const nombres = partesNombre[0] || '';
-                    const apellidos = partesNombre.slice(1).join(' ') || '';
+                    const partesNombre = (nombreOrigen || '').trim().split(' ');
+                    const nombres = data.nombres || partesNombre[0] || '';
+                    const apellidos = data.apellidos || partesNombre.slice(1).join(' ') || '';
                     
                     resultados.push({
                         id: doc.id,
                         usuarioID: doc.id,
-                        nombres: nombres,
-                        apellidos: apellidos,
+                        nombres,
+                        apellidos,
                         fotoPerfil: data.fotoPerfil
                     });
                 }
@@ -180,6 +181,10 @@ export default function MainPageScreen() {
             if (usuarioDoc.exists()) {
                 const usuarioData = usuarioDoc.data() as any;
                 console.log('Datos del usuario encontrados:', usuarioData);
+                const nombreFuente = usuarioData.nombreCompleto || usuarioData.nombre || '';
+                const partesNombre = nombreFuente.trim().split(' ');
+                const nombresAutor = usuarioData.nombres || partesNombre[0] || '';
+                const apellidosAutor = usuarioData.apellidos || partesNombre.slice(1).join(' ') || '';
                 
                 // Contar likes reales desde la colección interacciones
                 const likesQuery = query(
@@ -206,8 +211,8 @@ export default function MainPageScreen() {
                     fechaCreacion: data.fechaCreacion,
                     imagen: data.imagenUrl,
                     autor: {
-                        nombres: usuarioData.nombre || '',
-                        apellidos: usuarioData.apellidos || '',
+                        nombres: nombresAutor,
+                        apellidos: apellidosAutor,
                         fotoPerfil: usuarioData.fotoPerfil
                     },
                     likes: likesCount,
@@ -337,14 +342,19 @@ export default function MainPageScreen() {
                 
                 if (usuarioDoc.exists()) {
                     const usuarioData = usuarioDoc.data() as any;
+                    const nombreFuente = usuarioData.nombreCompleto || usuarioData.nombre || '';
+                    const partesNombre = nombreFuente.trim().split(' ');
+                    const nombres = usuarioData.nombres || partesNombre[0] || '';
+                    const apellidos = usuarioData.apellidos || partesNombre.slice(1).join(' ') || '';
+
                     comentariosList.push({
                         id: docSnapshot.id,
                         usuarioID: data.usuarioID,
                         comentario: data.comentario,
                         fecha: data.fecha,
                         autor: {
-                            nombres: usuarioData.nombre || '',
-                            apellidos: usuarioData.apellidos || '',
+                            nombres,
+                            apellidos,
                             fotoPerfil: usuarioData.fotoPerfil
                         }
                     });

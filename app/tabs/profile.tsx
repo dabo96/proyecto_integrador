@@ -1,4 +1,3 @@
-import { obtenerContactos } from '@/api/contactsService';
 import { obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil, } from '@/api/profileService';
 import { Feather, FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -89,8 +88,7 @@ const Profile = () => {
       const publicaciones = await obtenerPublicacionesPerfil(targetUserId);
       setUserPosts(publicaciones);
 
-      const { contactos, solicitudes } = await obtenerContactos();
-      setSeguidores(contactos.length);
+      setSeguidores(perfil.seguidores);
     } catch (error) {
       console.error('Error cargando datos del perfil:', error);
     } finally {

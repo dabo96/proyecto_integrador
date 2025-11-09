@@ -1,38 +1,102 @@
-import { Contacto, obtenerContactos } from '@/api/contactsService';
+import { aceptarSolicitud, Contacto, obtenerContactos, rechazarSolicitud, SolicitudContacto } from '@/api/contactsService';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Contacts = () => {
-  const [contactRequests, setContactRequests] = useState<Contacto[]>([]);
+  const router = useRouter();
+  const [contactRequests, setContactRequests] = useState<SolicitudContacto[]>([]);
   const [contacts, setContacts] = useState<Contacto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [usuarioID, setUsuarioID] = useState<string | null>(null);
 
   useEffect(() => {
-    const cargarDatos = async () => {
-      const data = await obtenerContactos();
-      setContacts(data.contactos);
-      setContactRequests(data.solicitudes);
-      setLoading(false);
-    };
     cargarDatos();
   }, []);
 
-  const handleAcceptRequest = (id: string) => {
-    setContactRequests(prev => prev.filter(request => request.id !== id));
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+      if (storedUsuarioID) {
+        setUsuarioID(storedUsuarioID);
+      }
+
+      const data = await obtenerContactos(storedUsuarioID ?? undefined);
+      setContacts(data.contactos);
+      setContactRequests(data.solicitudes);
+    } catch (error) {
+      console.error('Error cargando contactos:', error);
+      Alert.alert('Error', 'No se pudieron cargar tus contactos en este momento.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const handleRejectRequest = (id: string) => {
-    setContactRequests(prev => prev.filter(request => request.id !== id));
+  const handleAcceptRequest = async (id: string) => {
+    try {
+      const current = usuarioID ?? (await AsyncStorage.getItem('usuarioID'));
+      if (!current) {
+        Alert.alert('Sesión finalizada', 'Vuelve a iniciar sesión para gestionar tus contactos.');
+        return;
+      }
+      await aceptarSolicitud(current, id);
+      await cargarDatos();
+    } catch (error) {
+      console.error('Error aceptando solicitud:', error);
+      Alert.alert('Error', 'No pudimos aceptar la solicitud. Intenta nuevamente.');
+    }
   };
 
-  const ContactItem = ({ contact, showButtons = false }: { contact: Contacto; showButtons?: boolean }) => (
+  const handleRejectRequest = async (id: string) => {
+    try {
+      const current = usuarioID ?? (await AsyncStorage.getItem('usuarioID'));
+      if (!current) {
+        Alert.alert('Sesión finalizada', 'Vuelve a iniciar sesión para gestionar tus contactos.');
+        return;
+      }
+      await rechazarSolicitud(current, id);
+      await cargarDatos();
+    } catch (error) {
+      console.error('Error rechazando solicitud:', error);
+      Alert.alert('Error', 'No pudimos rechazar la solicitud. Intenta nuevamente.');
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    cargarDatos();
+  };
+
+  const ContactItem = ({
+    contact,
+    showButtons = false
+  }: {
+    contact: Contacto | SolicitudContacto;
+    showButtons?: boolean;
+  }) => (
     <View style={styles.contactItem}>
-      <Image source={{ uri: contact.avatar }} style={styles.avatar} />
+      {contact.avatar ? (
+        <Image source={{ uri: contact.avatar }} style={styles.avatar} />
+      ) : (
+        <View style={[styles.avatar, styles.avatarPlaceholder]}>
+          <Text style={styles.avatarInitial}>
+            {contact.nombre.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
       <View style={styles.contactInfo}>
         <Text style={styles.contactName}>{contact.nombre}</Text>
-        <Text style={styles.contactDescription}>{contact.descripcion}</Text>
-        <Text style={styles.contactTime}>{contact.tiempo}</Text>
+        {contact.descripcion ? (
+          <Text style={styles.contactDescription}>{contact.descripcion}</Text>
+        ) : null}
+        {contact.tiempo ? (
+          <Text style={styles.contactTime}>{contact.tiempo}</Text>
+        ) : null}
       </View>
       {showButtons ? (
         <View style={styles.buttonContainer}>
@@ -46,7 +110,17 @@ const Contacts = () => {
       ) : (
         <TouchableOpacity style={styles.viewMoreButtonContainer}>
           <LinearGradient colors={['#4762bbff', '#0491C6']} style={styles.viewMoreButton}>
-            <Text style={styles.viewMoreText}>Ver más</Text>
+            <Text
+              style={styles.viewMoreText}
+              onPress={() =>
+                router.push({
+                  pathname: './otherProfile',
+                  params: { userId: 'usuarioID' in contact ? contact.usuarioID : contact.solicitanteID },
+                })
+              }
+            >
+              Ver perfil
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -67,7 +141,12 @@ const Contacts = () => {
 
       <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.header} />
 
-      <ScrollView style={styles.scrollContainer}>
+      <ScrollView
+        style={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2F4AA6" />
+        }
+      >
         <Text style={styles.Subtitulos}>Contactos</Text>
         <View style={styles.section}>
           {contacts.map((contact, index) => (
@@ -94,6 +173,16 @@ const styles = StyleSheet.create({
   section: { backgroundColor: 'white', marginBottom: 10, paddingVertical: 10 },
   contactItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#E0E0E0' },
   avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
+  avatarPlaceholder: {
+    backgroundColor: '#d1d5db',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    color: '#111827',
+    fontSize: 20,
+    fontWeight: '700',
+  },
   contactInfo: { flex: 1 },
   contactName: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 2 },
   contactDescription: { fontSize: 13, color: '#666', marginBottom: 1 },

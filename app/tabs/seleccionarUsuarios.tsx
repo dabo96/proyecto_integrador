@@ -1,6 +1,5 @@
 import { obtenerTodosLosUsuarios, obtenerUsuarioActual, Usuario } from '@/api/usuariosService';
 import { useRouter } from 'expo-router';
-import { getAuth } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +10,6 @@ const SeleccionarUsuarios = () => {
     const [usuariosFiltrados, setUsuariosFiltrados] = useState<Usuario[]>([]);
     const [busqueda, setBusqueda] = useState('');
     const [loading, setLoading] = useState(true);
-    const [currentUser, setCurrentUser] = useState<any | null>(null);
 
     useEffect(() => {
         cargarUsuarios();
@@ -21,30 +19,15 @@ const SeleccionarUsuarios = () => {
         filtrarUsuarios();
     }, [busqueda, usuarios]);
 
-    useEffect(() => {
-        const fetchCurrentUser = async () => {
-            try {
-                setLoading(true);
-                const u = await obtenerUsuarioActual();
-                setCurrentUser(u);
-            } catch (err) {
-                console.error("Error obteniendo usuario actual:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCurrentUser();
-    }, []);
-
     const cargarUsuarios = async () => {
         try {
             setLoading(true);
+            const usuarioActual = await obtenerUsuarioActual();
             const todosLosUsuarios = await obtenerTodosLosUsuarios();
 
-            // Obtener el usuario actual y filtrarlo de la lista
-            const user = currentUser;
-            const usuariosFiltrados = todosLosUsuarios.filter(u => u.id !== user?.uid);
+            const usuariosFiltrados = usuarioActual
+                ? todosLosUsuarios.filter(u => u.id !== usuarioActual.id)
+                : todosLosUsuarios;
 
             setUsuarios(usuariosFiltrados);
             setUsuariosFiltrados(usuariosFiltrados);
@@ -64,8 +47,10 @@ const SeleccionarUsuarios = () => {
 
         const terminoBusqueda = busqueda.toLowerCase().trim();
         const filtrados = usuarios.filter(usuario => {
-            const nombreMatch = usuario.nombre?.toLowerCase().includes(terminoBusqueda);
-            const codigoMatch = usuario.codigo?.toLowerCase().includes(terminoBusqueda);
+            const nombreFuente = usuario.nombreCompleto || usuario.nombre || '';
+            const codigoFuente = usuario.codigoUniversitario || usuario.codigo;
+            const nombreMatch = nombreFuente?.toLowerCase().includes(terminoBusqueda);
+            const codigoMatch = codigoFuente?.toLowerCase().includes(terminoBusqueda);
             return nombreMatch || codigoMatch;
         });
 
@@ -78,8 +63,8 @@ const SeleccionarUsuarios = () => {
             pathname: './chatDetails',
             params: {
                 userId: usuario.id,
-                name: usuario.nombre,
-                codigo: usuario.codigo,
+                name: usuario.nombreCompleto || usuario.nombre,
+                codigo: usuario.codigoUniversitario || usuario.codigo,
                 carrera: usuario.carrera,
                 correo: usuario.correo,
             }
@@ -93,12 +78,14 @@ const SeleccionarUsuarios = () => {
         >
             <View style={styles.avatarContainer}>
                 <Text style={styles.avatarText}>
-                    {item.nombre?.charAt(0).toUpperCase() || 'U'}
+                    {(item.nombreCompleto || item.nombre || 'U')
+                        .charAt(0)
+                        .toUpperCase()}
                 </Text>
             </View>
             <View style={styles.usuarioInfo}>
-                <Text style={styles.usuarioNombre}>{item.nombre}</Text>
-                <Text style={styles.usuarioCodigo}>{item.codigo}</Text>
+                <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
+                <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
                 <Text style={styles.usuarioCarrera}>{item.carrera}</Text>
             </View>
             <TouchableOpacity style={styles.chatButton}>

@@ -1,15 +1,34 @@
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { collection, getDocs, query, updateDoc, where } from 'firebase/firestore';
-import React, { useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function AutCuenta() {
     const [input, setInput] = useState(['', '', '', '', '']);
     const inputsRef = useRef<(TextInput | null)[]>([]);
+    const [correoObjetivo, setCorreoObjetivo] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const params = useLocalSearchParams<{ correo?: string }>();
     const router = useRouter();
+
+    useEffect(() => {
+        const inicializar = async () => {
+            if (params?.correo && typeof params.correo === 'string') {
+                setCorreoObjetivo(params.correo.toLowerCase());
+                return;
+            }
+            const stored = await AsyncStorage.getItem('pendingVerificationEmail');
+            if (stored) {
+                setCorreoObjetivo(stored);
+            }
+        };
+
+        inicializar();
+    }, [params?.correo]);
 
     const manejarCambios = (texto: string, indice: number) => {
         // Filtrar solo números
@@ -25,42 +44,79 @@ export default function AutCuenta() {
     }
 
     const manejarVerificacion = async () => {
+        if (isSubmitting) {
+            return;
+        }
+
         const codigoIngresado = input.join('');
 
         if (codigoIngresado.length !== 5) {
-            alert('Por favor, ingresa un código de 5 dígitos.');
+            Alert.alert('Código inválido', 'Por favor, ingresa un código de 5 dígitos.');
+            return;
+        }
+
+        if (!correoObjetivo) {
+            Alert.alert(
+                'Sin correo asociado',
+                'No pudimos encontrar el correo asociado a este registro. Vuelve al formulario de registro e inténtalo nuevamente.'
+            );
             return;
         }
 
         try {
-            const q = query(collection(db, 'codAuth'), where('code', '==', codigoIngresado), where('used', '==', false));
+            setIsSubmitting(true);
+
+            const q = query(
+                collection(db, 'codAuth'),
+                where('code', '==', codigoIngresado),
+                where('used', '==', false)
+            );
             const snapshot = await getDocs(q);
 
             if (snapshot.empty) {
-                alert('Código inválido o ya utilizado. Intenta nuevamente.');
+                Alert.alert('Código inválido', 'El código es incorrecto o ya fue utilizado. Intenta nuevamente.');
+                setIsSubmitting(false);
                 return;
             }
 
             const docRef = snapshot.docs[0].ref;
             const data = snapshot.docs[0].data();
 
-            await updateDoc(docRef, { used: true, updatedAt: new Date() });
-
-            if (data.correo) {
-                const userQuery = query(collection(db, 'Usuarios'), where('correo', '==', data.correo));
-                const userSnapshot = await getDocs(userQuery);
-
-                if (!userSnapshot.empty) {
-                    const userRef = userSnapshot.docs[0].ref;
-                    await updateDoc(userRef, { verified: true, updatedAt: new Date() });
-                }
+            if (data.correo?.toLowerCase() !== correoObjetivo) {
+                Alert.alert('Correo distinto', 'El código ingresado no coincide con el correo registrado.');
+                setIsSubmitting(false);
+                return;
             }
 
-            console.log('Éxito', 'Cuenta verificada exitosamente.');
-            router.push('./tabs/homeScreen');
+            if (!data.usuarioID) {
+                Alert.alert('Sin usuario', 'No pudimos asociar este código a un usuario.');
+                setIsSubmitting(false);
+                return;
+            }
+
+            await updateDoc(docRef, { used: true, updatedAt: serverTimestamp() });
+
+            if (data.correo) {
+                const userRef = doc(db, 'Usuarios', data.usuarioID);
+                await updateDoc(userRef, {
+                    verificado: true,
+                    updatedAt: serverTimestamp(),
+                });
+            }
+
+            await AsyncStorage.multiRemove(['pendingVerificationUserID', 'pendingVerificationEmail']);
+
+            Alert.alert('Cuenta verificada', 'Tu cuenta ha sido verificada correctamente. Ahora puedes iniciar sesión.', [
+                {
+                    text: 'Iniciar sesión',
+                    onPress: () => router.replace('/iniciarSesion'),
+                },
+            ]);
         } catch (error) {
             console.error(error);
             Alert.alert('Error', 'Ocurrió un error al verificar el código. Intenta nuevamente.');
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -94,7 +150,14 @@ export default function AutCuenta() {
                             ))}
                         </View>
                         <View style={{ height: 50 }}></View>
-                        <ModButton title="Verificar" fontWeight='bold' textColor="black" style={styles.button} onPress={() => { manejarVerificacion(); }} />
+                        <ModButton
+                            title={isSubmitting ? 'Verificando...' : 'Verificar'}
+                            fontWeight='bold'
+                            textColor="black"
+                            style={styles.button}
+                            onPress={manejarVerificacion}
+                            disabled={isSubmitting}
+                        />
                     </View>
                 </View>
             </ScrollView>

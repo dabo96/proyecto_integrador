@@ -16,7 +16,7 @@ export default function SignInScreen() {
     const [loading, setLoading] = useState(false);
 
     const handleSignIn = async () => {
-        if (!correo || !contrasena) {
+        if (!correo.trim() || !contrasena.trim()) {
             Alert.alert("Error", "Por favor ingresa correo y contraseña");
             return;
         }
@@ -24,7 +24,8 @@ export default function SignInScreen() {
         setLoading(true);
 
         try {
-            const q = query(collection(db, "Usuarios"), where("correo", "==", correo));
+            const correoNormalizado = correo.trim().toLowerCase();
+            const q = query(collection(db, "Usuarios"), where("correo", "==", correoNormalizado));
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {
@@ -38,11 +39,32 @@ export default function SignInScreen() {
                 userFound = { id: doc.id, ...doc.data() };
             });
 
-            if (userFound?.contrasena === contrasena) {
+            if (!userFound.verificado) {
+                await AsyncStorage.multiSet([
+                    ['pendingVerificationUserID', userFound.id],
+                    ['pendingVerificationEmail', correoNormalizado],
+                ]);
+                Alert.alert(
+                    "Cuenta sin verificar",
+                    "Necesitas verificar tu cuenta con el código enviado a tu correo institucional.",
+                    [
+                        {
+                            text: "Verificar ahora",
+                            onPress: () => router.push({ pathname: './autCuenta', params: { correo: correoNormalizado } }),
+                        },
+                        { text: "Cancelar" }
+                    ]
+                );
+                setLoading(false);
+                return;
+            }
+
+            if (userFound?.contrasena === contrasena.trim()) {
                 // Guardar el usuarioID en AsyncStorage
                 await AsyncStorage.setItem('usuarioID', userFound.id);
-                await AsyncStorage.setItem('usuarioNombre', userFound.nombre);
-                Alert.alert("Éxito", `Bienvenido ${userFound.nombre}`);
+                const nombreCompleto = userFound.nombreCompleto || userFound.nombres || userFound.nombre || 'Usuario';
+                await AsyncStorage.setItem('usuarioNombre', nombreCompleto);
+                Alert.alert("Éxito", `Bienvenido ${nombreCompleto.split(' ')[0] || nombreCompleto}`);
                 router.push('./tabs/homeScreen');
             } else {
                 Alert.alert("Error", "Contraseña incorrecta");

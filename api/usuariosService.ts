@@ -7,8 +7,15 @@ export type Usuario = {
   nombres?: string;
   apellidos?: string;
   nombre?: string;
-  email?: string;
+  nombreCompleto?: string;
+  correo?: string;
+  codigoUniversitario?: string;
+  carrera?: string;
+  facultad?: string;
+  verificado?: boolean;
   fotoPerfil?: string | null;
+  indice_conducta?: number;
+  uid?: string;
   [key: string]: any;
 };
 
@@ -28,9 +35,22 @@ export const obtenerUsuarioActual = async (): Promise<Usuario | null> => {
     const usuarioSnap = await getDoc(usuarioRef);
     
     if (usuarioSnap.exists()) {
-      const data = usuarioSnap.data();
-      console.log("👤 Datos del usuario actual:", data);
-      return { id: usuarioID, ...data } as Usuario;
+      const data = usuarioSnap.data() || {};
+      const nombreCompleto =
+        data.nombreCompleto ||
+        [data.nombres, data.apellidos].filter(Boolean).join(" ").trim();
+
+      const usuario: Usuario = {
+        id: usuarioID,
+        ...data,
+        nombreCompleto,
+        nombre: nombreCompleto,
+        correo: data.correo,
+        uid: usuarioID,
+      };
+
+      console.log("👤 Datos del usuario actual:", usuario);
+      return usuario;
     } else {
       console.warn("⚠️ No se encontró el usuario en Firestore.");
       return null;
@@ -48,8 +68,20 @@ export const obtenerTodosLosUsuarios = async (): Promise<Usuario[]> => {
         const snapshot = await getDocs(usuariosRef);
         const usuarios: Usuario[] = [];
 
-        snapshot.forEach((doc) => {
-            usuarios.push({ ...doc.data(), id: doc.id } as Usuario);
+        snapshot.forEach((docSnapshot) => {
+            const data = docSnapshot.data() || {};
+            const nombreCompleto =
+              data.nombreCompleto ||
+              [data.nombres, data.apellidos].filter(Boolean).join(" ").trim();
+
+            usuarios.push({
+              id: docSnapshot.id,
+              ...data,
+              nombreCompleto,
+              nombre: nombreCompleto,
+              correo: data.correo,
+              uid: docSnapshot.id,
+            } as Usuario);
         });
         
         return usuarios;
@@ -69,8 +101,19 @@ export const obtenerUsuarioPorId = async (userId: string): Promise<Usuario | nul
             return null;
         }
 
-        const data = snapshot.data() as Usuario;
-        const usuario: Usuario = { ...data, uid: userId };
+        const data = snapshot.data() || {};
+        const nombreCompleto =
+          data.nombreCompleto ||
+          [data.nombres, data.apellidos].filter(Boolean).join(" ").trim();
+
+        const usuario: Usuario = {
+          id: userId,
+          ...data,
+          nombreCompleto,
+          nombre: nombreCompleto,
+          correo: data.correo,
+          uid: userId,
+        };
 
         return usuario;
     } catch (error) {

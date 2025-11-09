@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Notificacion = {
   id: string;
@@ -17,6 +17,7 @@ type Notificacion = {
   timestamp: number;
   publicacionTexto?: string;
   yaSeguido?: boolean;
+  solicitudPendiente?: boolean;
 };
 
 const relTime = (ms: number) => {
@@ -225,9 +226,30 @@ export default function Notificaciones() {
   const handleSeguir = async (usuarioID: string, notificacionId: string) => {
     if (!currentUserID) return;
     try {
-      await seguirUsuario(currentUserID, usuarioID);
+      const resultado = await seguirUsuario(currentUserID, usuarioID);
+
+      if (resultado === 'enviada') {
+        Alert.alert('Solicitud enviada', 'Tu solicitud de seguimiento ha sido enviada.');
+      } else if (resultado === 'pendiente') {
+        Alert.alert('Solicitud pendiente', 'Ya enviaste una solicitud que está pendiente.');
+      } else if (resultado === 'ya_sigue') {
+        Alert.alert('Éxito', 'Ahora sigues a este usuario.');
+      }
+
       setLista(prev =>
-        prev.map(n => (n.id === notificacionId ? { ...n, yaSeguido: true } : n))
+        prev.map(n => {
+          if (n.id !== notificacionId) return n;
+
+          if (resultado === 'ya_sigue') {
+            return { ...n, yaSeguido: true, solicitudPendiente: false };
+          }
+
+          if (resultado === 'enviada' || resultado === 'pendiente') {
+            return { ...n, solicitudPendiente: true };
+          }
+
+          return n;
+        })
       );
     } catch (error) {
       console.error('Error siguiendo usuario:', error);
@@ -275,6 +297,10 @@ export default function Notificaciones() {
         n.yaSeguido ? (
           <View style={[styles.followButton, styles.followingButton]}>
             <Text style={[styles.followButtonText, styles.followingButtonText]}>Siguiendo</Text>
+          </View>
+        ) : n.solicitudPendiente ? (
+          <View style={[styles.followButton, styles.pendingButton]}>
+            <Text style={[styles.followButtonText, styles.pendingButtonText]}>Solicitud enviada</Text>
           </View>
         ) : (
           <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.gradientButton}>
@@ -384,6 +410,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   followingButtonText: { color: '#555' },
+  pendingButton: {
+    backgroundColor: '#e5e7eb',
+    marginLeft: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  pendingButtonText: {
+    color: '#555',
+  },
   loadingContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
   loadingText: { marginTop: 8, fontSize: 16, color: '#666' },
   emptyContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },

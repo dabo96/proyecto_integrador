@@ -7,14 +7,27 @@ import { addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore";
 import { app, db } from "@/services/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL, } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 type NuevaPublicacionProps = {
   onGoBack?: () => void;
 };
 
-const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
-  onGoBack = () => console.log("Atrás"),
-}) => {
+const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) => {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ communityId?: string; communityName?: string }>();
+  const communityId = typeof params.communityId === "string" ? params.communityId : null;
+  const communityName = typeof params.communityName === "string" ? params.communityName : null;
+  const isCommunityPost = Boolean(communityId);
+
+  const handleGoBack = () => {
+    if (onGoBack) {
+      onGoBack();
+    } else {
+      router.back();
+    }
+  };
+
   const [texto, setTexto] = useState("");
   const [imagen, setImagen] = useState<string | null>(null);
   const [usuario, setUsuario] = useState<any>(null);
@@ -124,6 +137,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
         likes: 0,
         comentarios: 0,
         estado: "activo",
+        comunidadID: communityId ?? null,
         autor: {
           nombres: usuario.nombres || "",
           apellidos: usuario.apellidos || "",
@@ -131,7 +145,18 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
         },
       });
 
-      Alert.alert("✅ Éxito", "Publicación creada correctamente.");
+      Alert.alert(
+        "✅ Éxito",
+        isCommunityPost
+          ? `Tu publicación se compartió en ${communityName ?? "la comunidad"}.`
+          : "Publicación creada correctamente.",
+        [
+          {
+            text: "Aceptar",
+            onPress: () => router.back(),
+          },
+        ]
+      );
       console.log("✅ Publicación creada con ID:", docRef.id);
       setTexto("");
       setImagen(null);
@@ -149,7 +174,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
 
       <View style={styles.subHeader}>
         <View style={styles.headerLeft}>
-          <Pressable onPress={onGoBack}>
+          <Pressable onPress={handleGoBack}>
             <Text style={styles.back}>←</Text>
           </Pressable>
 
@@ -173,6 +198,14 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({
           style={{ borderRadius: 20 }}
         />
       </View>
+
+      {isCommunityPost && (
+        <View style={styles.communityBanner}>
+          <Text style={styles.communityBannerText}>
+            Publicando en {communityName ?? "la comunidad"}
+          </Text>
+        </View>
+      )}
 
       <TextInput
         style={styles.input}
@@ -230,12 +263,25 @@ const styles = StyleSheet.create({
   back: { fontSize: 24, color: "#2F4AA6", marginRight: 16 },
   avatar: { width: 32, height: 32, borderRadius: 16, marginRight: 8 },
   name: { fontSize: 16, color: "#333", fontWeight: "500" },
+  communityBanner: {
+    marginTop: 80,
+    marginHorizontal: 16,
+    backgroundColor: "#e0f2fe",
+    padding: 12,
+    borderRadius: 12,
+  },
+  communityBannerText: {
+    color: "#075985",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+  },
   input: {
     flex: 1,
     fontSize: 18,
     padding: 16,
     textAlignVertical: "top",
-    marginTop: 60,
+    marginTop: 20,
   },
   imagePreviewContainer: {
     marginHorizontal: 16,

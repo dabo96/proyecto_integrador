@@ -1,13 +1,12 @@
 import ModButton from "@/components/ModButton";
 import CommunityCard from "@/components/cards/CommunityCard";
-import CommunityPostCard from "@/components/cards/CommunityPostCard";
 import { db } from '@/services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { collection, getDocs } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import React, { JSX, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface Comunidad {
   id: string;
@@ -19,20 +18,12 @@ interface Comunidad {
   miembros: string[];
 }
 
-interface Publicacion {
-  id: string;
-  comunidad: string;
-  tiempo: string;
-  texto: string;
-  imagen?: string;
-}
-
 export default function ComunidadScreen(): JSX.Element {
   const [comunidades, setComunidades] = useState<Comunidad[]>([]);
   const [todasComunidades, setTodasComunidades] = useState<Comunidad[]>([]);
-  const [publicaciones, setPublicaciones] = useState<Publicacion[]>([]);
-  const [usuarioID, setUsuarioID] = useState<string>('');
+  const [usuarioID, setUsuarioID] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gestionando, setGestionando] = useState(false);
   const router = useRouter();
 
   // Función para obtener imagen de comunidad
@@ -115,33 +106,166 @@ export default function ComunidadScreen(): JSX.Element {
   useEffect(() => {
     cargarComunidades();
   }, []);
-  
-  const renderCommunityItem = ({ item }: { item: Comunidad }) => {
-    const communityData = {
-      id: item.id,
-      nombre: item.nombre,
-      posts: 0, // Por ahora sin posts
-      imagen: item.imagen
-    };
-    
-    return (
-      <CommunityCard
-        comunidad={communityData}
-        onPress={() => console.log('Navegar a comunidad:', item.nombre)}
-      />
+
+  const registrarMembresiaUsuario = async (userId: string, comunidad: Comunidad, rol: 'admin' | 'miembro') => {
+    try {
+      const payload = {
+        comunidadID: comunidad.id,
+        nombre: comunidad.nombre,
+        descripcion: comunidad.descripcion,
+        rol,
+        fechaUnion: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidad.id), payload);
+      // Compatibilidad con colecciones antiguas en minúscula
+      await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => {});
+    } catch (error) {
+      console.warn('No se pudo registrar la membresía del usuario:', error);
+    }
+  };
+
+  const eliminarMembresiaUsuario = async (userId: string, comunidadId: string) => {
+    try {
+      await deleteDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidadId));
+    } catch {}
+
+    try {
+      await deleteDoc(doc(db, 'usuarios', userId, 'comunidades', comunidadId));
+    } catch {}
+  };
+
+  const handleJoinCommunity = async (comunidad: Comunidad) => {
+    if (gestionando) return;
+
+    const currentUser = usuarioID;
+    if (!currentUser) {
+      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+      return;
+    }
+
+    setGestionando(true);
+    try {
+      const comunidadRef = doc(db, 'comunidades', comunidad.id);
+      await updateDoc(comunidadRef, {
+        miembros: arrayUnion(currentUser),
+      });
+
+      await registrarMembresiaUsuario(currentUser, comunidad, currentUser === comunidad.creadorID ? 'admin' : 'miembro');
+      Alert.alert('Te uniste a la comunidad', `Ahora eres parte de ${comunidad.nombre}.`);
+      await cargarComunidades();
+    } catch (error) {
+      console.error('Error al unirse a la comunidad:', error);
+      Alert.alert('Error', 'No pudimos unirte a la comunidad. Inténtalo nuevamente.');
+    } finally {
+      setGestionando(false);
+    }
+  };
+
+  const performLeaveCommunity = async (comunidad: Comunidad) => {
+    if (gestionando) return;
+
+    const currentUser = usuarioID;
+    if (!currentUser) {
+      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+      return;
+    }
+
+    setGestionando(true);
+    try {
+      const comunidadRef = doc(db, 'comunidades', comunidad.id);
+      await updateDoc(comunidadRef, {
+        miembros: arrayRemove(currentUser),
+      });
+
+      await eliminarMembresiaUsuario(currentUser, comunidad.id);
+      Alert.alert('Saliste de la comunidad', `Ya no perteneces a ${comunidad.nombre}.`);
+      await cargarComunidades();
+    } catch (error) {
+      console.error('Error al salir de la comunidad:', error);
+      Alert.alert('Error', 'No pudimos procesar tu salida. Inténtalo nuevamente.');
+    } finally {
+      setGestionando(false);
+    }
+  };
+
+  const handleLeaveCommunity = (comunidad: Comunidad) => {
+    const currentUser = usuarioID;
+    if (!currentUser) {
+      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+      return;
+    }
+
+    if (comunidad.creadorID === currentUser) {
+      Alert.alert(
+        'Eres administrador',
+        'Como administrador debes eliminar la comunidad para dejar de administrarla.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Eliminar comunidad',
+            style: 'destructive',
+            onPress: () => handleDeleteCommunity(comunidad),
+          },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Salir de la comunidad',
+      `¿Deseas salir de ${comunidad.nombre}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Salir',
+          style: 'destructive',
+          onPress: () => performLeaveCommunity(comunidad),
+        },
+      ]
     );
   };
 
-  const renderPostItem = ({ item }: { item: Publicacion }) => (
-    <CommunityPostCard
-      publicacion={item}
-      imagenComunidad={obtenerImagenComunidad(item.comunidad)}
-      onLike={() => console.log('Like:', item.id)}
-      onComment={() => console.log('Comment:', item.id)}
-      onShare={() => console.log('Share:', item.id)}
-    />
-  );
+  const performDeleteCommunity = async (comunidad: Comunidad) => {
+    if (gestionando) return;
 
+    setGestionando(true);
+    try {
+      await deleteDoc(doc(db, 'comunidades', comunidad.id));
+
+      // Eliminar publicaciones vinculadas a la comunidad
+      const publicacionesRef = collection(db, 'publicaciones');
+      const publicacionesSnapshot = await getDocs(query(publicacionesRef, where('comunidadID', '==', comunidad.id)));
+      await Promise.all(publicacionesSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref)));
+
+      await Promise.all(
+        (comunidad.miembros || []).map((miembroId) => eliminarMembresiaUsuario(miembroId, comunidad.id))
+      );
+
+      Alert.alert('Comunidad eliminada', `${comunidad.nombre} fue eliminada correctamente.`);
+      await cargarComunidades();
+    } catch (error) {
+      console.error('Error al eliminar la comunidad:', error);
+      Alert.alert('Error', 'No pudimos eliminar la comunidad. Inténtalo nuevamente.');
+    } finally {
+      setGestionando(false);
+    }
+  };
+
+  const handleDeleteCommunity = (comunidad: Comunidad) => {
+    Alert.alert(
+      'Eliminar comunidad',
+      `¿Seguro que deseas eliminar ${comunidad.nombre}? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => performDeleteCommunity(comunidad),
+        },
+      ]
+    );
+  };
   
   const renderContent = () => {
     if (loading) {
@@ -184,7 +308,7 @@ export default function ComunidadScreen(): JSX.Element {
       </View>,
       
       <View key="community-section" style={styles.section}>
-        <Text style={styles.sectionTitle}>Tu Comunidad</Text>
+        <Text style={styles.sectionTitle}>Tus comunidades</Text>
         {comunidades.length > 0 ? (
           comunidades.map((item) => {
             const communityData = {
@@ -194,20 +318,49 @@ export default function ComunidadScreen(): JSX.Element {
               imagen: item.imagen
             };
             return (
+              <View key={item.id} style={styles.communityWrapper}>
               <CommunityCard
-                key={item.id}
-                comunidad={communityData}
-                onPress={() => console.log('Navegar a comunidad:', item.nombre)}
-              />
+                  comunidad={communityData}
+                  onPress={() =>
+                    router.push({
+                      pathname: './communityDetails',
+                      params: { communityId: item.id },
+                    })
+                  }
+                />
+                <View style={styles.actionRow}>
+                  <ModButton
+                    title="Ver"
+                    onPress={() =>
+                      router.push({
+                        pathname: './communityDetails',
+                        params: { communityId: item.id },
+                      })
+                    }
+                    backgroundColor="#2563eb"
+                    style={styles.actionButton}
+                  />
+                  <ModButton
+                    title={item.creadorID === usuarioID ? 'Eliminar' : 'Salir'}
+                    onPress={() =>
+                      item.creadorID === usuarioID
+                        ? handleDeleteCommunity(item)
+                        : handleLeaveCommunity(item)
+                    }
+                    backgroundColor={item.creadorID === usuarioID ? '#dc2626' : '#9ca3af'}
+                    style={styles.actionButton}
+                  />
+                </View>
+              </View>
             );
           })
         ) : (
-          <Text style={styles.emptyMessage}>No hay comunidades para mostrar</Text>
+          <Text style={styles.emptyMessage}>Aún no perteneces a ninguna comunidad.</Text>
         )}
       </View>,
 
       <View key="posts-section" style={styles.section}>
-        <Text style={styles.sectionTitle}>Comunidades</Text>
+        <Text style={styles.sectionTitle}>Comunidades disponibles</Text>
         {todasComunidades.length > 0 ? (
           todasComunidades.map((item) => {
             const communityData = {
@@ -217,11 +370,25 @@ export default function ComunidadScreen(): JSX.Element {
               imagen: item.imagen
             };
             return (
-              <CommunityCard
-                key={item.id}
-                comunidad={communityData}
-                onPress={() => console.log('Ver comunidad:', item.nombre)}
-              />
+              <View key={item.id} style={styles.communityWrapper}>
+                <CommunityCard
+                  comunidad={communityData}
+                  onPress={() =>
+                    router.push({
+                      pathname: './communityDetails',
+                      params: { communityId: item.id },
+                    })
+                  }
+                />
+                <View style={styles.actionRow}>
+                  <ModButton
+                    title="Unirme"
+                    onPress={() => handleJoinCommunity(item)}
+                    backgroundColor="#16a34a"
+                    style={styles.actionButton}
+                  />
+                </View>
+              </View>
             );
           })
         ) : (
@@ -240,16 +407,11 @@ export default function ComunidadScreen(): JSX.Element {
         />
         <View style={styles.container}>
           <FlatList
-            data={publicaciones}
-            keyExtractor={(item) => item.id}
-            renderItem={renderPostItem}
+            data={[]}
+            keyExtractor={(_, index) => `empty-${index}`}
+            renderItem={() => null}
             showsVerticalScrollIndicator={false}
             ListHeaderComponent={<View>{renderContent()}</View>}
-            ListEmptyComponent={
-              publicaciones.length === 0 ? (
-                <Text style={styles.emptyMessage}>No hay publicaciones para mostrar</Text>
-              ) : null
-            }
             contentContainerStyle={styles.scrollContent}
           />
         </View>
@@ -339,6 +501,18 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  communityWrapper: {
+    marginBottom: 18,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: 16,
   },
   loadingContainer: {
     flex: 1,
