@@ -1,14 +1,14 @@
 import IconButton from '@/components/IconButton';
 import ImageButton from '@/components/ImageButton';
-import PostCard from '@/components/cards/PostCard';
-import { EvilIcons, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import PostCard from '@/components/cards/PostCard'
+import { db } from '@/services/firebase';
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Alert, Modal } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { db } from '@/services/firebase';
-import { collection, getDocs, query, where, orderBy, limit, addDoc, doc, getDoc, onSnapshot, deleteDoc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface Post {
     id: string;
@@ -202,11 +202,11 @@ export default function MainPageScreen() {
                 const publicacion = {
                     id: docSnapshot.id,
                     usuarioID: data.usuarioID,
-                    contenido: data.contenido,
+                    contenido: data.texto,
                     fechaCreacion: data.fechaCreacion,
-                    imagen: data.imagen,
+                    imagen: data.imagenUrl,
                     autor: {
-                        nombres: usuarioData.nombres || '',
+                        nombres: usuarioData.nombre || '',
                         apellidos: usuarioData.apellidos || '',
                         fotoPerfil: usuarioData.fotoPerfil
                     },
@@ -343,7 +343,7 @@ export default function MainPageScreen() {
                         comentario: data.comentario,
                         fecha: data.fecha,
                         autor: {
-                            nombres: usuarioData.nombres || '',
+                            nombres: usuarioData.nombre || '',
                             apellidos: usuarioData.apellidos || '',
                             fotoPerfil: usuarioData.fotoPerfil
                         }
@@ -973,19 +973,25 @@ export default function MainPageScreen() {
                     posts.map((post) => (
                         <PostCard
                             key={post.id}
-                            post={{
-                                id: post.id,
-                                author: `${post.autor.nombres} ${post.autor.apellidos}`.trim(),
-                                time: formatRelativeTime(post.fechaCreacion),
-                                content: post.contenido,
-                                image: post.imagen,
-                                likes: post.likes,
-                                comments: post.comentarios,
-                                isOwner: post.usuarioID === usuarioID,
-                            }}
+                            post={post}
+                            liked={likedPosts[post.id] || false}
                             onLike={handleLike}
                             onComment={handleComment}
                             onReport={handleReport}
+                            formatTime={formatRelativeTime}
+                            comentarios={comentarios[post.id]}
+                            loadingComments={loadingComments === post.id}
+                            showCommentInput={showCommentInput === post.id}
+                            commentText={commentText}
+                            onCommentTextChange={setCommentText}
+                            onSendComment={handleSendComment}
+                            onCloseComment={() => {
+                                setShowCommentInput(null);
+                                setCommentText('');
+                                const newComentarios = { ...comentarios };
+                                delete newComentarios[post.id];
+                                setComentarios(newComentarios);
+                            }}
                         />
                     ))
                 )}

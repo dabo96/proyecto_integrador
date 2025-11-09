@@ -39,6 +39,9 @@ export default function SignInScreen() {
             });
 
             if (userFound?.contrasena === contrasena) {
+                // Guardar el usuarioID en AsyncStorage
+                await AsyncStorage.setItem('usuarioID', userFound.id);
+                await AsyncStorage.setItem('usuarioNombre', userFound.nombre);
                 try {
                     const { contrasena: _removed, ...userToStore } = userFound || {};
                     await AsyncStorage.multiSet([
@@ -54,7 +57,6 @@ export default function SignInScreen() {
                     // Continuar navegación aunque falle el guardado, pero notificar
                     Alert.alert('Aviso', 'No se pudo guardar la sesión localmente.');
                 }
-
                 Alert.alert("Éxito", `Bienvenido ${userFound.nombre}`);
                 router.push('./tabs/homeScreen');
             } else {
