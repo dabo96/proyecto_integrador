@@ -33,7 +33,7 @@ export default function AutCuenta() {
     const manejarCambios = (texto: string, indice: number) => {
         // Filtrar solo números
         const soloNumeros = texto.replace(/[^0-9]/g, '');
-        
+
         const nuevosInputs = [...input];
         nuevosInputs[indice] = soloNumeros;
         setInput(nuevosInputs);
@@ -105,13 +105,8 @@ export default function AutCuenta() {
             }
 
             await AsyncStorage.multiRemove(['pendingVerificationUserID', 'pendingVerificationEmail']);
-
-            Alert.alert('Cuenta verificada', 'Tu cuenta ha sido verificada correctamente. Ahora puedes iniciar sesión.', [
-                {
-                    text: 'Iniciar sesión',
-                    onPress: () => router.replace('/iniciarSesion'),
-                },
-            ]);
+            router.replace('/iniciarSesion');
+            Alert.alert('Cuenta verificada', 'Tu cuenta ha sido verificada correctamente. Ahora puedes iniciar sesión.');
         } catch (error) {
             console.error(error);
             Alert.alert('Error', 'Ocurrió un error al verificar el código. Intenta nuevamente.');

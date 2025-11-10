@@ -17,6 +17,7 @@ type ModButtonProps = {
   iconPosition?: 'left' | 'right';
   pressedStyle?: ViewStyle;
   pressedTextColor?: string;
+  disabled?: boolean;
 };
 
 export default function ModButton({
@@ -32,6 +33,7 @@ export default function ModButton({
   iconPosition = 'left',
   pressedStyle,
   pressedTextColor,
+  disabled = false,
 }: ModButtonProps) {
 
   const renderIcon = (color: string) => {
@@ -57,23 +59,26 @@ export default function ModButton({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor },
         style,
-        pressed && pressedStyle,
+        disabled && styles.disabledButton,
+        pressed && !disabled && pressedStyle,
       ]}
     >
       {({ pressed }) => (
         <View style={styles.content}>
-          {iconName && iconPosition === "left" && renderIcon(pressed && pressedTextColor ? pressedTextColor : textColor)}
+          {iconName && iconPosition === "left" && renderIcon(pressed && !disabled && pressedTextColor ? pressedTextColor : textColor)}
           <Text
             style={[
               {
-                color: pressed && pressedTextColor ? pressedTextColor : textColor,
+                color: pressed && !disabled && pressedTextColor ? pressedTextColor : textColor,
                 fontWeight: fontWeight,
                 fontFamily: 'Montserrat_400Regular',
                 fontSize: 16,
+                opacity: disabled ? 0.7 : 1,
               },
               styles.text,
               textStyle,
@@ -81,7 +86,7 @@ export default function ModButton({
           >
             {title}
           </Text>
-          {iconName && iconPosition === "right" && renderIcon(pressed && pressedTextColor ? pressedTextColor : textColor)}
+          {iconName && iconPosition === "right" && renderIcon(pressed && !disabled && pressedTextColor ? pressedTextColor : textColor)}
         </View>
       )}
     </Pressable>
@@ -105,5 +110,8 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginHorizontal: 6,
+  },
+  disabledButton: {
+    opacity: 0.8,
   },
 });

@@ -1,8 +1,6 @@
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
-// eslint-disable-next-line import/no-unresolved
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// eslint-disable-next-line import/no-unresolved
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
