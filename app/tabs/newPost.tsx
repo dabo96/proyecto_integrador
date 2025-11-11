@@ -1,13 +1,13 @@
+import ModButton from "@/components/ModButton";
+import { app, db } from "@/services/firebase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { addDoc, collection, doc, getDoc } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref, uploadBytes, } from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View, } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import * as ImagePicker from "expo-image-picker";
-import ModButton from "@/components/ModButton";
-import { addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore";
-import { app, db } from "@/services/firebase";
-import { getStorage, ref, uploadBytes, getDownloadURL, } from "firebase/storage";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useLocalSearchParams, useRouter } from "expo-router";
 
 type NuevaPublicacionProps = {
   onGoBack?: () => void;
@@ -197,25 +197,28 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
           backgroundColor="#1d4ed8"
           style={{ borderRadius: 20 }}
         />
+      </View>     
+
+      <View style={styles.textInputCont}>
+        {isCommunityPost && (
+          <View style={styles.communityBanner}>
+            <Text style={styles.communityBannerText}>
+              Publicando en {communityName ?? "la comunidad"}
+            </Text>
+          </View>
+        )}
+
+        <TextInput
+          style={styles.input}
+          placeholder="¿Qué está pasando?"
+          placeholderTextColor="#999"
+          multiline
+          value={texto}
+          onChangeText={setTexto}
+          maxLength={280}
+        />
       </View>
-
-      {isCommunityPost && (
-        <View style={styles.communityBanner}>
-          <Text style={styles.communityBannerText}>
-            Publicando en {communityName ?? "la comunidad"}
-          </Text>
-        </View>
-      )}
-
-      <TextInput
-        style={styles.input}
-        placeholder="¿Qué está pasando?"
-        placeholderTextColor="#999"
-        multiline
-        value={texto}
-        onChangeText={setTexto}
-        maxLength={280}
-      />
+      
 
       {imagen && (
         <View style={styles.imagePreviewContainer}>
@@ -243,7 +246,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { display: 'flex', flex: 1, backgroundColor: "#fff", flexDirection: 'column' },
   mainHeader: { paddingVertical: 16, paddingHorizontal: 10, alignItems: "center" },
   subHeader: {
     position: "absolute",
@@ -259,6 +262,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E5E5",
     zIndex: 999,
   },
+  textInputCont: { paddingTop: 60, flex: 1 },
   headerLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
   back: { fontSize: 24, color: "#2F4AA6", marginRight: 16 },
   avatar: { width: 32, height: 32, borderRadius: 16, marginRight: 8 },
