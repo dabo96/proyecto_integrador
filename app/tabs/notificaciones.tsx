@@ -1,3 +1,4 @@
+import { aceptarSolicitud, rechazarSolicitud } from '@/api/contactsService';
 import { obtenerListaSeguidos, seguirUsuario, verificarSiSigue } from '@/api/profileService';
 import { db } from '@/services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,7 +9,7 @@ import { ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet, Tex
 
 type Notificacion = {
   id: string;
-  tipo: 'publicacion' | 'comentario' | 'like' | 'seguidor';
+  tipo: 'publicacion' | 'comentario' | 'like' | 'seguidor' | 'solicitud_seguimiento';
   name: string;
   avatar?: string;
   publicacionID?: string;
@@ -18,6 +19,7 @@ type Notificacion = {
   publicacionTexto?: string;
   yaSeguido?: boolean;
   solicitudPendiente?: boolean;
+  solicitudID?: string; // ID de la solicitud para aceptar/rechazar
 };
 
 const relTime = (ms: number) => {
@@ -189,6 +191,40 @@ export default function Notificaciones() {
       console.error('Error cargando seguidores:', e);
     }
 
+    // === Solicitudes de seguimiento pendientes ===
+    try {
+      const solicitudesRef = collection(db, 'Usuarios', userId, 'solicitudes');
+      const solicitudesSnapshot = await getDocs(solicitudesRef);
+      
+      for (const solicitudDoc of solicitudesSnapshot.docs) {
+        const solicitudData = solicitudDoc.data();
+        const solicitanteID = solicitudData.solicitanteID;
+        
+        if (solicitanteID) {
+          const u = await getUsuario(solicitanteID);
+          if (!u) continue;
+          
+          const ts = solicitudData.createdAt?.toDate
+            ? solicitudData.createdAt.toDate().getTime()
+            : new Date(solicitudData.createdAt || Date.now()).getTime();
+          
+          const nombre = solicitudData.nombre || `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+          
+          notificaciones.push({
+            id: `solicitud_${solicitudDoc.id}`,
+            tipo: 'solicitud_seguimiento',
+            name: nombre,
+            avatar: solicitudData.fotoPerfil || u.fotoPerfil,
+            usuarioID: solicitanteID,
+            timestamp: ts,
+            solicitudID: solicitudDoc.id,
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando solicitudes de seguimiento:', e);
+    }
+
     notificaciones.sort((a, b) => b.timestamp - a.timestamp);
     return notificaciones;
   };
@@ -220,6 +256,7 @@ export default function Notificaciones() {
     if (n.tipo === 'comentario') return 'comentó en tu publicación';
     if (n.tipo === 'like') return 'le gustó tu publicación';
     if (n.tipo === 'seguidor') return 'comenzó a seguirte';
+    if (n.tipo === 'solicitud_seguimiento') return 'te envió una solicitud de seguimiento';
     return '';
   };
 
@@ -253,6 +290,57 @@ export default function Notificaciones() {
       );
     } catch (error) {
       console.error('Error siguiendo usuario:', error);
+    }
+  };
+
+  const handleAceptarSolicitud = async (solicitudID: string, usuarioID: string, notificacionId: string) => {
+    if (!currentUserID || !solicitudID) return;
+    
+    try {
+      await aceptarSolicitud(currentUserID, solicitudID);
+      
+      // Remover la notificación de solicitud y agregar una de seguidor
+      setLista(prev => {
+        const nuevaLista = prev.filter(n => n.id !== notificacionId);
+        
+        // Agregar notificación de nuevo seguidor
+        const nuevaNotificacion: Notificacion = {
+          id: `seguidor_${Date.now()}`,
+          tipo: 'seguidor',
+          name: prev.find(n => n.id === notificacionId)?.name || '',
+          avatar: prev.find(n => n.id === notificacionId)?.avatar,
+          usuarioID: usuarioID,
+          timestamp: Date.now(),
+          yaSeguido: false,
+        };
+        
+        nuevaLista.unshift(nuevaNotificacion);
+        return nuevaLista;
+      });
+      
+      Alert.alert('Solicitud aceptada', 'Ahora este usuario te sigue.');
+      
+      // Recargar notificaciones para actualizar contadores
+      await cargar();
+    } catch (error) {
+      console.error('Error aceptando solicitud:', error);
+      Alert.alert('Error', 'No se pudo aceptar la solicitud. Intenta nuevamente.');
+    }
+  };
+
+  const handleRechazarSolicitud = async (solicitudID: string, notificacionId: string) => {
+    if (!currentUserID || !solicitudID) return;
+    
+    try {
+      await rechazarSolicitud(currentUserID, solicitudID);
+      
+      // Remover la notificación
+      setLista(prev => prev.filter(n => n.id !== notificacionId));
+      
+      Alert.alert('Solicitud rechazada', 'La solicitud ha sido rechazada.');
+    } catch (error) {
+      console.error('Error rechazando solicitud:', error);
+      Alert.alert('Error', 'No se pudo rechazar la solicitud. Intenta nuevamente.');
     }
   };
 
@@ -312,6 +400,24 @@ export default function Notificaciones() {
             </TouchableOpacity>
           </LinearGradient>
         )
+      )}
+
+      {/* ✅ Botones de aceptar/rechazar para solicitudes de seguimiento */}
+      {n.tipo === 'solicitud_seguimiento' && n.solicitudID && (
+        <View style={styles.requestButtonsContainer}>
+          <TouchableOpacity
+            style={[styles.requestButton, styles.acceptButton]}
+            onPress={() => handleAceptarSolicitud(n.solicitudID!, n.usuarioID, n.id)}
+          >
+            <Text style={styles.requestButtonText}>Aceptar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.requestButton, styles.rejectButton]}
+            onPress={() => handleRechazarSolicitud(n.solicitudID!, n.id)}
+          >
+            <Text style={[styles.requestButtonText, styles.rejectButtonText]}>Rechazar</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -419,6 +525,32 @@ const styles = StyleSheet.create({
   },
   pendingButtonText: {
     color: '#555',
+  },
+  requestButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 10,
+  },
+  requestButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  acceptButton: {
+    backgroundColor: '#10b981',
+  },
+  rejectButton: {
+    backgroundColor: '#ef4444',
+  },
+  requestButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rejectButtonText: {
+    color: 'white',
   },
   loadingContainer: { justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
   loadingText: { marginTop: 8, fontSize: 16, color: '#666' },

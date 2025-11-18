@@ -51,12 +51,14 @@ export default function MainPageScreen() {
     // Estados
     const [usuarioID, setUsuarioID] = useState<string>('');
     const [usuarioNombre, setUsuarioNombre] = useState<string>('');
+    const [usuarioFotoPerfil, setUsuarioFotoPerfil] = useState<string | null>(null);
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
     const [showCommentInput, setShowCommentInput] = useState<string | null>(null);
     const [commentText, setCommentText] = useState('');
     const [seguidoIDs, setSeguidoIDs] = useState<string[]>([]);
+    const [seguidorIDs, setSeguidorIDs] = useState<string[]>([]);
     const [comentarios, setComentarios] = useState<{ [postId: string]: Comentario[] }>({});
     const [loadingComments, setLoadingComments] = useState<string | null>(null);
     const [likedPosts, setLikedPosts] = useState<{ [postId: string]: boolean }>({});
@@ -149,10 +151,10 @@ export default function MainPageScreen() {
         }
     };
 
-    // Función para obtener contactos del usuario
+    // Función para obtener contactos del usuario (usuarios que el usuario actual sigue)
     const getContactos = async (usuarioID: string): Promise<string[]> => {
         try {
-            const contactosRef = collection(db, 'usuarios', usuarioID, 'contactos');
+            const contactosRef = collection(db, 'Usuarios', usuarioID, 'contactos');
             const contactosSnapshot = await getDocs(contactosRef);
             const seguidoIDs: string[] = [];
             
@@ -166,6 +168,31 @@ export default function MainPageScreen() {
             return seguidoIDs;
         } catch (error) {
             console.error('Error obteniendo contactos:', error);
+            return [];
+        }
+    };
+
+    // Función para obtener seguidores del usuario (usuarios que siguen al usuario actual)
+    const getSeguidores = async (usuarioID: string): Promise<string[]> => {
+        try {
+            const todosUsuarios = await getDocs(collection(db, 'Usuarios'));
+            const seguidorIDs: string[] = [];
+
+            for (const usuarioDoc of todosUsuarios.docs) {
+                const contactosRef = collection(db, 'Usuarios', usuarioDoc.id, 'contactos');
+                const contactosSnapshot = await getDocs(contactosRef);
+
+                contactosSnapshot.forEach((contactoDoc) => {
+                    const data = contactoDoc.data();
+                    if (data.seguidoID === usuarioID) {
+                        seguidorIDs.push(usuarioDoc.id);
+                    }
+                });
+            }
+
+            return seguidorIDs;
+        } catch (error) {
+            console.error('Error obteniendo seguidores:', error);
             return [];
         }
     };
@@ -246,11 +273,17 @@ export default function MainPageScreen() {
     };
 
     // Función para configurar listener en tiempo real de publicaciones
-    const configurarListenerPublicaciones = (usuarioID: string, seguidoIDs: string[]) => {
+    // Muestra las publicaciones del usuario actual, de los usuarios que sigue y de sus seguidores
+    const configurarListenerPublicaciones = (usuarioID: string, seguidoIDs: string[], seguidorIDs: string[]) => {
         if (!usuarioID) return () => {};
 
-        const allUserIDs = [usuarioID, ...seguidoIDs];
+        // Combinar todos los IDs únicos: usuario actual, usuarios seguidos y seguidores
+        const allUserIDsSet = new Set([usuarioID, ...seguidoIDs, ...seguidorIDs]);
+        const allUserIDs = Array.from(allUserIDsSet);
         console.log('Configurando listener para usuarios:', allUserIDs);
+        console.log('  - Usuario actual:', usuarioID);
+        console.log('  - Usuarios seguidos:', seguidoIDs.length);
+        console.log('  - Seguidores:', seguidorIDs.length);
         const publicacionesRef = collection(db, 'publicaciones');
         const publicaciones: Post[] = [];
         let processedCount = 0;
@@ -457,9 +490,21 @@ export default function MainPageScreen() {
             setUsuarioID(storedUsuarioID);
             setUsuarioNombre(storedUsuarioNombre || 'Usuario');
             
-            // Obtener contactos
+            // Obtener foto de perfil del usuario
+            const usuarioRef = doc(db, 'Usuarios', storedUsuarioID);
+            const usuarioDoc = await getDoc(usuarioRef);
+            if (usuarioDoc.exists()) {
+                const usuarioData = usuarioDoc.data();
+                setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
+            }
+            
+            // Obtener contactos (usuarios que el usuario actual sigue)
             const seguidoIDs = await getContactos(storedUsuarioID);
             setSeguidoIDs(seguidoIDs);
+            
+            // Obtener seguidores (usuarios que siguen al usuario actual)
+            const seguidorIDs = await getSeguidores(storedUsuarioID);
+            setSeguidorIDs(seguidorIDs);
             
         } catch (error) {
             console.error('Error cargando feed:', error);
@@ -473,16 +518,36 @@ export default function MainPageScreen() {
         loadFeedData();
     }, []);
 
-    // Configurar listener en tiempo real cuando cambien los seguidos
+    // Listener para actualizar foto de perfil en tiempo real
     useEffect(() => {
         if (!usuarioID) return;
 
-        const unsubscribe = configurarListenerPublicaciones(usuarioID, seguidoIDs);
+        const usuarioRef = doc(db, 'Usuarios', usuarioID);
+        const unsubscribe = onSnapshot(usuarioRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const usuarioData = docSnapshot.data();
+                setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
+                console.log('📸 Foto de perfil actualizada:', usuarioData.fotoPerfil);
+            }
+        }, (error) => {
+            console.error('Error en listener de foto de perfil:', error);
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [usuarioID]);
+
+    // Configurar listener en tiempo real cuando cambien los seguidos o seguidores
+    useEffect(() => {
+        if (!usuarioID) return;
+
+        const unsubscribe = configurarListenerPublicaciones(usuarioID, seguidoIDs, seguidorIDs);
         
         return () => {
             unsubscribe();
         };
-    }, [usuarioID, seguidoIDs]);
+    }, [usuarioID, seguidoIDs, seguidorIDs]);
 
     const handleComment = async (postId: string) => {
         if (showCommentInput === postId) {
@@ -867,7 +932,10 @@ export default function MainPageScreen() {
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 2, marginTop: 10 }}>
                     <View style={{ alignItems: "center" }}>
                         <ImageButton
-                            source={require("@/assets/images/react-logo.png")}
+                            source={usuarioFotoPerfil ? 
+                                { uri: usuarioFotoPerfil } : 
+                                require("@/assets/images/react-logo.png")
+                            }
                             onPress={() => { router.push("./profile") }}
                             size={70}
                             style={styles.btnProfile}

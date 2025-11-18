@@ -1,10 +1,11 @@
-import { obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil, } from '@/api/profileService';
+import { actualizarFotoPerfil, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil, subirImagenPerfil } from '@/api/profileService';
 import { Feather, FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Modal, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
@@ -17,10 +18,12 @@ const Profile = () => {
   const [userPosts, setUserPosts] = useState<PublicacionPerfil[]>([]);
 
   const [seguidores, setSeguidores] = useState<number>(0);
+  const [currentUserID, setCurrentUserID] = useState<string>('');
 
   // 🔹 Modales
   const [showModal, setShowModal] = useState(false); // Confirmar cierre
   const [showLoggingOutModal, setShowLoggingOutModal] = useState(false); // Mostrando "Cerrando sesión..."
+  const [uploadingImage, setUploadingImage] = useState(false); // Subiendo imagen
 
   // Animaciones
   const headerHeight = scrollY.interpolate({
@@ -79,6 +82,7 @@ const Profile = () => {
         targetUserId = storedUsuarioID;
       }
 
+      setCurrentUserID(targetUserId);
       console.log('🔍 Cargando perfil para usuario:', targetUserId);
 
       const perfil = await obtenerPerfilUsuario(targetUserId);
@@ -119,6 +123,135 @@ const Profile = () => {
     }
   };
 
+  // 🔹 Cambiar foto de perfil
+  const handleChangeProfilePhoto = async () => {
+    console.log('📸 handleChangeProfilePhoto llamado');
+    try {
+      console.log('🔐 Solicitando permisos de galería...');
+      // Solicitar permisos
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('📋 Estado de permisos:', status);
+      
+      if (status !== 'granted') {
+        Alert.alert('Permisos necesarios', 'Necesitamos acceso a tu galería para cambiar la foto de perfil.');
+        return;
+      }
+
+      console.log('✅ Permisos otorgados, mostrando opciones...');
+      
+      // En web, mostrar directamente el selector de archivos
+      if (Platform.OS === 'web') {
+        console.log('🌐 Plataforma web detectada, usando selector directo');
+        pickImage('library');
+        return;
+      }
+      
+      // En móvil, mostrar opciones
+      Alert.alert(
+        'Cambiar foto de perfil',
+        'Selecciona una opción',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+            onPress: () => console.log('❌ Usuario canceló'),
+          },
+          {
+            text: 'Tomar foto',
+            onPress: () => {
+              console.log('📷 Usuario eligió tomar foto');
+              pickImage('camera');
+            },
+          },
+          {
+            text: 'Elegir de galería',
+            onPress: () => {
+              console.log('🖼️ Usuario eligió galería');
+              pickImage('library');
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    } catch (error: any) {
+      console.error('❌ Error solicitando permisos:', error);
+      Alert.alert('Error', `No se pudieron solicitar los permisos necesarios.\n\n${error?.message || ''}`);
+    }
+  };
+
+  const pickImage = async (source: 'camera' | 'library') => {
+    try {
+      let result;
+
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permisos necesarios', 'Necesitamos acceso a tu cámara para tomar una foto.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets[0] && currentUserID) {
+        setUploadingImage(true);
+        const imageUri = result.assets[0].uri;
+        console.log('📸 Imagen seleccionada:', imageUri);
+        console.log('👤 Usuario ID:', currentUserID);
+
+        try {
+          // Subir imagen a Firebase Storage
+          console.log('⬆️ Iniciando subida...');
+          const downloadURL = await subirImagenPerfil(currentUserID, imageUri);
+          console.log('✅ Imagen subida, URL:', downloadURL);
+
+          // Actualizar perfil en Firestore
+          console.log('📝 Actualizando perfil en Firestore...');
+          await actualizarFotoPerfil(currentUserID, downloadURL);
+          console.log('✅ Perfil actualizado');
+
+          // Recargar datos del perfil
+          console.log('🔄 Recargando datos del perfil...');
+          await loadUserData();
+          console.log('✅ Datos recargados');
+
+          setUploadingImage(false);
+          Alert.alert('Éxito', 'Foto de perfil actualizada correctamente.');
+        } catch (uploadError: any) {
+          console.error('❌ Error en el proceso de subida:', uploadError);
+          console.error('Mensaje de error:', uploadError?.message);
+          console.error('Stack:', uploadError?.stack);
+          setUploadingImage(false);
+          Alert.alert(
+            'Error', 
+            `No se pudo actualizar la foto de perfil.\n\nError: ${uploadError?.message || 'Error desconocido'}\n\nRevisa la consola para más detalles.`
+          );
+        }
+      } else {
+        console.log('⚠️ Selección cancelada o datos incompletos');
+      }
+    } catch (error: any) {
+      console.error('❌ Error cambiando foto de perfil:', error);
+      console.error('Mensaje de error:', error?.message);
+      setUploadingImage(false);
+      Alert.alert(
+        'Error', 
+        `No se pudo cambiar la foto de perfil.\n\nError: ${error?.message || 'Error desconocido'}`
+      );
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -142,27 +275,65 @@ const Profile = () => {
     <View style={styles.container}>
       <StatusBar backgroundColor="#2F4AA6" barStyle="light-content" />
 
-      <Animated.View style={[styles.stickyHeader, { height: headerHeight }]}>
+      <Animated.View style={[styles.stickyHeader, { height: headerHeight }]} pointerEvents="box-none">
         <AnimatedLinearGradient
           colors={['#2F4AA6', '#0491C6']}
           style={[styles.headerGradient, { paddingBottom: paddingBottom }]}
+          pointerEvents="box-none"
         >
-          <View style={styles.profileImageContainer}>
-            <Animated.Image
-              source={
-                userProfile.fotoPerfil
-                  ? { uri: userProfile.fotoPerfil }
-                  : require('@/assets/images/react-logo.png')
-              }
-              style={[
-                styles.profileImage,
+          <View style={styles.profileImageContainer} pointerEvents="box-none">
+            <Pressable
+              onPress={() => {
+                console.log('👆 Pressable presionado');
+                handleChangeProfilePhoto();
+              }}
+              disabled={uploadingImage}
+              style={({ pressed }) => [
+                styles.profileImageTouchable,
                 {
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Animated.Image
+                source={
+                  userProfile.fotoPerfil
+                    ? { uri: userProfile.fotoPerfil }
+                    : require('@/assets/images/react-logo.png')
+                }
+                style={[
+                  styles.profileImage,
+                  {
+                    width: profileImageSize,
+                    height: profileImageSize,
+                    borderRadius: Animated.multiply(profileImageSize, 0.5),
+                  },
+                ]}
+                pointerEvents="none"
+              />
+              {uploadingImage && (
+                <View style={[styles.uploadingOverlay, {
                   width: profileImageSize,
                   height: profileImageSize,
                   borderRadius: Animated.multiply(profileImageSize, 0.5),
-                },
-              ]}
-            />
+                }]} pointerEvents="none">
+                  <ActivityIndicator size="small" color="white" />
+                </View>
+              )}
+              {!uploadingImage && (
+                <Animated.View 
+                  style={[styles.editIconContainer, {
+                    width: profileImageSize,
+                    height: profileImageSize,
+                  }]}
+                  pointerEvents="none"
+                >
+                  <View style={styles.editIcon} pointerEvents="none">
+                    <MaterialIcons name="camera-alt" size={16} color="white" />
+                  </View>
+                </Animated.View>
+              )}
+            </Pressable>
           </View>
 
           <Animated.Text style={[styles.name, { fontSize: nameSize }]}>
@@ -329,6 +500,16 @@ const Profile = () => {
           </View>
         </View>
       </Modal>
+
+      {/* 🔹 Modal "Subiendo imagen..." */}
+      <Modal transparent animationType="fade" visible={uploadingImage}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ActivityIndicator size="large" color="#2F4AA6" />
+            <Text style={styles.modalMessage}>Subiendo foto de perfil...</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -342,6 +523,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
     elevation: 10,
+    pointerEvents: 'box-none',
   },
   headerGradient: {
     paddingHorizontal: 20,
@@ -353,8 +535,53 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingTop: 25,
   },
-  profileImageContainer: { marginBottom: 10 },
-  profileImage: { borderWidth: 3, borderColor: 'white' },
+  profileImageContainer: { 
+    marginBottom: 10,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileImageTouchable: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1001,
+    elevation: Platform.OS === 'android' ? 11 : 0,
+    minWidth: 100,
+    minHeight: 100,
+  },
+  profileImage: { 
+    borderWidth: 3, 
+    borderColor: 'white',
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+  },
+  editIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+    padding: 4,
+  },
+  editIcon: {
+    backgroundColor: '#2F4AA6',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
   name: {
     fontWeight: 'bold',
     color: 'rgba(255, 255, 255, 0.9)',
