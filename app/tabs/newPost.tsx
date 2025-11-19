@@ -1,5 +1,6 @@
 import ModButton from "@/components/ModButton";
 import { app, db } from "@/services/firebase";
+import { validarYSubirImagen } from "@/services/imageModerationClient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -127,7 +128,23 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
 
       console.log("🔹 Publicando con imagen:", imagen);
       if (imagen) {
-        imagenUrl = await subirImagenAFirebase(imagen);
+        // Validar contenido de la imagen antes de publicar
+        const result = await validarYSubirImagen(
+          subirImagenAFirebase,
+          imagen
+        );
+
+        if (!result.success) {
+          Alert.alert(
+            "Contenido no permitido",
+            result.error || "La imagen no cumple con nuestras políticas de contenido."
+          );
+          setImagen(null); // Limpiar imagen rechazada
+          setLoading(false);
+          return;
+        }
+
+        imagenUrl = result.url || null;
       }
       const docRef = await addDoc(collection(db, "publicaciones"), {
         usuarioID: usuario.id,

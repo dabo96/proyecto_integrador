@@ -1,4 +1,5 @@
 import { actualizarFotoPerfil, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil, subirImagenPerfil } from '@/api/profileService';
+import { validarYSubirImagen } from '@/services/imageModerationClient';
 import { Feather, FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -211,10 +212,24 @@ const Profile = () => {
         console.log('👤 Usuario ID:', currentUserID);
 
         try {
-          // Subir imagen a Firebase Storage
-          console.log('⬆️ Iniciando subida...');
-          const downloadURL = await subirImagenPerfil(currentUserID, imageUri);
-          console.log('✅ Imagen subida, URL:', downloadURL);
+          // Validar y subir imagen (la validación es transparente)
+          console.log('⬆️ Iniciando validación y subida...');
+          const validacionResult = await validarYSubirImagen(
+            (uri) => subirImagenPerfil(currentUserID, uri),
+            imageUri
+          );
+
+          if (!validacionResult.success) {
+            setUploadingImage(false);
+            Alert.alert(
+              'Contenido no permitido',
+              validacionResult.error || 'La imagen no cumple con nuestras políticas de contenido.'
+            );
+            return;
+          }
+
+          const downloadURL = validacionResult.url!;
+          console.log('✅ Imagen validada y subida, URL:', downloadURL);
 
           // Actualizar perfil en Firestore
           console.log('📝 Actualizando perfil en Firestore...');
