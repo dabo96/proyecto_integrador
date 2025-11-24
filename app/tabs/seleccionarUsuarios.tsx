@@ -1,3 +1,4 @@
+import { getOrCreateGroupChat } from '@/api/messageService';
 import { obtenerTodosLosUsuarios, obtenerUsuarioActual, Usuario } from '@/api/usuariosService';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -10,6 +11,8 @@ const SeleccionarUsuarios = () => {
     const [usuariosFiltrados, setUsuariosFiltrados] = useState<Usuario[]>([]);
     const [busqueda, setBusqueda] = useState('');
     const [loading, setLoading] = useState(true);
+    const [usuariosSeleccionados, setUsuariosSeleccionados] = useState<Set<string>>(new Set());
+    const [creandoChat, setCreandoChat] = useState(false);
 
     useEffect(() => {
         cargarUsuarios();
@@ -57,42 +60,107 @@ const SeleccionarUsuarios = () => {
         setUsuariosFiltrados(filtrados);
     };
 
-    const seleccionarUsuario = (usuario: Usuario) => {
-        // Navegar a los detalles del chat con toda la información del usuario
-        router.push({
-            pathname: './chatDetails',
-            params: {
-                userId: usuario.id,
-                name: usuario.nombreCompleto || usuario.nombre,
-                codigo: usuario.codigoUniversitario || usuario.codigo,
-                carrera: usuario.carrera,
-                correo: usuario.correo,
-            }
-        });
+    const toggleSeleccionUsuario = (usuarioId: string) => {
+        const nuevosSeleccionados = new Set(usuariosSeleccionados);
+        if (nuevosSeleccionados.has(usuarioId)) {
+            nuevosSeleccionados.delete(usuarioId);
+        } else {
+            nuevosSeleccionados.add(usuarioId);
+        }
+        setUsuariosSeleccionados(nuevosSeleccionados);
     };
 
-    const renderUsuario = ({ item }: { item: Usuario }) => (
-        <TouchableOpacity
-            style={styles.usuarioItem}
-            onPress={() => seleccionarUsuario(item)}
-        >
-            <View style={styles.avatarContainer}>
-                <Text style={styles.avatarText}>
-                    {(item.nombreCompleto || item.nombre || 'U')
-                        .charAt(0)
-                        .toUpperCase()}
-                </Text>
-            </View>
-            <View style={styles.usuarioInfo}>
-                <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
-                <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
-                <Text style={styles.usuarioCarrera}>{item.carrera}</Text>
-            </View>
-            <TouchableOpacity style={styles.chatButton}>
-                <Text style={styles.chatButtonText}>📩</Text>
+    const crearChatGrupal = async () => {
+        if (usuariosSeleccionados.size === 0) {
+            Alert.alert('Error', 'Selecciona al menos un usuario para crear un chat');
+            return;
+        }
+
+        try {
+            setCreandoChat(true);
+            const usuarioActual = await obtenerUsuarioActual();
+            
+            if (!usuarioActual) {
+                Alert.alert('Error', 'No se pudo obtener el usuario actual');
+                return;
+            }
+
+            // Incluir al usuario actual en los participantes
+            const participantIds = [usuarioActual.id, ...Array.from(usuariosSeleccionados)];
+            
+            // Crear el chat grupal
+            const chatId = await getOrCreateGroupChat(participantIds);
+            
+            // Navegar al chat grupal
+            router.push({
+                pathname: './chatDetails',
+                params: {
+                    chatId: chatId,
+                    isGroup: 'true',
+                }
+            });
+        } catch (error) {
+            console.error('Error al crear chat grupal:', error);
+            Alert.alert('Error', 'No se pudo crear el chat grupal');
+        } finally {
+            setCreandoChat(false);
+        }
+    };
+
+    const seleccionarUsuarioIndividual = (usuario: Usuario) => {
+        // Si hay usuarios seleccionados, agregar a la selección
+        // Si no hay selección, crear chat individual directamente
+        if (usuariosSeleccionados.size > 0) {
+            toggleSeleccionUsuario(usuario.id);
+        } else {
+            // Navegar a los detalles del chat con toda la información del usuario
+            router.push({
+                pathname: './chatDetails',
+                params: {
+                    userId: usuario.id,
+                    name: usuario.nombreCompleto || usuario.nombre,
+                    codigo: usuario.codigoUniversitario || usuario.codigo,
+                    carrera: usuario.carrera,
+                    correo: usuario.correo,
+                }
+            });
+        }
+    };
+
+    const renderUsuario = ({ item }: { item: Usuario }) => {
+        const estaSeleccionado = usuariosSeleccionados.has(item.id);
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.usuarioItem,
+                    estaSeleccionado && styles.usuarioItemSeleccionado
+                ]}
+                onPress={() => seleccionarUsuarioIndividual(item)}
+            >
+                <View style={styles.avatarContainer}>
+                    <Text style={styles.avatarText}>
+                        {(item.nombreCompleto || item.nombre || 'U')
+                            .charAt(0)
+                            .toUpperCase()}
+                    </Text>
+                </View>
+                <View style={styles.usuarioInfo}>
+                    <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
+                    <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
+                    <Text style={styles.usuarioCarrera}>{item.carrera}</Text>
+                </View>
+                {estaSeleccionado ? (
+                    <View style={styles.checkboxSeleccionado}>
+                        <Text style={styles.checkboxText}>✓</Text>
+                    </View>
+                ) : (
+                    <View style={styles.checkbox}>
+                        <Text style={styles.checkboxText}>○</Text>
+                    </View>
+                )}
             </TouchableOpacity>
-        </TouchableOpacity>
-    );
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -100,8 +168,23 @@ const SeleccionarUsuarios = () => {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backButtonText}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.titulo}>Nuevo Chat</Text>
-                <View style={styles.placeholder} />
+                <Text style={styles.titulo}>
+                    {usuariosSeleccionados.size > 0 
+                        ? `Seleccionados: ${usuariosSeleccionados.size}` 
+                        : 'Nuevo Chat'}
+                </Text>
+                {usuariosSeleccionados.size > 0 && (
+                    <TouchableOpacity 
+                        onPress={crearChatGrupal} 
+                        style={styles.crearButton}
+                        disabled={creandoChat}
+                    >
+                        <Text style={styles.crearButtonText}>
+                            {creandoChat ? '...' : 'Crear'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                {usuariosSeleccionados.size === 0 && <View style={styles.placeholder} />}
             </View>
 
             <View style={styles.searchContainer}>
@@ -250,5 +333,41 @@ const styles = StyleSheet.create({
     },
     chatButtonText: {
         fontSize: 24,
+    },
+    usuarioItemSeleccionado: {
+        backgroundColor: '#E3F2FD',
+    },
+    checkbox: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: '#0491C6',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxSeleccionado: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#0491C6',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    crearButton: {
+        backgroundColor: '#0491C6',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    crearButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });

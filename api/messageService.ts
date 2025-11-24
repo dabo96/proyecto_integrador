@@ -1,5 +1,5 @@
-import {collection, query, where, getDocs, addDoc, updateDoc, onSnapshot, orderBy, serverTimestamp, doc, increment,} from "firebase/firestore";
 import { db } from "@/services/firebase";
+import { addDoc, collection, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, } from "firebase/firestore";
 
 // Crear o reutilizar un chat entre dos usuarios
 export const getOrCreateChat = async (emisorId: string, receptorId: string) => {
@@ -20,19 +20,47 @@ export const getOrCreateChat = async (emisorId: string, receptorId: string) => {
     chatKey,
     lastMessage: "",
     updatedAt: serverTimestamp(),
+    isGroup: false,
   });
 
   return newChat.id;
 };
 
-// ennviar mensaje
+// Crear o reutilizar un chat grupal con múltiples participantes
+export const getOrCreateGroupChat = async (participantIds: string[], groupName?: string) => {
+  const chatsRef = collection(db, "Chats");
+
+  // Ordenar IDs para crear una clave única
+  const sortedParticipants = [...participantIds].sort();
+  const chatKey = sortedParticipants.join("_");
+
+  // Buscar si ya existe un chat con exactamente estos participantes
+  const q = query(chatsRef, where("chatKey", "==", chatKey));
+  const existing = await getDocs(q);
+
+  if (!existing.empty) return existing.docs[0].id;
+
+  // Crear nuevo chat grupal
+  const newChat = await addDoc(chatsRef, {
+    participants: sortedParticipants,
+    chatKey,
+    lastMessage: "",
+    updatedAt: serverTimestamp(),
+    isGroup: true,
+    groupName: groupName || `Chat grupal (${sortedParticipants.length})`,
+  });
+
+  return newChat.id;
+};
+
+// Enviar mensaje (soporta chats individuales y grupales)
 export const sendMessage = async (
   chatId: string,
   senderId: string,
-  receiverId: string,
+  receiverId: string | null, // Opcional para chats grupales
   text: string
 ): Promise<void> => {
-  if (!chatId || !senderId || !receiverId || !text.trim()) {
+  if (!chatId || !senderId || !text.trim()) {
     console.warn("Faltan parámetros para enviar el mensaje");
     return;
   }
@@ -46,13 +74,39 @@ export const sendMessage = async (
     seen: false,
   });
 
+  // Obtener información del chat para determinar si es grupal
   const chatRef = doc(db, "Chats", chatId);
-  await updateDoc(chatRef, {
+  const chatDoc = await getDoc(chatRef);
+  
+  let isGroup = false;
+  let participants: string[] = [];
+  
+  if (chatDoc.exists()) {
+    const chatData = chatDoc.data();
+    isGroup = chatData.isGroup || false;
+    participants = chatData.participants || [];
+  }
+
+  // Actualizar el chat
+  const updateData: any = {
     lastMessage: text,
     updatedAt: serverTimestamp(),
     [`unreadCount.${senderId}`]: 0,
-    [`unreadCount.${receiverId}`]: increment(1),
-  });
+  };
+
+  // Para chats grupales, incrementar contador de todos los demás participantes
+  if (isGroup && participants.length > 0) {
+    participants.forEach((participantId) => {
+      if (participantId !== senderId) {
+        updateData[`unreadCount.${participantId}`] = increment(1);
+      }
+    });
+  } else if (receiverId) {
+    // Para chats individuales, incrementar solo el receptor
+    updateData[`unreadCount.${receiverId}`] = increment(1);
+  }
+
+  await updateDoc(chatRef, updateData);
 };
 
 // eschucar mensajes en tiempo real

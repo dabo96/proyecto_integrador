@@ -8,13 +8,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 type Chat = {
   id: string;            // ID del chat
-  otherUserId: string;   // ID del otro usuario
+  otherUserId: string | null;   // ID del otro usuario (null para chats grupales)
   name: string;
   message: string;
   time: string;
   avatar: string;
   online: boolean;
   unread: number;
+  isGroup: boolean;      // Indica si es un chat grupal
+  participants?: string[]; // IDs de todos los participantes
 };
 
 const ChatCreem = () => {
@@ -69,7 +71,7 @@ const ChatCreem = () => {
 
         fetchedUsers.forEach(u => {
           console.log("💬 Usuario cacheado:", u);
-          if (u) cacheRef.current[u.uid] = u;
+          if (u && u.id) cacheRef.current[u.id] = u;
         });
 
         // Actualizamos cache global una sola vez
@@ -83,26 +85,68 @@ const ChatCreem = () => {
       //console.log("💬 Chats filtrados (con mensajes):", filteredChats);
       // Mapeamos los chats con la info de los usuarios
       const formattedChats = filteredChats.map(chat => {
-        const otherUserId = chat.participants.find(
-          (id: string) => id !== currentUser.id
-        );
+        const isGroup = chat.isGroup || (chat.participants?.length || 0) > 2;
+        
+        if (isGroup) {
+          // Chat grupal: mostrar nombre del grupo o lista de participantes
+          const otherParticipants = (chat.participants || []).filter(
+            (id: string) => id !== currentUser.id
+          );
+          
+          // Obtener nombres de los participantes
+          const participantNames = otherParticipants
+            .map((id: string) => {
+              const user = cacheRef.current[id];
+              return user?.nombre || "Usuario";
+            })
+            .slice(0, 3); // Mostrar máximo 3 nombres
+          
+          const groupName = chat.groupName || 
+            (participantNames.length > 0 
+              ? participantNames.join(", ") + (otherParticipants.length > 3 ? "..." : "")
+              : `Chat grupal (${otherParticipants.length + 1})`);
+          
+          return {
+            id: chat.id,
+            otherUserId: null, // Chats grupales no tienen un solo "otro usuario"
+            name: groupName,
+            message: chat.lastMessage || "",
+            time:
+              chat.updatedAt?.toDate?.().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }) || "",
+            avatar: "", // Los chats grupales pueden tener un avatar especial más adelante
+            online: false,
+            unread: chat.unreadCount?.[currentUser.id] || 0,
+            isGroup: true,
+            participants: chat.participants || [],
+          };
+        } else {
+          // Chat individual
+          const otherUserId = chat.participants.find(
+            (id: string) => id !== currentUser.id
+          );
 
-        const otherUser = cacheRef.current[otherUserId] || { nombre: "Desconocido" };
-        //console.log("💬 Formateando chat con usuario:", otherUser);
-        return {
-          id: chat.id,
-          otherUserId, // 👈 ID del otro usuario
-          name: otherUser.nombre || "Desconocido",
-          message: chat.lastMessage || "",
-          time:
-            chat.updatedAt?.toDate?.().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }) || "",
-          avatar: otherUser.fotoPerfil || "",
-          online: otherUser.online || false,
-          unread: chat.unreadCount?.[currentUser.id] || 0,
-        };
+          const otherUser = cacheRef.current[otherUserId] || { nombre: "Desconocido" };
+          //console.log("💬 Formateando chat con usuario:", otherUser);
+          return {
+            id: chat.id,
+            otherUserId, // 👈 ID del otro usuario
+            name: otherUser.nombre || "Desconocido",
+            message: chat.lastMessage || "",
+            time:
+              chat.updatedAt?.toDate?.().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }) || "",
+            avatar: otherUser.fotoPerfil || "",
+            online: otherUser.online || false,
+            unread: chat.unreadCount?.[currentUser.id] || 0,
+            isGroup: false,
+            participants: chat.participants || [],
+          };
+        }
       });
 
       //console.log("💬 Chats formateados:", chats);
@@ -139,30 +183,46 @@ const ChatCreem = () => {
           data={chats}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
-            const otherUser = usuariosCache[item.otherUserId];
+            const otherUser = item.otherUserId ? usuariosCache[item.otherUserId] : null;
             return (
               <TouchableOpacity
                 style={styles.chatItem}
                 onPress={() => {
-                  router.push({
-                    pathname: "./chatDetails",
-                    params: {
-                      userId: item.otherUserId, // ✅ ID real del otro usuario
-                      name: item.name,
-                      avatar: item.avatar,
-                      codigo: otherUser?.codigo || '',
-                      carrera: otherUser?.carrera || '',
-                      correo: otherUser?.correo || '',
-                    },
-                  });
+                  if (item.isGroup) {
+                    // Navegar a chat grupal
+                    router.push({
+                      pathname: "./chatDetails",
+                      params: {
+                        chatId: item.id,
+                        isGroup: 'true',
+                      },
+                    });
+                  } else {
+                    // Navegar a chat individual
+                    router.push({
+                      pathname: "./chatDetails",
+                      params: {
+                        userId: item.otherUserId, // ✅ ID real del otro usuario
+                        name: item.name,
+                        avatar: item.avatar,
+                        codigo: otherUser?.codigo || '',
+                        carrera: otherUser?.carrera || '',
+                        correo: otherUser?.correo || '',
+                      },
+                    });
+                  }
                 }}
               >
                 {/* Avatar */}
                 <View style={styles.avatarWrapper}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                  <View style={[styles.avatar, item.isGroup && styles.avatarGroup]}>
+                    {item.isGroup ? (
+                      <Text style={styles.avatarText}>👥</Text>
+                    ) : (
+                      <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                    )}
                   </View>
-                  {item.online && <View style={styles.onlineDot} />}
+                  {!item.isGroup && item.online && <View style={styles.onlineDot} />}
                 </View>
 
                 {/* Info */}
@@ -231,6 +291,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#0491C6",
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarGroup: {
+    backgroundColor: "#7C3AED", // Color diferente para chats grupales
   },
   avatarText: {
     fontSize: 20,

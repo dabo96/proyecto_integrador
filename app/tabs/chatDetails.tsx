@@ -1,10 +1,12 @@
-import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, } from "@/api/messageService";
+import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage } from "@/api/messageService";
 import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
+import { db } from "@/services/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, } from "react-native";
 
 type Message = {
   id: string;
@@ -14,32 +16,77 @@ type Message = {
   seen: boolean;
 };
 
+// Colores para diferenciar participantes en chats grupales
+const PARTICIPANT_COLORS = [
+  "#7C3AED", // Morado
+  "#EC4899", // Rosa
+  "#F59E0B", // Naranja
+  "#10B981", // Verde
+  "#3B82F6", // Azul
+  "#EF4444", // Rojo
+  "#8B5CF6", // Morado claro
+  "#F97316", // Naranja oscuro
+  "#06B6D4", // Cian
+  "#84CC16", // Verde lima
+];
+
+// Función para obtener un color consistente basado en el ID del usuario
+// Usa un hash más robusto para asegurar colores diferentes
+const getParticipantColor = (userId: string): string => {
+  if (!userId) return PARTICIPANT_COLORS[0];
+  
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    const char = userId.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convertir a entero de 32 bits
+  }
+  
+  // Asegurar que el hash sea positivo
+  const positiveHash = Math.abs(hash);
+  const index = positiveHash % PARTICIPANT_COLORS.length;
+  
+  return PARTICIPANT_COLORS[index];
+};
+
 const ChatDetails = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { userId } = params; // receptor
+  const { userId, chatId: paramChatId, isGroup: paramIsGroup } = params; // receptor o chatId para grupos
 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [participantes, setParticipantes] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [chatId, setChatId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [isGroup, setIsGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [participantColorMap, setParticipantColorMap] = useState<{ [userId: string]: string }>({});
 
   useEffect(() => {
-    if (chatId && currentUser?.uid) {
-      markMessagesAsRead(chatId, currentUser.uid);
+    if (chatId && currentUser?.id) {
+      markMessagesAsRead(chatId, currentUser.id);
     }
-  }, [chatId]);
+  }, [chatId, currentUser]);
 
   useEffect(() => {
     let mounted = true;
     const fetchCurrentUser = async () => {
       try {
         setLoading(true);
+        setError(null); // Limpiar errores previos
         const u = await obtenerUsuarioActual();
-        if (mounted) setCurrentUser(u);
+        if (mounted) {
+          if (!u) {
+            setError("No hay usuario autenticado");
+          } else {
+            setCurrentUser(u);
+            setError(null); // Limpiar error si se obtuvo el usuario
+          }
+        }
       } catch (err) {
         console.error("Error obteniendo usuario actual:", err);
         if (mounted) setError("No hay usuario autenticado");
@@ -57,37 +104,85 @@ const ChatDetails = () => {
   // 🔹 Cargar receptor y crear/obtener chat
   useEffect(() => {
     const cargarChat = async () => {
-      if (!userId || typeof userId !== "string") {
-        setError("ID de usuario no válido");
-        setLoading(false);
-        console.error("ID de usuario no válido:", userId);
-        return;
+      // No cargar si aún no tenemos el usuario actual o si hay un error de autenticación
+      if (!currentUser) {
+        return; // Esperar a que se cargue el usuario
       }
 
-      if (!currentUser) {
-        setError("No hay usuario autenticado");
-        setLoading(false);
-        return;
-      }
-      console.log("Cargando chat con usuario ID:", userId, "desde usuario ID:", currentUser.id);
       try {
         setLoading(true);
-        const usuarioData = await obtenerUsuarioPorId(userId);
-        setUsuario(usuarioData);
+        setError(null); // Limpiar errores previos
+        
+        // Verificar si es un chat grupal
+        const esGrupal = paramIsGroup === 'true' || paramChatId;
+        
+        if (esGrupal && paramChatId) {
+          // Chat grupal: usar el chatId proporcionado
+          setIsGroup(true);
+          const finalChatId = String(paramChatId);
+          setChatId(finalChatId);
+          
+          // Obtener información del chat grupal
+          const chatDoc = await getDoc(doc(db, "Chats", finalChatId));
+          if (chatDoc.exists()) {
+            const chatData = chatDoc.data();
+            setGroupName(chatData.groupName || "Chat grupal");
+            
+            // Cargar información de todos los participantes
+            const participantIds = chatData.participants || [];
+            
+            // Filtrar IDs únicos para evitar duplicados
+            const uniqueParticipantIds = [...new Set(participantIds)];
+            
+            const participantesData = await Promise.all(
+              uniqueParticipantIds.map((id: string) => obtenerUsuarioPorId(id))
+            );
+            const participantesFiltrados = participantesData.filter(u => u !== null) as Usuario[];
+            
+            // Asegurar que el usuario actual esté en la lista si no está
+            const currentUserInList = participantesFiltrados.some(p => p.id === currentUser.id);
+            if (!currentUserInList && currentUser) {
+              participantesFiltrados.push(currentUser as Usuario);
+            }
+            
+            setParticipantes(participantesFiltrados);
+            
+            // Crear mapa de colores único para cada participante
+            const colorMap: { [userId: string]: string } = {};
+            participantesFiltrados.forEach((participant, index) => {
+              // Asignar colores de manera secuencial para evitar duplicados
+              colorMap[participant.id] = PARTICIPANT_COLORS[index % PARTICIPANT_COLORS.length];
+            });
+            setParticipantColorMap(colorMap);
+            
+            // Verificar que el usuario actual esté en los participantes
+            const currentUserInParticipants = uniqueParticipantIds.includes(currentUser.id);
+            if (!currentUserInParticipants) {
+              setError("No eres participante de este chat");
+              setLoading(false);
+              return;
+            }
+          } else {
+            setError("El chat no existe");
+            setLoading(false);
+            return;
+          }
+        } else if (userId && typeof userId === "string") {
+          // Chat individual
+          setIsGroup(false);
+          console.log("Cargando chat con usuario ID:", userId, "desde usuario ID:", currentUser.id);
+          const usuarioData = await obtenerUsuarioPorId(userId);
+          setUsuario(usuarioData);
 
-        // Crear o reutilizar chat
-        const chat = await getOrCreateChat(currentUser.id, userId);
-        setChatId(chat);
-
-        console.log("Chat ID:", chat);
-
-        // Escuchar mensajes en tiempo real
-        const unsubscribe = listenMessages(chat, (msgs: Message[]) => {
-          setMessages(msgs);
-        });
-        console.log("Suscripción a mensajes establecida para chat ID:", messages);
-        console.log("Mensajes cargados:", messages.length);
-        return () => unsubscribe();
+          // Crear o reutilizar chat
+          const chat = await getOrCreateChat(currentUser.id, userId);
+          setChatId(chat);
+          console.log("Chat ID:", chat);
+        } else {
+          setError("ID de usuario o chat no válido");
+          setLoading(false);
+          return;
+        }
       } catch (err) {
         console.error("Error al cargar chat:", err);
         setError("No se pudo cargar el chat");
@@ -97,15 +192,53 @@ const ChatDetails = () => {
     };
 
     cargarChat();
-  }, [userId, currentUser]);
+  }, [userId, currentUser, paramChatId, paramIsGroup]);
+
+  // 🔹 Escuchar mensajes cuando tenemos el chatId
+  useEffect(() => {
+    if (!chatId) return;
+
+    console.log("Estableciendo suscripción a mensajes para chat ID:", chatId);
+    const unsubscribe = listenMessages(chatId, (msgs: Message[]) => {
+      setMessages(msgs);
+      
+      // Si es un chat grupal, asegurar que todos los remitentes tengan color asignado
+      if (isGroup) {
+        setParticipantColorMap(prevMap => {
+          const senderIds = [...new Set(msgs.map(m => m.senderId))];
+          const newColorMap = { ...prevMap };
+          let colorIndex = Object.keys(prevMap).length;
+          let hasChanges = false;
+          
+          senderIds.forEach(senderId => {
+            if (!newColorMap[senderId] && senderId) {
+              // Asignar color secuencialmente
+              newColorMap[senderId] = PARTICIPANT_COLORS[colorIndex % PARTICIPANT_COLORS.length];
+              colorIndex++;
+              hasChanges = true;
+            }
+          });
+          
+          return hasChanges ? newColorMap : prevMap;
+        });
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [chatId, isGroup]);
 
   // 🔹 Enviar mensaje
   const handleSendMessage = async () => {
     if (!chatId || !currentUser || newMessage.trim() === "") return;
 
     try {
-      if (!userId) return console.warn("No se encontró el ID del receptor.");
-      await sendMessage(chatId, currentUser.id, String(userId), newMessage);
+      if (isGroup) {
+        // Para chats grupales, no necesitamos un receiverId específico
+        await sendMessage(chatId, currentUser.id, null, newMessage);
+      } else {
+        if (!userId) return console.warn("No se encontró el ID del receptor.");
+        await sendMessage(chatId, currentUser.id, String(userId), newMessage);
+      }
       setNewMessage("");
     } catch (error) {
       console.error("Error al enviar mensaje:", error);
@@ -115,6 +248,34 @@ const ChatDetails = () => {
   // 🔹 Render burbujas de mensaje
   const MessageBubble = ({ message }: { message: Message }) => {
     const isMe = message.senderId === currentUser?.id;
+    
+    // Para chats grupales, obtener el nombre del remitente y su color
+    // Buscar en participantes o usar el usuario actual si es el remitente
+    let sender: Usuario | null = null;
+    if (isGroup) {
+      if (isMe && currentUser) {
+        sender = currentUser as Usuario;
+      } else {
+        sender = participantes.find(p => p.id === message.senderId) || null;
+      }
+    } else if (!isMe) {
+      sender = usuario;
+    }
+    
+    const senderName = sender?.nombre || sender?.nombreCompleto || "Usuario";
+    const senderPhoto = sender?.fotoPerfil;
+    
+    // Obtener color del participante (usar mapa si está disponible, sino usar función hash)
+    let senderColor = "#0491C6"; // Color por defecto
+    if (isGroup && message.senderId) {
+      // Priorizar el mapa de colores asignado
+      if (participantColorMap[message.senderId]) {
+        senderColor = participantColorMap[message.senderId];
+      } else {
+        // Fallback a función hash si no está en el mapa
+        senderColor = getParticipantColor(message.senderId);
+      }
+    }
 
     return (
       <View
@@ -123,15 +284,54 @@ const ChatDetails = () => {
           isMe ? styles.myMessage : styles.theirMessage,
         ]}
       >
-        {!isMe && (
-          <View style={styles.messageAvatarContainer}>
-            <Text style={styles.messageAvatarText}>
-              {String(usuario?.nombre || "U").charAt(0).toUpperCase()}
-            </Text>
+        {isGroup && (
+          <View style={[styles.messageAvatarContainer, { backgroundColor: senderColor }]}>
+            {senderPhoto ? (
+              <Image 
+                source={{ uri: senderPhoto }} 
+                style={styles.messageAvatarImage}
+              />
+            ) : (
+              <Text style={styles.messageAvatarText}>
+                {senderName.charAt(0).toUpperCase()}
+              </Text>
+            )}
+          </View>
+        )}
+        {!isGroup && !isMe && (
+          <View style={[styles.messageAvatarContainer, { backgroundColor: senderColor }]}>
+            {usuario?.fotoPerfil ? (
+              <Image 
+                source={{ uri: usuario.fotoPerfil }} 
+                style={styles.messageAvatarImage}
+              />
+            ) : (
+              <Text style={styles.messageAvatarText}>
+                {String(usuario?.nombre || "U").charAt(0).toUpperCase()}
+              </Text>
+            )}
           </View>
         )}
 
-        <View style={[styles.bubble, isMe ? styles.myBubble : styles.theirBubble]}>
+        <View style={[
+          styles.bubble, 
+          isMe ? styles.myBubble : styles.theirBubble,
+          isGroup && !isMe && { 
+            backgroundColor: senderColor + "15", // Color con transparencia para fondo
+            borderLeftWidth: 3,
+            borderLeftColor: senderColor,
+          },
+          isGroup && isMe && {
+            backgroundColor: senderColor + "25", // Color más visible para mensajes propios
+            borderRightWidth: 3,
+            borderRightColor: senderColor,
+          }
+        ]}>
+          {isGroup && senderName && (
+            <Text style={[styles.senderName, { color: senderColor, fontWeight: "600" }]}>
+              {senderName}
+            </Text>
+          )}
           <Text
             style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}
           >
@@ -164,7 +364,7 @@ const ChatDetails = () => {
   }
 
   // 🔹 Pantalla de error
-  if (!error) {
+  if (error) {
     return (
       <View style={styles.container}>
         <LinearGradient colors={["#2F4AA6", "#0491C6"]} style={styles.topBar} />
@@ -194,43 +394,57 @@ const ChatDetails = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.headerUserInfo}
-          onPress={() => {
-            console.log('Click en perfil - usuario:', usuario);
-            console.log('userId del parámetro:', userId);
-            console.log('usuario.id:', usuario?.id);
-            
-            // Usar el userId del parámetro directamente, que es más confiable
-            if (userId) {
-              router.push({
-                pathname: './otherProfile',
-                params: { userId: String(userId) }
-              });
-            } else if (usuario?.id) {
-              router.push({
-                pathname: './otherProfile',
-                params: { userId: usuario.id }
-              });
-            } else {
-              console.error('No se encontró userId para navegar al perfil');
-            }
-          }}
-        >
-          <View style={styles.headerAvatarContainer}>
-            <Text style={styles.headerAvatarText}>
-              {String(usuario?.nombre || "U").charAt(0).toUpperCase()}
-            </Text>
+        {isGroup ? (
+          <View style={styles.headerUserInfo}>
+            <View style={[styles.headerAvatarContainer, styles.headerAvatarGroup]}>
+              <Text style={styles.headerAvatarText}>👥</Text>
+            </View>
+            <View>
+              <Text style={styles.headerNameBlack}>{groupName || "Chat grupal"}</Text>
+              <Text style={styles.headerStatusBlack}>
+                {participantes.length} {participantes.length === 1 ? "participante" : "participantes"}
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.headerNameBlack}>{usuario?.nombre || "Usuario"}</Text>
-            <Text style={styles.headerStatusBlack}>
-              {usuario?.carrera && usuario?.codigo
-                ? `${usuario.carrera} - ${usuario.codigo}`
-                : "En línea"}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={styles.headerUserInfo}
+            onPress={() => {
+              console.log('Click en perfil - usuario:', usuario);
+              console.log('userId del parámetro:', userId);
+              console.log('usuario.id:', usuario?.id);
+              
+              // Usar el userId del parámetro directamente, que es más confiable
+              if (userId) {
+                router.push({
+                  pathname: './otherProfile',
+                  params: { userId: String(userId) }
+                });
+              } else if (usuario?.id) {
+                router.push({
+                  pathname: './otherProfile',
+                  params: { userId: usuario.id }
+                });
+              } else {
+                console.error('No se encontró userId para navegar al perfil');
+              }
+            }}
+          >
+            <View style={styles.headerAvatarContainer}>
+              <Text style={styles.headerAvatarText}>
+                {String(usuario?.nombre || "U").charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.headerNameBlack}>{usuario?.nombre || "Usuario"}</Text>
+              <Text style={styles.headerStatusBlack}>
+                {usuario?.carrera && usuario?.codigo
+                  ? `${usuario.carrera} - ${usuario.codigo}`
+                  : "En línea"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity style={styles.menuButton}>
           <Ionicons name="ellipsis-vertical" size={20} color="#333" />
@@ -248,7 +462,9 @@ const ChatDetails = () => {
             <View style={styles.emptyChatContainer}>
               <Text style={styles.emptyChatTitle}>¡Inicia una conversación!</Text>
               <Text style={styles.emptyChatSubtitle}>
-                Escribe un mensaje para comenzar a chatear con {usuario?.nombre || "este usuario"}
+                {isGroup 
+                  ? `Escribe un mensaje para comenzar a chatear en ${groupName || "este grupo"}`
+                  : `Escribe un mensaje para comenzar a chatear con ${usuario?.nombre || "este usuario"}`}
               </Text>
             </View>
           ) : (
@@ -316,8 +532,10 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   headerAvatarText: { fontSize: 16, fontWeight: "bold", color: "#fff" },
+  headerAvatarGroup: { backgroundColor: "#7C3AED" },
   headerNameBlack: { fontSize: 18, fontWeight: "600", color: "#333" },
   headerStatusBlack: { fontSize: 12, color: "#666" },
+  senderName: { fontSize: 12, fontWeight: "600", color: "#666", marginBottom: 4 },
   menuButton: { padding: 5 },
   keyboardAvoid: { flex: 1 },
   messagesContainer: { flex: 1, paddingHorizontal: 15, paddingVertical: 10 },
@@ -332,6 +550,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
+    overflow: "hidden",
+  },
+  messageAvatarImage: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
   messageAvatarText: { fontSize: 12, fontWeight: "bold", color: "#fff" },
   bubble: { maxWidth: "70%", padding: 12, borderRadius: 18, marginHorizontal: 5 },
