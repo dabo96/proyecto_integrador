@@ -1,4 +1,4 @@
-import { actualizarFotoPerfil, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil, subirImagenPerfil } from '@/api/profileService';
+import { actualizarFotoPerfil, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil } from '@/api/profileService';
 import PostCard from '@/components/cards/PostCard';
 import { db } from '@/services/firebase';
 import { validarYSubirImagen } from '@/services/imageModerationClient';
@@ -449,8 +449,8 @@ const Profile = () => {
           // Validar y subir imagen (la validación es transparente)
           console.log('⬆️ Iniciando validación y subida...');
           const validacionResult = await validarYSubirImagen(
-            (uri) => subirImagenPerfil(currentUserID, uri),
-            imageUri
+            imageUri,
+            currentUserID
           );
 
           if (!validacionResult.success) {

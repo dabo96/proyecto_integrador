@@ -8,16 +8,11 @@
  * sin mencionar IA, APIs externas, etc.
  */
 
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from './firebase';
+import { deleteImageByUrl, subirImagenFinal, subirImagenTemporal } from "@/api/profileService";
 
-const functions = getFunctions(app);
 
-// Llamar a la función de Firebase
-const validarContenidoImagenFunction = httpsCallable<
-  { imageUrl: string },
-  { valida: boolean; motivo: string | null; detalles: { nivelRiesgo: string } }
->(functions, 'validarContenidoImagen');
+// URL de la función de Firebase (onRequest en lugar de onCall)
+const FUNCTION_URL = 'https://us-central1-apolo-marketplace.cloudfunctions.net/validarContenidoImagen';
 
 export interface ValidacionResultado {
   valida: boolean;
@@ -35,12 +30,24 @@ export const validarContenidoImagen = async (
   imageUrl: string
 ): Promise<ValidacionResultado> => {
   try {
-    const resultado = await validarContenidoImagenFunction({ imageUrl });
+    const response = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ imageUrl }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error en la respuesta: ${response.status}`);
+    }
+
+    const resultado = await response.json();
 
     return {
-      valida: resultado.data.valida,
-      motivo: resultado.data.motivo,
-      nivelRiesgo: resultado.data.detalles.nivelRiesgo as 'bajo' | 'alto',
+      valida: resultado.valida,
+      motivo: resultado.motivo,
+      nivelRiesgo: resultado.detalles.nivelRiesgo as 'bajo' | 'alto',
     };
   } catch (error: any) {
     console.error('Error validando contenido:', error);
@@ -68,31 +75,35 @@ export const validarContenidoImagen = async (
  * }
  */
 export const validarYSubirImagen = async (
-  subirImagenAFirebase: (uri: string) => Promise<string>,
-  imageUri: string
+  imageUri: string,
+  usuarioID: string
 ): Promise<{ success: boolean; url?: string; error?: string }> => {
   try {
-    // Primero subir la imagen
-    const imageUrl = await subirImagenAFirebase(imageUri);
+    // 1. SUBIR TEMPORAL (pública)
+    const tempUrl = await subirImagenTemporal(usuarioID, imageUri);
 
-    // Luego validar el contenido
-    const validacion = await validarContenidoImagen(imageUrl);
+    // 2. VALIDAR
+    const validacion = await validarContenidoImagen(tempUrl);
 
     if (!validacion.valida) {
+      await deleteImageByUrl(tempUrl);
       return {
         success: false,
-        error: validacion.motivo || 'El contenido no cumple con nuestras políticas',
+        error: validacion.motivo ?? "Contenido no permitido",
       };
     }
 
-    return {
-      success: true,
-      url: imageUrl,
-    };
+    // 3. SI SE APRUEBA → SUBIR FILE FINAL
+    const finalUrl = await subirImagenFinal(usuarioID, imageUri);
+
+    // 4. BORRAR TEMP
+    await deleteImageByUrl(tempUrl);
+
+    return { success: true, url: finalUrl };
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || 'Error al procesar la imagen',
+      error: error.message,
     };
   }
 };

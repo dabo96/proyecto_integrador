@@ -1,5 +1,6 @@
-import { db } from "@/services/firebase";
+import { db, storage } from "@/services/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 // Crear o reutilizar un chat entre dos usuarios
 export const getOrCreateChat = async (emisorId: string, receptorId: string) => {
@@ -53,26 +54,128 @@ export const getOrCreateGroupChat = async (participantIds: string[], groupName?:
   return newChat.id;
 };
 
+// Subir imagen a Firebase Storage
+export const uploadImageToStorage = async (uri: string, chatId: string): Promise<string> => {
+  try {
+    const timestamp = Date.now();
+    const randomId = Math.floor(Math.random() * 10000);
+    const nombreArchivo = `chats/${chatId}/imagenes/${timestamp}_${randomId}.jpg`;
+    const storageRef = ref(storage, nombreArchivo);
+
+    console.log("🔹 Subiendo imagen a Firebase Storage:", nombreArchivo);
+    
+    // Convertir la URI a blob
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    // Subir la imagen
+    await uploadBytes(storageRef, blob);
+
+    console.log("✅ Imagen subida, obteniendo URL...");
+    
+    // Obtener la URL pública
+    const downloadURL = await getDownloadURL(storageRef);
+    console.log("✅ Imagen subida correctamente:", downloadURL);
+
+    return downloadURL;
+  } catch (error) {
+    console.error("❌ Error subiendo imagen:", error);
+    throw error;
+  }
+};
+
+// Subir archivo a Firebase Storage
+export const uploadFileToStorage = async (uri: string, fileName: string, mimeType: string, chatId: string): Promise<string> => {
+  try {
+    const timestamp = Date.now();
+    const randomId = Math.floor(Math.random() * 10000);
+    // Obtener extensión del archivo original o usar mimeType
+    const extension = fileName.split('.').pop() || mimeType.split('/').pop() || 'bin';
+    const nombreArchivo = `chats/${chatId}/archivos/${timestamp}_${randomId}.${extension}`;
+    const storageRef = ref(storage, nombreArchivo);
+
+    console.log("🔹 Subiendo archivo a Firebase Storage:", nombreArchivo);
+    
+    // Convertir la URI a blob
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    // Subir el archivo
+    await uploadBytes(storageRef, blob);
+
+    console.log("✅ Archivo subido, obteniendo URL...");
+    
+    // Obtener la URL pública
+    const downloadURL = await getDownloadURL(storageRef);
+    console.log("✅ Archivo subido correctamente:", downloadURL);
+
+    return downloadURL;
+  } catch (error) {
+    console.error("❌ Error subiendo archivo:", error);
+    throw error;
+  }
+};
+
 // Enviar mensaje (soporta chats individuales y grupales)
 export const sendMessage = async (
   chatId: string,
   senderId: string,
   receiverId: string | null, // Opcional para chats grupales
-  text: string
+  text: string,
+  imageUrl?: string,
+  fileUrl?: string,
+  fileName?: string,
+  fileType?: string
 ): Promise<void> => {
-  if (!chatId || !senderId || !text.trim()) {
+  // Validar que haya al menos texto, imagen o archivo
+  if (!chatId || !senderId || (!text.trim() && !imageUrl && !fileUrl)) {
     console.warn("Faltan parámetros para enviar el mensaje");
     return;
   }
 
   const messagesRef = collection(db, "Chats", chatId, "mensajes");
 
-  await addDoc(messagesRef, {
+  // Determinar el mensaje de preview para lastMessage
+  let previewMessage = text.trim();
+  if (!previewMessage) {
+    if (imageUrl) {
+      previewMessage = "📷 Imagen";
+    } else if (fileUrl) {
+      previewMessage = `📎 ${fileName || "Archivo"}`;
+    }
+  }
+
+  const messageData: any = {
     senderId,
-    text,
+    text: text || "",
     timestamp: serverTimestamp(),
     seen: false,
-  });
+  };
+
+  // Agregar datos de imagen si existe
+  if (imageUrl) {
+    messageData.imageUrl = imageUrl;
+    messageData.type = "image";
+  }
+
+  // Agregar datos de archivo si existe
+  if (fileUrl) {
+    messageData.fileUrl = fileUrl;
+    messageData.fileName = fileName || "Archivo";
+    messageData.fileType = fileType || "application/octet-stream";
+    if (!messageData.type) {
+      messageData.type = "file";
+    }
+  }
+
+  // Si tiene texto e imagen/archivo, es un mensaje mixto
+  if (text.trim() && (imageUrl || fileUrl)) {
+    messageData.type = "mixed";
+  } else if (!messageData.type) {
+    messageData.type = "text";
+  }
+
+  await addDoc(messagesRef, messageData);
 
   // Obtener información del chat para determinar si es grupal
   const chatRef = doc(db, "Chats", chatId);
@@ -89,7 +192,7 @@ export const sendMessage = async (
 
   // Actualizar el chat
   const updateData: any = {
-    lastMessage: text,
+    lastMessage: previewMessage,
     updatedAt: serverTimestamp(),
     [`unreadCount.${senderId}`]: 0,
   };

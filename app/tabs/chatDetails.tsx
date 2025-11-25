@@ -1,12 +1,14 @@
-import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage } from "@/api/messageService";
+import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
 import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type Message = {
   id: string;
@@ -14,6 +16,11 @@ type Message = {
   text: string;
   timestamp: any;
   seen: boolean;
+  imageUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  type?: "text" | "image" | "file" | "mixed";
 };
 
 // Colores para diferenciar participantes en chats grupales
@@ -65,6 +72,9 @@ const ChatDetails = () => {
   const [isGroup, setIsGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [participantColorMap, setParticipantColorMap] = useState<{ [userId: string]: string }>({});
+  const [uploading, setUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string; mimeType: string } | null>(null);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -227,22 +237,190 @@ const ChatDetails = () => {
     return () => unsubscribe();
   }, [chatId, isGroup]);
 
+  // 🔹 Seleccionar imagen de la galería
+  const handleSelectImage = async () => {
+    try {
+      console.log("📷 Iniciando selección de imagen de galería...");
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log("📷 Estado de permisos de galería:", status);
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permiso denegado",
+          "Se necesita acceso a la galería para seleccionar imágenes."
+        );
+        return;
+      }
+
+      console.log("📷 Abriendo selector de imágenes...");
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      console.log("📷 Resultado del selector:", result.canceled ? "Cancelado" : "Imagen seleccionada");
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        console.log("📷 URI de imagen seleccionada:", result.assets[0].uri);
+        setSelectedImage(result.assets[0].uri);
+        setSelectedFile(null); // Limpiar archivo si había uno seleccionado
+      } else {
+        console.log("📷 No se seleccionó ninguna imagen");
+      }
+    } catch (error) {
+      console.error("❌ Error seleccionando imagen:", error);
+      Alert.alert("Error", `No se pudo seleccionar la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`);
+    }
+  };
+
+  // 🔹 Tomar foto con la cámara
+  const handleTakePhoto = async () => {
+    try {
+      console.log("📸 Iniciando captura de foto...");
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      console.log("📸 Estado de permisos de cámara:", status);
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permiso denegado",
+          "Se necesita acceso a la cámara para tomar fotos."
+        );
+        return;
+      }
+
+      console.log("📸 Abriendo cámara...");
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      console.log("📸 Resultado de la cámara:", result.canceled ? "Cancelado" : "Foto tomada");
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        console.log("📸 URI de foto tomada:", result.assets[0].uri);
+        setSelectedImage(result.assets[0].uri);
+        setSelectedFile(null); // Limpiar archivo si había uno seleccionado
+      } else {
+        console.log("📸 No se tomó ninguna foto");
+      }
+    } catch (error) {
+      console.error("❌ Error tomando foto:", error);
+      Alert.alert("Error", `No se pudo tomar la foto: ${error instanceof Error ? error.message : "Error desconocido"}`);
+    }
+  };
+
+  // 🔹 Seleccionar archivo
+  const handleSelectFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedFile({
+          uri: result.assets[0].uri,
+          name: result.assets[0].name || "Archivo",
+          mimeType: result.assets[0].mimeType || "application/octet-stream",
+        });
+        setSelectedImage(null); // Limpiar imagen si había una seleccionada
+      }
+    } catch (error) {
+      console.error("Error seleccionando archivo:", error);
+      Alert.alert("Error", "No se pudo seleccionar el archivo");
+    }
+  };
+
+  // 🔹 Abrir selector de imágenes (galería por defecto, cámara con long press)
+  const handleImageOptions = () => {
+    console.log("📷 Botón de cámara presionado - abriendo galería directamente");
+    handleSelectImage();
+  };
+
+  // 🔹 Abrir cámara (para long press)
+  const handleImageOptionsLongPress = () => {
+    console.log("📸 Botón de cámara presionado largo - abriendo cámara");
+    handleTakePhoto();
+  };
+
   // 🔹 Enviar mensaje
   const handleSendMessage = async () => {
-    if (!chatId || !currentUser || newMessage.trim() === "") return;
+    if (!chatId || !currentUser) return;
+    if (newMessage.trim() === "" && !selectedImage && !selectedFile) return;
 
     try {
-      if (isGroup) {
-        // Para chats grupales, no necesitamos un receiverId específico
-        await sendMessage(chatId, currentUser.id, null, newMessage);
-      } else {
-        if (!userId) return console.warn("No se encontró el ID del receptor.");
-        await sendMessage(chatId, currentUser.id, String(userId), newMessage);
+      setUploading(true);
+      let imageUrl: string | undefined;
+      let fileUrl: string | undefined;
+      let fileName: string | undefined;
+      let fileType: string | undefined;
+
+      // Subir imagen si hay una seleccionada
+      if (selectedImage) {
+        imageUrl = await uploadImageToStorage(selectedImage, chatId);
       }
+
+      // Subir archivo si hay uno seleccionado
+      if (selectedFile) {
+        fileUrl = await uploadFileToStorage(
+          selectedFile.uri,
+          selectedFile.name,
+          selectedFile.mimeType,
+          chatId
+        );
+        fileName = selectedFile.name;
+        fileType = selectedFile.mimeType;
+      }
+
+      // Enviar mensaje
+      if (isGroup) {
+        await sendMessage(
+          chatId,
+          currentUser.id,
+          null,
+          newMessage,
+          imageUrl,
+          fileUrl,
+          fileName,
+          fileType
+        );
+      } else {
+        if (!userId) {
+          console.warn("No se encontró el ID del receptor.");
+          return;
+        }
+        await sendMessage(
+          chatId,
+          currentUser.id,
+          String(userId),
+          newMessage,
+          imageUrl,
+          fileUrl,
+          fileName,
+          fileType
+        );
+      }
+
+      // Limpiar estado
       setNewMessage("");
+      setSelectedImage(null);
+      setSelectedFile(null);
     } catch (error) {
       console.error("Error al enviar mensaje:", error);
+      Alert.alert("Error", "No se pudo enviar el mensaje");
+    } finally {
+      setUploading(false);
     }
+  };
+
+  // 🔹 Abrir archivo
+  const handleOpenFile = (fileUrl: string) => {
+    Linking.openURL(fileUrl).catch((err) => {
+      console.error("Error abriendo archivo:", err);
+      Alert.alert("Error", "No se pudo abrir el archivo");
+    });
   };
 
   // 🔹 Render burbujas de mensaje
@@ -332,11 +510,63 @@ const ChatDetails = () => {
               {senderName}
             </Text>
           )}
-          <Text
-            style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}
-          >
-            {message.text}
-          </Text>
+          
+          {/* Mostrar imagen si existe */}
+          {message.imageUrl && (
+            <TouchableOpacity
+              style={styles.messageImageContainer}
+              onPress={() => {
+                Alert.alert("Imagen", "Ver imagen en tamaño completo", [
+                  { text: "Ver", onPress: () => Linking.openURL(message.imageUrl!) },
+                  { text: "Cerrar", style: "cancel" },
+                ]);
+              }}
+            >
+              <Image
+                source={{ uri: message.imageUrl }}
+                style={styles.messageImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          )}
+
+          {/* Mostrar archivo si existe */}
+          {message.fileUrl && (
+            <TouchableOpacity
+              style={[
+                styles.messageFileContainer,
+                isMe
+                  ? { backgroundColor: "rgba(255,255,255,0.2)", borderColor: "rgba(255,255,255,0.3)" }
+                  : { backgroundColor: "rgba(4,145,198,0.1)", borderColor: "rgba(4,145,198,0.2)" },
+                { borderWidth: 1 },
+              ]}
+              onPress={() => handleOpenFile(message.fileUrl!)}
+            >
+              <Ionicons name="document" size={24} color={isMe ? "#fff" : "#0491C6"} />
+              <View style={styles.messageFileInfo}>
+                <Text
+                  style={[styles.messageFileName, isMe ? styles.myMessageText : styles.theirMessageText]}
+                  numberOfLines={1}
+                >
+                  {message.fileName || "Archivo"}
+                </Text>
+                <Text style={[styles.messageFileType, isMe ? styles.myTimeText : styles.theirTimeText]}>
+                  {message.fileType?.split('/')[1]?.toUpperCase() || "ARCHIVO"}
+                </Text>
+              </View>
+              <Ionicons name="download-outline" size={20} color={isMe ? "#fff" : "#0491C6"} />
+            </TouchableOpacity>
+          )}
+
+          {/* Mostrar texto si existe */}
+          {message.text && message.text.trim() !== "" && (
+            <Text
+              style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}
+            >
+              {message.text}
+            </Text>
+          )}
+
           <Text style={[styles.timeText, isMe ? styles.myTimeText : styles.theirTimeText]}>
             {message.timestamp
               ? new Date(message.timestamp.seconds * 1000).toLocaleTimeString([], {
@@ -474,21 +704,72 @@ const ChatDetails = () => {
 
         {/* Input */}
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachButton}>
-            <Ionicons name="attach" size={24} color="#0491C6" />
-          </TouchableOpacity>
+          {/* Mostrar preview de imagen seleccionada */}
+          {selectedImage && (
+            <View style={styles.previewContainer}>
+              <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+              <TouchableOpacity
+                style={styles.previewCloseButton}
+                onPress={() => setSelectedImage(null)}
+              >
+                <Ionicons name="close-circle" size={24} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
+          )}
 
-          <TextInput
-            style={styles.textInput}
-            placeholder="Escribe un mensaje..."
-            placeholderTextColor="#999"
-            value={newMessage}
-            onChangeText={setNewMessage}
-          />
+          {/* Mostrar preview de archivo seleccionado */}
+          {selectedFile && (
+            <View style={styles.previewContainer}>
+              <View style={styles.previewFile}>
+                <Ionicons name="document" size={24} color="#0491C6" />
+                <Text style={styles.previewFileName} numberOfLines={1}>
+                  {selectedFile.name}
+                </Text>
+                <TouchableOpacity
+                  style={styles.previewCloseButton}
+                  onPress={() => setSelectedFile(null)}
+                >
+                  <Ionicons name="close-circle" size={24} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
-          <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-            <Ionicons name="send" size={20} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.inputRow}>
+            <TouchableOpacity 
+              style={styles.cameraButton} 
+              onPress={handleImageOptions}
+              onLongPress={handleImageOptionsLongPress}
+            >
+              <Ionicons name="camera" size={24} color="#0491C6" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.attachButton} onPress={handleSelectFile}>
+              <Ionicons name="attach" size={24} color="#0491C6" />
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.textInput}
+              placeholder="Escribe un mensaje..."
+              placeholderTextColor="#999"
+              value={newMessage}
+              onChangeText={setNewMessage}
+              multiline
+              maxLength={1000}
+            />
+
+            <TouchableOpacity
+              style={[styles.sendButton, uploading && styles.sendButtonDisabled]}
+              onPress={handleSendMessage}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="send" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -576,14 +857,17 @@ const styles = StyleSheet.create({
   myTimeText: { color: "#E0E0E0" },
   theirTimeText: { color: "#999" },
   inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "white",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
   },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cameraButton: { padding: 5, marginRight: 5 },
   attachButton: { padding: 5, marginRight: 10 },
   textInput: {
     flex: 1,
@@ -593,6 +877,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 15,
     color: "#333",
+    maxHeight: 100,
   },
   sendButton: {
     backgroundColor: "#0491C6",
@@ -602,6 +887,66 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 10,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+  previewContainer: {
+    marginBottom: 10,
+    position: "relative",
+  },
+  previewImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    marginBottom: 5,
+  },
+  previewFile: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 5,
+  },
+  previewFileName: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 14,
+    color: "#333",
+  },
+  previewCloseButton: {
+    marginLeft: 10,
+  },
+  messageImageContainer: {
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  messageImage: {
+    width: 250,
+    height: 250,
+    borderRadius: 12,
+  },
+  messageFileContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  messageFileInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  messageFileName: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  messageFileType: {
+    fontSize: 11,
+    opacity: 0.7,
   },
   emptyChatContainer: {
     flex: 1,
