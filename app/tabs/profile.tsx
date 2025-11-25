@@ -1,14 +1,29 @@
 import { actualizarFotoPerfil, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil, subirImagenPerfil } from '@/api/profileService';
+import PostCard from '@/components/cards/PostCard';
+import { db } from '@/services/firebase';
 import { validarYSubirImagen } from '@/services/imageModerationClient';
 import { Feather, FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+
+interface Comentario {
+  id: string;
+  usuarioID: string;
+  comentario: string;
+  fecha: any;
+  autor: {
+    nombres: string;
+    apellidos: string;
+    fotoPerfil?: string;
+  };
+}
 
 const Profile = () => {
   const router = useRouter();
@@ -20,6 +35,13 @@ const Profile = () => {
 
   const [seguidores, setSeguidores] = useState<number>(0);
   const [currentUserID, setCurrentUserID] = useState<string>('');
+
+  // 🔹 Estados para interacciones
+  const [likedPosts, setLikedPosts] = useState<{ [postId: string]: boolean }>({});
+  const [comentarios, setComentarios] = useState<{ [postId: string]: Comentario[] }>({});
+  const [loadingComments, setLoadingComments] = useState<string | null>(null);
+  const [showCommentInput, setShowCommentInput] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
 
   // 🔹 Modales
   const [showModal, setShowModal] = useState(false); // Confirmar cierre
@@ -93,11 +115,223 @@ const Profile = () => {
       const publicaciones = await obtenerPublicacionesPerfil(targetUserId);
       setUserPosts(publicaciones);
 
+      // Verificar likes del usuario actual
+      const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+      if (storedUsuarioID) {
+        for (const post of publicaciones) {
+          const likeQuery = query(
+            collection(db, 'interacciones'),
+            where('usuarioID', '==', storedUsuarioID),
+            where('publicacionID', '==', post.id),
+            where('tipo', '==', 'like')
+          );
+          const likeSnapshot = await getDocs(likeQuery);
+          if (!likeSnapshot.empty) {
+            setLikedPosts(prev => ({ ...prev, [post.id]: true }));
+          }
+        }
+      }
+
       setSeguidores(perfil.seguidores);
     } catch (error) {
       console.error('Error cargando datos del perfil:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔹 Funciones de interacción
+  const handleLike = async (postId: string) => {
+    const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+    if (!storedUsuarioID) return;
+
+    try {
+      const likeQuery = query(
+        collection(db, 'interacciones'),
+        where('usuarioID', '==', storedUsuarioID),
+        where('publicacionID', '==', postId),
+        where('tipo', '==', 'like')
+      );
+      const likeSnapshot = await getDocs(likeQuery);
+
+      if (likeSnapshot.empty) {
+        await addDoc(collection(db, 'interacciones'), {
+          usuarioID: storedUsuarioID,
+          publicacionID: postId,
+          tipo: 'like',
+          fecha: new Date()
+        });
+        setLikedPosts(prev => ({ ...prev, [postId]: true }));
+        await actualizarConteos(postId);
+      } else {
+        const likeDoc = likeSnapshot.docs[0];
+        await deleteDoc(likeDoc.ref);
+        setLikedPosts(prev => ({ ...prev, [postId]: false }));
+        await actualizarConteos(postId);
+      }
+    } catch (error) {
+      console.error('Error dando like:', error);
+    }
+  };
+
+  const cargarComentarios = async (postId: string) => {
+    setLoadingComments(postId);
+    try {
+      const comentariosQuery = query(
+        collection(db, 'interacciones'),
+        where('publicacionID', '==', postId),
+        where('tipo', '==', 'comentario')
+      );
+      const comentariosSnapshot = await getDocs(comentariosQuery);
+
+      const comentariosList: Comentario[] = [];
+
+      for (const docSnapshot of comentariosSnapshot.docs) {
+        const data = docSnapshot.data();
+
+        const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
+        const usuarioDoc = await getDoc(usuarioRef);
+
+        if (usuarioDoc.exists()) {
+          const usuarioData = usuarioDoc.data() as any;
+          const nombreFuente = usuarioData.nombreCompleto || usuarioData.nombre || '';
+          const partesNombre = nombreFuente.trim().split(' ');
+          const nombres = usuarioData.nombres || partesNombre[0] || '';
+          const apellidos = usuarioData.apellidos || partesNombre.slice(1).join(' ') || '';
+
+          comentariosList.push({
+            id: docSnapshot.id,
+            usuarioID: data.usuarioID,
+            comentario: data.comentario,
+            fecha: data.fecha,
+            autor: {
+              nombres,
+              apellidos,
+              fotoPerfil: usuarioData.fotoPerfil
+            }
+          });
+        }
+      }
+
+      comentariosList.sort((a, b) => {
+        const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(a.fecha);
+        const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(b.fecha);
+        return fechaB.getTime() - fechaA.getTime();
+      });
+
+      setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
+    } catch (error) {
+      console.error('Error cargando comentarios:', error);
+    } finally {
+      setLoadingComments(null);
+    }
+  };
+
+  const handleComment = async (postId: string) => {
+    if (showCommentInput === postId) {
+      if (!commentText.trim()) {
+        setShowCommentInput(null);
+        return;
+      }
+
+      const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+      if (!storedUsuarioID) return;
+
+      try {
+        await addDoc(collection(db, 'interacciones'), {
+          usuarioID: storedUsuarioID,
+          publicacionID: postId,
+          tipo: 'comentario',
+          comentario: commentText.trim(),
+          fecha: new Date()
+        });
+
+        setCommentText('');
+        setShowCommentInput(null);
+        await actualizarConteos(postId);
+        await cargarComentarios(postId);
+      } catch (error) {
+        console.error('Error enviando comentario:', error);
+      }
+    } else {
+      setShowCommentInput(postId);
+      await cargarComentarios(postId);
+    }
+  };
+
+  const handleSendComment = async (postId: string) => {
+    if (!commentText.trim()) return;
+
+    const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+    if (!storedUsuarioID) return;
+
+    try {
+      await addDoc(collection(db, 'interacciones'), {
+        usuarioID: storedUsuarioID,
+        publicacionID: postId,
+        tipo: 'comentario',
+        comentario: commentText.trim(),
+        fecha: new Date()
+      });
+
+      setCommentText('');
+      await actualizarConteos(postId);
+      await cargarComentarios(postId);
+    } catch (error) {
+      console.error('Error enviando comentario:', error);
+    }
+  };
+
+  const handleDelete = async (postId: string) => {
+    Alert.alert(
+      'Eliminar publicación',
+      '¿Estás seguro de que deseas eliminar esta publicación?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'publicaciones', postId));
+              // Eliminar interacciones asociadas podría ser necesario también
+              setUserPosts(prev => prev.filter(p => p.id !== postId));
+              Alert.alert('Éxito', 'Publicación eliminada');
+            } catch (error) {
+              console.error('Error eliminando publicación:', error);
+              Alert.alert('Error', 'No se pudo eliminar la publicación');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const actualizarConteos = async (postId: string) => {
+    try {
+      const likesQuery = query(
+        collection(db, 'interacciones'),
+        where('publicacionID', '==', postId),
+        where('tipo', '==', 'like')
+      );
+      const likesSnapshot = await getDocs(likesQuery);
+
+      const comentariosQuery = query(
+        collection(db, 'interacciones'),
+        where('publicacionID', '==', postId),
+        where('tipo', '==', 'comentario')
+      );
+      const comentariosSnapshot = await getDocs(comentariosQuery);
+
+      setUserPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? { ...post, likes: likesSnapshot.size, comentarios: comentariosSnapshot.size }
+            : post
+        )
+      );
+    } catch (error) {
+      console.error('Error actualizando conteos:', error);
     }
   };
 
@@ -132,21 +366,21 @@ const Profile = () => {
       // Solicitar permisos
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       console.log('📋 Estado de permisos:', status);
-      
+
       if (status !== 'granted') {
         Alert.alert('Permisos necesarios', 'Necesitamos acceso a tu galería para cambiar la foto de perfil.');
         return;
       }
 
       console.log('✅ Permisos otorgados, mostrando opciones...');
-      
+
       // En web, mostrar directamente el selector de archivos
       if (Platform.OS === 'web') {
         console.log('🌐 Plataforma web detectada, usando selector directo');
         pickImage('library');
         return;
       }
-      
+
       // En móvil, mostrar opciones
       Alert.alert(
         'Cambiar foto de perfil',
@@ -249,7 +483,7 @@ const Profile = () => {
           console.error('Stack:', uploadError?.stack);
           setUploadingImage(false);
           Alert.alert(
-            'Error', 
+            'Error',
             `No se pudo actualizar la foto de perfil.\n\nError: ${uploadError?.message || 'Error desconocido'}\n\nRevisa la consola para más detalles.`
           );
         }
@@ -261,7 +495,7 @@ const Profile = () => {
       console.error('Mensaje de error:', error?.message);
       setUploadingImage(false);
       Alert.alert(
-        'Error', 
+        'Error',
         `No se pudo cambiar la foto de perfil.\n\nError: ${error?.message || 'Error desconocido'}`
       );
     }
@@ -324,7 +558,7 @@ const Profile = () => {
                     borderRadius: Animated.multiply(profileImageSize, 0.5),
                   },
                 ]}
-                pointerEvents="none"
+
               />
               {uploadingImage && (
                 <View style={[styles.uploadingOverlay, {
@@ -336,7 +570,7 @@ const Profile = () => {
                 </View>
               )}
               {!uploadingImage && (
-                <Animated.View 
+                <Animated.View
                   style={[styles.editIconContainer, {
                     width: profileImageSize,
                     height: profileImageSize,
@@ -438,35 +672,52 @@ const Profile = () => {
           </View>
         ) : (
           userPosts.map((post) => (
-            <View key={post.id} style={styles.postCard}>
-              <View style={styles.postHeader}>
-                <View style={styles.postUserInfo}>
-                  <Image
-                    source={
-                      userProfile.fotoPerfil
-                        ? { uri: userProfile.fotoPerfil }
-                        : require('@/assets/images/react-logo.png')
-                    }
-                    style={styles.postUserImage}
-                  />
-                  <View>
-                    <Text style={styles.postUserName}>{primerNombre}</Text>
-                    <Text style={styles.postTimestamp}>Hace un rato</Text>
-                  </View>
-                </View>
-                <TouchableOpacity>
-                  <MaterialIcons name="more-horiz" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.postContent}>
-                <Text style={styles.postDescription}>{post.texto}</Text>
-              </View>
-
-              {post.imagenUrl && (
-                <Image source={{ uri: post.imagenUrl }} style={styles.postImage} />
-              )}
-            </View>
+            <PostCard
+              key={post.id}
+              post={{
+                id: post.id,
+                usuarioID: post.usuarioID,
+                contenido: post.texto,
+                fechaCreacion: post.fechaCreacion,
+                imagen: post.imagenUrl,
+                autor: {
+                  nombres: userProfile.nombre,
+                  apellidos: userProfile.apellido,
+                  fotoPerfil: userProfile.fotoPerfil
+                },
+                likes: post.likes,
+                comentarios: post.comentarios,
+                isOwner: true // Es el perfil del usuario actual
+              }}
+              liked={likedPosts[post.id] || false}
+              onLike={handleLike}
+              onComment={handleComment}
+              onDelete={handleDelete}
+              formatTime={(timestamp) => {
+                if (!timestamp) return 'Hace un momento';
+                const now = new Date();
+                const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                const diffInSeconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
+                if (diffInSeconds < 60) return 'Hace un momento';
+                if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
+                if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
+                if (diffInSeconds < 2592000) return `Hace ${Math.floor(diffInSeconds / 86400)} días`;
+                return postDate.toLocaleDateString();
+              }}
+              comentarios={comentarios[post.id]}
+              loadingComments={loadingComments === post.id}
+              showCommentInput={showCommentInput === post.id}
+              commentText={commentText}
+              onCommentTextChange={setCommentText}
+              onSendComment={handleSendComment}
+              onCloseComment={() => {
+                setShowCommentInput(null);
+                setCommentText('');
+                const newComentarios = { ...comentarios };
+                delete newComentarios[post.id];
+                setComentarios(newComentarios);
+              }}
+            />
           ))
         )}
 
@@ -550,7 +801,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingTop: 25,
   },
-  profileImageContainer: { 
+  profileImageContainer: {
     marginBottom: 10,
     position: 'relative',
     alignItems: 'center',
@@ -565,8 +816,8 @@ const styles = StyleSheet.create({
     minWidth: 100,
     minHeight: 100,
   },
-  profileImage: { 
-    borderWidth: 3, 
+  profileImage: {
+    borderWidth: 3,
     borderColor: 'white',
   },
   uploadingOverlay: {

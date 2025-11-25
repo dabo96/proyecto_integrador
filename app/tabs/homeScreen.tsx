@@ -47,7 +47,7 @@ interface Usuario {
 
 export default function MainPageScreen() {
     const router = useRouter();
-    
+
     // Estados
     const [usuarioID, setUsuarioID] = useState<string>('');
     const [usuarioNombre, setUsuarioNombre] = useState<string>('');
@@ -73,11 +73,11 @@ export default function MainPageScreen() {
     // Función para formatear fecha relativa
     const formatRelativeTime = (timestamp: any) => {
         if (!timestamp) return 'Hace un momento';
-        
+
         const now = new Date();
         const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
         const diffInSeconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
-        
+
         if (diffInSeconds < 60) return 'Hace un momento';
         if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
         if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
@@ -108,12 +108,12 @@ export default function MainPageScreen() {
                     allData: data,
                     keys: Object.keys(data)
                 });
-                
+
                 // Usar el campo "nombre" que contiene el nombre completo
                 const nombreOrigen = data.nombreCompleto || data.nombre || [data.nombres, data.apellidos].filter(Boolean).join(' ');
                 const nombreCompleto = String(nombreOrigen || '').trim().toLowerCase();
                 const textoBusqueda = texto.trim().toLowerCase();
-                
+
                 console.log('Comparando:', {
                     nombreCompleto,
                     textoBusqueda
@@ -121,17 +121,17 @@ export default function MainPageScreen() {
 
                 // Buscar si el texto está en el nombre completo
                 const coincideNombre = nombreCompleto.includes(textoBusqueda);
-                
+
                 console.log('Coincidencia:', { coincideNombre });
-                
+
                 if (coincideNombre) {
                     console.log('✓ Coincidencia encontrada:', data.nombre);
-                    
+
                     // Dividir el nombre completo para separar nombres y apellidos
                     const partesNombre = (nombreOrigen || '').trim().split(' ');
                     const nombres = data.nombres || partesNombre[0] || '';
                     const apellidos = data.apellidos || partesNombre.slice(1).join(' ') || '';
-                    
+
                     resultados.push({
                         id: doc.id,
                         usuarioID: doc.id,
@@ -157,14 +157,14 @@ export default function MainPageScreen() {
             const contactosRef = collection(db, 'Usuarios', usuarioID, 'contactos');
             const contactosSnapshot = await getDocs(contactosRef);
             const seguidoIDs: string[] = [];
-            
+
             contactosSnapshot.forEach((doc) => {
                 const data = doc.data();
                 if (data.seguidoID) {
                     seguidoIDs.push(data.seguidoID);
                 }
             });
-            
+
             return seguidoIDs;
         } catch (error) {
             console.error('Error obteniendo contactos:', error);
@@ -204,7 +204,7 @@ export default function MainPageScreen() {
             console.log('Procesando publicación:', data);
             const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
             const usuarioDoc = await getDoc(usuarioRef);
-            
+
             if (usuarioDoc.exists()) {
                 const usuarioData = usuarioDoc.data() as any;
                 console.log('Datos del usuario encontrados:', usuarioData);
@@ -212,7 +212,7 @@ export default function MainPageScreen() {
                 const partesNombre = nombreFuente.trim().split(' ');
                 const nombresAutor = usuarioData.nombres || partesNombre[0] || '';
                 const apellidosAutor = usuarioData.apellidos || partesNombre.slice(1).join(' ') || '';
-                
+
                 // Contar likes reales desde la colección interacciones
                 const likesQuery = query(
                     collection(db, 'interacciones'),
@@ -221,7 +221,7 @@ export default function MainPageScreen() {
                 );
                 const likesSnapshot = await getDocs(likesQuery);
                 const likesCount = likesSnapshot.size;
-                
+
                 // Contar comentarios reales desde la colección interacciones
                 const comentariosQuery = query(
                     collection(db, 'interacciones'),
@@ -230,7 +230,7 @@ export default function MainPageScreen() {
                 );
                 const comentariosSnapshot = await getDocs(comentariosQuery);
                 const comentariosCount = comentariosSnapshot.size;
-                
+
                 const publicacion = {
                     id: docSnapshot.id,
                     usuarioID: data.usuarioID,
@@ -246,7 +246,7 @@ export default function MainPageScreen() {
                     comentarios: comentariosCount
                 };
                 console.log('Publicación procesada exitosamente:', publicacion);
-                
+
                 // Verificar si el usuario actual le dio like a esta publicación
                 if (usuarioID) {
                     const userLikeQuery = query(
@@ -260,7 +260,7 @@ export default function MainPageScreen() {
                         setLikedPosts(prev => ({ ...prev, [docSnapshot.id]: true }));
                     }
                 }
-                
+
                 return publicacion;
             } else {
                 console.log('Usuario no encontrado en la base de datos');
@@ -275,7 +275,7 @@ export default function MainPageScreen() {
     // Función para configurar listener en tiempo real de publicaciones
     // Muestra las publicaciones del usuario actual, de los usuarios que sigue y de sus seguidores
     const configurarListenerPublicaciones = (usuarioID: string, seguidoIDs: string[], seguidorIDs: string[]) => {
-        if (!usuarioID) return () => {};
+        if (!usuarioID) return () => { };
 
         // Combinar todos los IDs únicos: usuario actual, usuarios seguidos y seguidores
         const allUserIDsSet = new Set([usuarioID, ...seguidoIDs, ...seguidorIDs]);
@@ -320,7 +320,7 @@ export default function MainPageScreen() {
             const unsubscribe = onSnapshot(q, async (snapshot) => {
                 console.log(`Listener para usuario ${userID}: ${snapshot.docs.length} documentos encontrados`);
                 const nuevasPublicaciones: Post[] = [];
-                
+
                 for (const docSnapshot of snapshot.docs) {
                     const publicacion = await procesarPublicacion(docSnapshot);
                     if (publicacion) {
@@ -363,16 +363,16 @@ export default function MainPageScreen() {
                 where('tipo', '==', 'comentario')
             );
             const comentariosSnapshot = await getDocs(comentariosQuery);
-            
+
             const comentariosList: Comentario[] = [];
-            
+
             for (const docSnapshot of comentariosSnapshot.docs) {
                 const data = docSnapshot.data();
-                
+
                 // Obtener datos del usuario que hizo el comentario
                 const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
                 const usuarioDoc = await getDoc(usuarioRef);
-                
+
                 if (usuarioDoc.exists()) {
                     const usuarioData = usuarioDoc.data() as any;
                     const nombreFuente = usuarioData.nombreCompleto || usuarioData.nombre || '';
@@ -393,14 +393,14 @@ export default function MainPageScreen() {
                     });
                 }
             }
-            
+
             // Ordenar por fecha en memoria (más recientes primero)
             comentariosList.sort((a, b) => {
                 const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(a.fecha);
                 const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(b.fecha);
                 return fechaB.getTime() - fechaA.getTime();
             });
-            
+
             setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
         } catch (error) {
             console.error('Error cargando comentarios:', error);
@@ -412,7 +412,7 @@ export default function MainPageScreen() {
     // Función para verificar si el usuario dio like a una publicación
     const verificarLikeUsuario = async (postId: string) => {
         if (!usuarioID) return false;
-        
+
         try {
             const likeQuery = query(
                 collection(db, 'interacciones'),
@@ -432,7 +432,7 @@ export default function MainPageScreen() {
     const actualizarConteosPublicacion = async (postId: string) => {
         try {
             console.log('Actualizando conteos para publicación:', postId);
-            
+
             // Contar likes
             const likesQuery = query(
                 collection(db, 'interacciones'),
@@ -442,7 +442,7 @@ export default function MainPageScreen() {
             const likesSnapshot = await getDocs(likesQuery);
             const likesCount = likesSnapshot.size;
             console.log('Total de likes encontrados:', likesCount);
-            
+
             // Contar comentarios
             const comentariosQuery = query(
                 collection(db, 'interacciones'),
@@ -452,11 +452,11 @@ export default function MainPageScreen() {
             const comentariosSnapshot = await getDocs(comentariosQuery);
             const comentariosCount = comentariosSnapshot.size;
             console.log('Total de comentarios encontrados:', comentariosCount);
-            
+
             // Actualizar el estado de la publicación específica
             setPosts(prevPosts => {
-                const updatedPosts = prevPosts.map(post => 
-                    post.id === postId 
+                const updatedPosts = prevPosts.map(post =>
+                    post.id === postId
                         ? { ...post, likes: likesCount, comentarios: comentariosCount }
                         : post
                 );
@@ -474,22 +474,22 @@ export default function MainPageScreen() {
         try {
             setLoading(true);
             setError('');
-            
+
             const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
             const storedUsuarioNombre = await AsyncStorage.getItem('usuarioNombre');
 
             console.log('storedUsuarioID', storedUsuarioID);
             console.log('storedUsuarioNombre', storedUsuarioNombre);
-            
+
             if (!storedUsuarioID) {
                 setError('No se encontró información del usuario');
                 setLoading(false);
                 return;
             }
-            
+
             setUsuarioID(storedUsuarioID);
             setUsuarioNombre(storedUsuarioNombre || 'Usuario');
-            
+
             // Obtener foto de perfil del usuario
             const usuarioRef = doc(db, 'Usuarios', storedUsuarioID);
             const usuarioDoc = await getDoc(usuarioRef);
@@ -497,15 +497,15 @@ export default function MainPageScreen() {
                 const usuarioData = usuarioDoc.data();
                 setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
             }
-            
+
             // Obtener contactos (usuarios que el usuario actual sigue)
             const seguidoIDs = await getContactos(storedUsuarioID);
             setSeguidoIDs(seguidoIDs);
-            
+
             // Obtener seguidores (usuarios que siguen al usuario actual)
             const seguidorIDs = await getSeguidores(storedUsuarioID);
             setSeguidorIDs(seguidorIDs);
-            
+
         } catch (error) {
             console.error('Error cargando feed:', error);
             setError('Error al cargar las publicaciones');
@@ -543,7 +543,7 @@ export default function MainPageScreen() {
         if (!usuarioID) return;
 
         const unsubscribe = configurarListenerPublicaciones(usuarioID, seguidoIDs, seguidorIDs);
-        
+
         return () => {
             unsubscribe();
         };
@@ -556,20 +556,20 @@ export default function MainPageScreen() {
                 setShowCommentInput(null);
                 return;
             }
-            
+
             // Enviar comentario
             if (!usuarioID) {
                 console.error('No hay usuarioID disponible');
                 return;
             }
-            
+
             try {
                 console.log('Guardando comentario:', {
                     usuarioID,
                     publicacionID: postId,
                     comentario: commentText.trim()
                 });
-                
+
                 const docRef = await addDoc(collection(db, 'interacciones'), {
                     usuarioID: usuarioID,
                     publicacionID: postId,
@@ -577,14 +577,14 @@ export default function MainPageScreen() {
                     comentario: commentText.trim(),
                     fecha: new Date()
                 });
-                
+
                 console.log('Comentario agregado exitosamente con ID:', docRef.id);
                 setCommentText('');
                 setShowCommentInput(null);
-                
+
                 // Actualizar los conteos de la publicación
                 await actualizarConteosPublicacion(postId);
-                
+
                 // Recargar los comentarios
                 await cargarComentarios(postId);
             } catch (error) {
@@ -600,19 +600,19 @@ export default function MainPageScreen() {
 
     const handleSendComment = async (postId: string) => {
         if (!commentText.trim()) return;
-        
+
         if (!usuarioID) {
             console.error('No hay usuarioID disponible');
             return;
         }
-        
+
         try {
             console.log('Guardando comentario:', {
                 usuarioID,
                 publicacionID: postId,
                 comentario: commentText.trim()
             });
-            
+
             const docRef = await addDoc(collection(db, 'interacciones'), {
                 usuarioID: usuarioID,
                 publicacionID: postId,
@@ -620,13 +620,13 @@ export default function MainPageScreen() {
                 comentario: commentText.trim(),
                 fecha: new Date()
             });
-            
+
             console.log('Comentario agregado exitosamente con ID:', docRef.id);
             setCommentText('');
-            
+
             // Actualizar los conteos de la publicación
             await actualizarConteosPublicacion(postId);
-            
+
             // Recargar los comentarios
             await cargarComentarios(postId);
         } catch (error) {
@@ -640,10 +640,10 @@ export default function MainPageScreen() {
             console.error('No hay usuarioID disponible');
             return;
         }
-        
+
         try {
             console.log('Verificando like:', { usuarioID, publicacionID: postId });
-            
+
             // Verificar si el usuario ya dio like a esta publicación
             const likeQuery = query(
                 collection(db, 'interacciones'),
@@ -652,9 +652,9 @@ export default function MainPageScreen() {
                 where('tipo', '==', 'like')
             );
             const likeSnapshot = await getDocs(likeQuery);
-            
+
             console.log('Likes existentes:', likeSnapshot.size);
-            
+
             if (likeSnapshot.empty) {
                 // El usuario no ha dado like, agregar
                 console.log('Agregando nuevo like');
@@ -665,10 +665,10 @@ export default function MainPageScreen() {
                     fecha: new Date()
                 });
                 console.log('Like agregado exitosamente con ID:', docRef.id);
-                
+
                 // Actualizar el estado para indicar que le dio like
                 setLikedPosts(prev => ({ ...prev, [postId]: true }));
-                
+
                 // Actualizar los conteos de la publicación
                 await actualizarConteosPublicacion(postId);
             } else {
@@ -677,10 +677,10 @@ export default function MainPageScreen() {
                 const likeDoc = likeSnapshot.docs[0];
                 await deleteDoc(likeDoc.ref);
                 console.log('Like eliminado exitosamente');
-                
+
                 // Actualizar el estado para indicar que retiró el like
                 setLikedPosts(prev => ({ ...prev, [postId]: false }));
-                
+
                 // Actualizar los conteos de la publicación
                 await actualizarConteosPublicacion(postId);
             }
@@ -693,7 +693,7 @@ export default function MainPageScreen() {
     // Función para verificar si el usuario ya reportó una publicación
     const verificarReporteExistente = async (postId: string): Promise<boolean> => {
         if (!usuarioID) return false;
-        
+
         try {
             const reporteQuery = query(
                 collection(db, 'publicaciones', postId, 'reportes'),
@@ -712,7 +712,7 @@ export default function MainPageScreen() {
         try {
             const postRef = doc(db, 'publicaciones', postId);
             const postDoc = await getDoc(postRef);
-            
+
             if (postDoc.exists()) {
                 const data = postDoc.data();
                 return data.usuarioID;
@@ -733,13 +733,13 @@ export default function MainPageScreen() {
             );
             const reportesSnapshot = await getDocs(reportesQuery);
             const reportesCount = reportesSnapshot.size;
-            
+
             // Actualizar el contador en el documento de la publicación
             const postRef = doc(db, 'publicaciones', postId);
             await updateDoc(postRef, {
                 reportes_count: reportesCount
             });
-            
+
             console.log(`Contador de reportes actualizado para publicación ${postId}: ${reportesCount}`);
             return reportesCount;
         } catch (error) {
@@ -753,17 +753,17 @@ export default function MainPageScreen() {
         try {
             const usuarioRef = doc(db, 'Usuarios', usuarioReportadoID);
             const usuarioDoc = await getDoc(usuarioRef);
-            
+
             if (usuarioDoc.exists()) {
                 const usuarioData = usuarioDoc.data();
                 const indiceActual = usuarioData.indice_conducta || 5;
                 const nuevoIndice = Math.max(0, indiceActual + puntuacion);
-                
+
                 // Actualizar índice de conducta
                 await updateDoc(usuarioRef, {
                     indice_conducta: nuevoIndice
                 });
-                
+
                 // Agregar entrada al historial de conducta
                 await addDoc(collection(db, 'Usuarios', usuarioReportadoID, 'historialConducta'), {
                     accion: puntuacion < 0 ? 'penalizacion' : 'bonificacion',
@@ -771,12 +771,12 @@ export default function MainPageScreen() {
                     puntResultante: nuevoIndice,
                     fecha: new Date()
                 });
-                
+
                 console.log(`Índice de conducta actualizado para usuario ${usuarioReportadoID}: ${indiceActual} → ${nuevoIndice}`);
-                
+
                 // Verificar si necesita sanción automática
                 await verificarSancionAutomatica(usuarioReportadoID, nuevoIndice);
-                
+
                 return nuevoIndice;
             }
         } catch (error) {
@@ -790,7 +790,7 @@ export default function MainPageScreen() {
             let tipoSancion = '';
             let diasSancion = 0;
             let motivo = '';
-            
+
             if (indiceConducta <= 0) {
                 tipoSancion = 'cierre_definitivo';
                 motivo = 'Índice de conducta crítico (0 puntos)';
@@ -803,19 +803,19 @@ export default function MainPageScreen() {
                 diasSancion = 3;
                 motivo = 'Índice de conducta bajo (≤3 puntos)';
             }
-            
+
             if (tipoSancion) {
                 const fechaInicio = new Date();
                 const fechaFin = new Date();
                 fechaFin.setDate(fechaFin.getDate() + diasSancion);
-                
+
                 await addDoc(collection(db, 'Usuarios', usuarioID, 'sanciones'), {
                     tipo: tipoSancion,
                     fecha_inicio: fechaInicio,
                     fecha_fin: tipoSancion === 'cierre_definitivo' ? null : fechaFin,
                     motivo: motivo
                 });
-                
+
                 console.log(`Sanción aplicada a usuario ${usuarioID}: ${tipoSancion}`);
             }
         } catch (error) {
@@ -829,7 +829,7 @@ export default function MainPageScreen() {
             Alert.alert('Error', 'No se encontró información del usuario');
             return;
         }
-        
+
         try {
             // Verificar si ya reportó esta publicación
             const yaReporto = await verificarReporteExistente(postId);
@@ -837,24 +837,24 @@ export default function MainPageScreen() {
                 Alert.alert('Ya reportado', 'Ya has reportado esta publicación anteriormente');
                 return;
             }
-            
+
             // Obtener el usuario reportado
             const usuarioReportadoID = await obtenerUsuarioReportado(postId);
             if (!usuarioReportadoID) {
                 Alert.alert('Error', 'No se pudo obtener la información de la publicación');
                 return;
             }
-            
+
             // Verificar que no se esté auto-reportando
             if (usuarioReportadoID === usuarioID) {
                 Alert.alert('Error', 'No puedes reportar tu propia publicación');
                 return;
             }
-            
+
             // Mostrar modal de reporte
             setSelectedPostId(postId);
             setShowReportModal(true);
-            
+
         } catch (error) {
             console.error('Error preparando reporte:', error);
             Alert.alert('Error', 'Ocurrió un error al procesar el reporte');
@@ -867,12 +867,12 @@ export default function MainPageScreen() {
             Alert.alert('Error', 'Por favor selecciona un motivo para el reporte');
             return;
         }
-        
+
         if (!reportDetalle.trim()) {
             Alert.alert('Error', 'Por favor proporciona más detalles sobre el reporte');
             return;
         }
-        
+
         try {
             // Obtener el usuario reportado
             const usuarioReportadoID = await obtenerUsuarioReportado(selectedPostId);
@@ -880,7 +880,7 @@ export default function MainPageScreen() {
                 Alert.alert('Error', 'No se pudo obtener la información de la publicación');
                 return;
             }
-            
+
             // Crear el reporte
             const reporteRef = await addDoc(collection(db, 'publicaciones', selectedPostId, 'reportes'), {
                 reportanteID: usuarioID,
@@ -890,12 +890,12 @@ export default function MainPageScreen() {
                 fechaReporte: new Date(),
                 estado: 'activo'
             });
-            
+
             console.log('Reporte creado exitosamente:', reporteRef.id);
-            
+
             // Actualizar contador de reportes
             const reportesCount = await actualizarContadorReportes(selectedPostId);
-            
+
             // Aplicar penalización según el número de reportes
             if (reportesCount >= 5) {
                 // Penalización severa por múltiples reportes
@@ -904,19 +904,19 @@ export default function MainPageScreen() {
                 // Penalización moderada
                 await actualizarIndiceConducta(usuarioReportadoID, -1, `Reportes moderados (${reportesCount})`);
             }
-            
+
             // Cerrar modal y limpiar datos
             setShowReportModal(false);
             setSelectedPostId('');
             setReportMotivo('');
             setReportDetalle('');
-            
+
             Alert.alert(
-                'Reporte enviado', 
+                'Reporte enviado',
                 'Tu reporte ha sido enviado exitosamente. Será revisado por el equipo de moderación.',
                 [{ text: 'OK' }]
             );
-            
+
         } catch (error) {
             console.error('Error enviando reporte:', error);
             Alert.alert('Error', 'Ocurrió un error al enviar el reporte');
@@ -932,8 +932,8 @@ export default function MainPageScreen() {
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 2, marginTop: 10 }}>
                     <View style={{ alignItems: "center" }}>
                         <ImageButton
-                            source={usuarioFotoPerfil ? 
-                                { uri: usuarioFotoPerfil } : 
+                            source={usuarioFotoPerfil ?
+                                { uri: usuarioFotoPerfil } :
                                 require("@/assets/images/react-logo.png")
                             }
                             onPress={() => { router.push("./profile") }}
@@ -995,24 +995,24 @@ export default function MainPageScreen() {
                 <View style={styles.searchResultsContainer}>
                     <ScrollView style={styles.searchResultsList} nestedScrollEnabled>
                         {searchResults.map((usuario) => (
-                            <TouchableOpacity 
-                                key={usuario.id} 
+                            <TouchableOpacity
+                                key={usuario.id}
                                 style={styles.searchResultItem}
                                 onPress={() => {
                                     setSearchText('');
                                     setShowSearchResults(false);
                                     router.push({
                                         pathname: './otherProfile',
-                                        params: { id: usuario.id }
+                                        params: { userId: usuario.id }
                                     });
                                 }}
                             >
                                 <ImageButton
-                                    source={usuario.fotoPerfil ? 
-                                        { uri: usuario.fotoPerfil } : 
+                                    source={usuario.fotoPerfil ?
+                                        { uri: usuario.fotoPerfil } :
                                         require("@/assets/images/react-logo.png")
                                     }
-                                    onPress={() => {}}
+                                    onPress={() => { }}
                                     size={45}
                                     style={styles.searchResultImage}
                                     borderWidth={2}
