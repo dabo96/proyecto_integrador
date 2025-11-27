@@ -183,11 +183,13 @@ export const sendMessage = async (
   
   let isGroup = false;
   let participants: string[] = [];
+  let deletedFor: string[] = [];
   
   if (chatDoc.exists()) {
     const chatData = chatDoc.data();
     isGroup = chatData.isGroup || false;
     participants = chatData.participants || [];
+    deletedFor = chatData.deletedFor || [];
   }
 
   // Actualizar el chat
@@ -196,6 +198,15 @@ export const sendMessage = async (
     updatedAt: serverTimestamp(),
     [`unreadCount.${senderId}`]: 0,
   };
+
+  // REACTIVAR CHAT: Si alguien envía un mensaje, reactivar el chat para quienes lo eliminaron
+  if (deletedFor.length > 0) {
+    console.log(`🔄 ANTES de reactivar - deletedFor:`, deletedFor);
+    console.log(`🔄 Reactivando chat para ${deletedFor.length} usuario(s) que lo eliminaron`);
+    updateData.deletedFor = []; // Limpiar completamente el array
+    updateData.deleted = false; // Marcar como no eliminado
+    console.log(`✅ DESPUÉS de reactivar - deletedFor será:`, updateData.deletedFor);
+  }
 
   // Para chats grupales, incrementar contador de todos los demás participantes
   if (isGroup && participants.length > 0) {
@@ -268,4 +279,49 @@ export const updateGroupName = async (chatId: string, newGroupName: string): Pro
     groupName: newGroupName.trim(),
     updatedAt: serverTimestamp(),
   });
+};
+
+// Eliminar chat para un usuario (marcar como eliminado)
+export const deleteChat = async (chatId: string, userId: string) => {
+  try {
+    console.log(`🗑️ Iniciando eliminación de chat ${chatId} para usuario ${userId}`);
+
+    const chatRef = doc(db, "Chats", chatId);
+    const chatDoc = await getDoc(chatRef);
+
+    if (!chatDoc.exists()) {
+      console.error("❌ Chat no encontrado");
+      throw new Error("Chat no encontrado");
+    }
+
+    const chatData = chatDoc.data();
+    const participants = chatData.participants || [];
+    const deletedFor = chatData.deletedFor || [];
+
+    console.log(`📋 Participantes: ${participants.length}, Ya eliminado por: ${deletedFor.length}`);
+
+    // 1. Marcar que este usuario ha eliminado el chat
+    const updatedDeletedFor = [...new Set([...deletedFor, userId])];
+
+    // 2. Actualizar documento - incluir limpieza del contador de no leídos
+    await updateDoc(chatRef, {
+      deletedFor: updatedDeletedFor,
+      [`unreadCount.${userId}`]: 0, // Limpiar contador de mensajes no leídos
+    });
+
+    console.log(`✅ Chat marcado como eliminado para usuario ${userId}`);
+
+    // 3. Si todos los participantes lo eliminaron → marcar chat como eliminado global
+    if (updatedDeletedFor.length === participants.length) {
+      await updateDoc(chatRef, {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+      });
+
+      console.log("🌍 Chat globalmente eliminado (todos los participantes lo borraron)");
+    }
+  } catch (error) {
+    console.error("❌ Error eliminando chat:", error);
+    throw error;
+  }
 };

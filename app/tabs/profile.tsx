@@ -640,6 +640,12 @@ const Profile = () => {
           style={[styles.headerGradient, { paddingBottom: paddingBottom }]}
           pointerEvents="box-none"
         >
+          <TouchableOpacity
+            style={styles.editProfileButton}
+            onPress={() => router.push('/tabs/editProfile')}
+          >
+            <MaterialIcons name="edit" size={24} color="white" />
+          </TouchableOpacity>
           <View style={styles.profileImageContainer} pointerEvents="box-none">
             <Pressable
               onPress={() => {
@@ -1256,6 +1262,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
+  },
+  editProfileButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 1002,
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
   },
   createPostButtonText: { color: 'white', fontSize: 16, fontWeight: '500' },
 });

@@ -153,6 +153,13 @@ export default function Layout() {
           tabBarItemStyle: { display: 'none' },
         }}
       />
+      <Tabs.Screen
+        name="editProfile"
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
     </Tabs>
   );
 }
