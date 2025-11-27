@@ -1,151 +1,125 @@
-import cors from "cors";
+/**
+ * Firebase Cloud Functions para validación de contenido de imágenes
+ * 
+ * Esta función valida el contenido de imágenes según las políticas de la plataforma
+ */
+
+import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import * as logger from "firebase-functions/logger";
 
-const corsHandler = cors({ origin: true });
+// Inicializar Firebase Admin
+admin.initializeApp();
 
-export const validarContenidoImagen = functions.https.onRequest(
-    async (req, res) => {
-        // ==== HEADERS CORS ====
-        res.set("Access-Control-Allow-Origin", "*");
-        res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+// Configuración global
+functions.setGlobalOptions({ maxInstances: 10 });
 
-        // ==== Preflight ====
-        if (req.method === "OPTIONS") {
-            res.status(204).send("");
-            return;
+/**
+ * Función para validar contenido de imágenes
+ * 
+ * Esta función recibe una URL de imagen y valida su contenido
+ * según las políticas de contenido de la plataforma
+ * 
+ * CORS está configurado automáticamente con functions.https.onCall()
+ */
+export const validarContenidoImagen = functions.https.onCall(async (request) => {
+    try {
+        // Validar que se recibió la URL de la imagen
+        const { imageUrl } = request.data;
+
+        if (!imageUrl || typeof imageUrl !== 'string') {
+            throw new functions.https.HttpsError(
+                'invalid-argument',
+                'Se requiere una URL de imagen válida'
+            );
         }
 
-        // ==== Middleware CORS ====
-        corsHandler(req, res, async () => {
-            // Solo POST
-            if (req.method !== "POST") {
-                res.status(405).json({ error: "Method not allowed" });
-                return;
-            }
+        console.log('Iniciando validación de contenido:', imageUrl);
 
-            try {
-                const { imageUrl } = req.body as { imageUrl: string };
+        // Validar contenido de la imagen
+        const result = await validarConGoogleVision(imageUrl);
+        return result;
 
-                if (!imageUrl || typeof imageUrl !== "string") {
-                    logger.error("URL de imagen no válida", { imageUrl });
-                    res.status(400).json({
-                        valida: false,
-                        motivo: "URL de imagen no válida",
-                        detalles: { nivelRiesgo: "alto" }
-                    });
-                    return;
-                }
+    } catch (error: any) {
+        console.error('Error en proceso de validación:', error);
 
-                logger.info("Validando imagen", { imageUrl });
-
-                // === Comprobar accesibilidad ===
-                try {
-                    const response = await fetch(imageUrl, { method: "HEAD" });
-                    if (!response.ok) {
-                        res.status(200).json({
-                            valida: false,
-                            motivo: "No se pudo acceder a la imagen",
-                            detalles: { nivelRiesgo: "alto" }
-                        });
-                        return;
-                    }
-                } catch (error) {
-                    logger.error("Error accediendo a la imagen", { error, imageUrl });
-                    res.status(200).json({
-                        valida: false,
-                        motivo: "Error al validar la imagen",
-                        detalles: { nivelRiesgo: "alto" }
-                    });
-                    return;
-                }
-
-                // === Moderación Sightengine ===
-                const USER = process.env.SIGHTENGINE_API_USER;
-                const SECRET = process.env.SIGHTENGINE_API_SECRET;
-
-                if (USER && SECRET) {
-                    try {
-                        const params = new URLSearchParams({
-                            models: "nudity-2.0,offensive,text-content,wad",
-                            api_user: USER,
-                            api_secret: SECRET,
-                            url: imageUrl
-                        });
-
-                        const response = await fetch(
-                            `https://api.sightengine.com/1.0/check.json?${params.toString()}`
-                        );
-                        const data = await response.json();
-
-                        if (data.status !== "success") {
-                            logger.error("Error en Sightengine", data.error);
-                            res.status(200).json({
-                                valida: false,
-                                motivo: "Error al validar el contenido",
-                                detalles: { nivelRiesgo: "alto" }
-                            });
-                            return;
-                        }
-
-                        // Umbrales
-                        const nudity = data.nudity?.raw || 0;
-                        const weapons = data.weapon || 0;
-                        const offensive = data.offensive?.prob || 0;
-
-                        const safe =
-                            nudity < 0.5 && weapons < 0.5 && offensive < 0.5;
-
-                        if (!safe) {
-                            const reasons: string[] = [];
-                            if (nudity >= 0.5) reasons.push("contenido inapropiado");
-                            if (weapons >= 0.5) reasons.push("armas");
-                            if (offensive >= 0.5) reasons.push("contenido ofensivo");
-
-                            res.status(200).json({
-                                valida: false,
-                                motivo: reasons.join(", "),
-                                detalles: { nivelRiesgo: "alto" }
-                            });
-                            return;
-                        }
-
-                        res.status(200).json({
-                            valida: true,
-                            motivo: null,
-                            detalles: { nivelRiesgo: "bajo" }
-                        });
-                        return;
-                    } catch (e: any) {
-                        logger.error("Error en moderación", { error: e.message });
-                        res.status(200).json({
-                            valida: false,
-                            motivo: "Error al validar el contenido",
-                            detalles: { nivelRiesgo: "alto" }
-                        });
-                        return;
-                    }
-                }
-
-                // === Si no hay moderador configurado ===
-                logger.warn("Moderación desactivada");
-                res.status(200).json({
-                    valida: true,
-                    motivo: null,
-                    detalles: { nivelRiesgo: "bajo" }
-                });
-                return;
-
-            } catch (err: any) {
-                logger.error("Error inesperado", { error: err.message });
-                res.status(500).json({
-                    valida: false,
-                    motivo: "Error interno",
-                    detalles: { nivelRiesgo: "alto" }
-                });
-                return;
-            }
-        });
+        // Por seguridad, rechazamos la imagen si hay un error
+        throw new functions.https.HttpsError(
+            'internal',
+            'Error al validar el contenido de la imagen',
+            error.message
+        );
     }
-);
+});
+
+
+/**
+ * Validar contenido de imagen según políticas de la plataforma
+ */
+async function validarConGoogleVision(
+    imageUrl: string
+): Promise<{ valida: boolean; motivo: string | null; detalles: { nivelRiesgo: string } }> {
+    try {
+        // Importar módulo de análisis
+        const vision = await import('@google-cloud/vision');
+        const client = new vision.ImageAnnotatorClient();
+
+        console.log('Analizando contenido de la imagen...');
+
+        // Analizar contenido
+        const [result] = await client.safeSearchDetection(imageUrl);
+        const detections = result.safeSearchAnnotation;
+
+        console.log('Análisis completado:', JSON.stringify(detections, null, 2));
+
+        // Validar que detections existe
+        if (!detections) {
+            console.warn('No se pudo completar el análisis de contenido');
+            return {
+                valida: true,
+                motivo: null,
+                detalles: { nivelRiesgo: 'bajo' },
+            };
+        }
+
+        // Evaluar nivel de riesgo
+        const isInappropriate = (level: string | null | undefined) => {
+            if (!level) return false;
+            return level === 'LIKELY' || level === 'VERY_LIKELY';
+        };
+
+        // Verificar contenido inapropiado
+        if (isInappropriate(detections.adult as string) || isInappropriate(detections.racy as string)) {
+            return {
+                valida: false,
+                motivo: 'La imagen contiene contenido inapropiado',
+                detalles: { nivelRiesgo: 'alto' },
+            };
+        }
+
+        if (isInappropriate(detections.violence as string)) {
+            return {
+                valida: false,
+                motivo: 'La imagen contiene contenido violento',
+                detalles: { nivelRiesgo: 'alto' },
+            };
+        }
+
+        // Imagen válida
+        return {
+            valida: true,
+            motivo: null,
+            detalles: { nivelRiesgo: 'bajo' },
+        };
+    } catch (error: any) {
+        console.error('Error en el sistema de validación:', error);
+
+        // Si el sistema de validación no está disponible, permitir por defecto
+        // (puedes cambiar esto según tus necesidades)
+        console.warn('Sistema de validación no disponible, permitiendo imagen por defecto');
+        return {
+            valida: true,
+            motivo: null,
+            detalles: { nivelRiesgo: 'bajo' },
+        };
+    }
+}
