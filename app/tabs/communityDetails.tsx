@@ -2,11 +2,11 @@ import ModButton from '@/components/ModButton';
 import PostCard from '@/components/cards/PostCard';
 import { db } from '@/services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import React, { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 interface Comunidad {
@@ -603,6 +603,7 @@ const CommunityDetails = () => {
                   return updated;
                 });
               }}
+              currentUserId={usuarioID || undefined}
             />
           ))
         )}

@@ -256,3 +256,16 @@ export const incrementUnreadCount = async (chatId: string, receiverId: string) =
     [`unreadCount.${receiverId}`]: increment(1), // Necesita import: import { increment } from "firebase/firestore";
   });
 };
+
+// Actualizar el nombre de un chat grupal
+export const updateGroupName = async (chatId: string, newGroupName: string): Promise<void> => {
+  if (!chatId || !newGroupName || newGroupName.trim() === "") {
+    throw new Error("El ID del chat y el nombre del grupo son requeridos");
+  }
+
+  const chatRef = doc(db, "Chats", chatId);
+  await updateDoc(chatRef, {
+    groupName: newGroupName.trim(),
+    updatedAt: serverTimestamp(),
+  });
+};

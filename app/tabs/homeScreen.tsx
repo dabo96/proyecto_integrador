@@ -5,9 +5,9 @@ import { db } from '@/services/firebase';
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface Post {
@@ -47,6 +47,9 @@ interface Usuario {
 
 export default function MainPageScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ publicacionID?: string }>();
+    const scrollViewRef = useRef<ScrollView>(null);
+    const postRefs = useRef<{ [key: string]: number }>({});
 
     // Estados
     const [usuarioID, setUsuarioID] = useState<string>('');
@@ -538,6 +541,21 @@ export default function MainPageScreen() {
         };
     }, [usuarioID]);
 
+    // Hacer scroll a una publicación específica si se recibe el parámetro
+    useEffect(() => {
+        if (!params.publicacionID || !posts.length || loading) return;
+
+        const index = posts.findIndex(p => p.id === params.publicacionID);
+        if (index !== -1 && scrollViewRef.current) {
+            // Esperar un momento para que el ScrollView se renderice completamente
+            setTimeout(() => {
+                // Calcular posición aproximada (cada PostCard tiene aproximadamente 400-500px de altura)
+                const estimatedPosition = index * 450;
+                scrollViewRef.current?.scrollTo({ y: estimatedPosition, animated: true });
+            }, 800);
+        }
+    }, [params.publicacionID, posts, loading]);
+
     // Configurar listener en tiempo real cuando cambien los seguidos o seguidores
     useEffect(() => {
         if (!usuarioID) return;
@@ -689,6 +707,18 @@ export default function MainPageScreen() {
             console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
+
+
+    const handleViewLikes = (postId: string) => {
+        console.log('👀 Ver likes del post', postId);
+        // Aquí luego puedes:
+        // - navegar a otra pantalla
+        // - abrir un modal con la lista de usuarios
+        // por ahora solo dejamos el log
+    };
+
+    
+    
 
     // Función para verificar si el usuario ya reportó una publicación
     const verificarReporteExistente = async (postId: string): Promise<boolean> => {
@@ -1029,7 +1059,10 @@ export default function MainPageScreen() {
                 </View>
             )}
 
-            <ScrollView style={styles.whiteContainer}>
+            <ScrollView 
+                ref={scrollViewRef}
+                style={styles.whiteContainer}
+            >
                 {loading ? (
                     <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color="#2F4AA6" />
@@ -1070,6 +1103,7 @@ export default function MainPageScreen() {
                                 delete newComentarios[post.id];
                                 setComentarios(newComentarios);
                             }}
+                            currentUserId={usuarioID}
                         />
                     ))
                 )}

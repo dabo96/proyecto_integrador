@@ -1,8 +1,8 @@
-import React, { useState } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, ActivityIndicator } from "react-native";
-import { MessageCircle, Heart, MoreHorizontal } from "lucide-react-native";
-import { Feather, EvilIcons, MaterialIcons } from "@expo/vector-icons";
 import ImageButton from '@/components/ImageButton';
+import { EvilIcons, Feather, MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from 'expo-router';
+import React, { useState } from "react";
+import { ActivityIndicator, Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type Comentario = {
     id: string;
@@ -48,6 +48,7 @@ type Props = {
     onSendComment?: (id: string) => void;
     onCloseComment?: () => void;
     onOpenComment?: (id: string) => void;
+    currentUserId?: string; // ID del usuario actual para determinar si navegar a profile o otherProfile
 };
 
 const PostCard = ({ 
@@ -65,33 +66,56 @@ const PostCard = ({
     onCommentTextChange,
     onSendComment,
     onCloseComment,
-    onOpenComment
+    onOpenComment,
+    currentUserId
 }: Props) => {
+    const router = useRouter();
     const [menuVisible, setMenuVisible] = useState(false);
+
+    const handleUserPress = () => {
+        if (!post.usuarioID) return;
+        
+        // Si es el usuario actual, navegar a su perfil
+        if (currentUserId === post.usuarioID) {
+            router.push('./profile');
+        } else {
+            // Si es otro usuario, navegar a su perfil
+            router.push({
+                pathname: './otherProfile',
+                params: { userId: post.usuarioID }
+            });
+        }
+    };
 
     return (
         <View style={styles.post}>
             {/* Header */}
             <View style={styles.postHeader}>
-                <ImageButton
-                    source={post.autor.fotoPerfil ? 
-                        { uri: post.autor.fotoPerfil } : 
-                        require("@/assets/images/react-logo.png")
-                    }
-                    onPress={() => {}}
-                    size={45}
-                    style={styles.postAvatar}
-                    borderWidth={4}
-                    borderColor="white"
-                />
-                <View style={{ flex: 1 }}>
+                <TouchableOpacity onPress={handleUserPress} activeOpacity={0.7}>
+                    <ImageButton
+                        source={post.autor.fotoPerfil ? 
+                            { uri: post.autor.fotoPerfil } : 
+                            require("@/assets/images/react-logo.png")
+                        }
+                        onPress={handleUserPress}
+                        size={45}
+                        style={styles.postAvatar}
+                        borderWidth={4}
+                        borderColor="white"
+                    />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={{ flex: 1 }} 
+                    onPress={handleUserPress}
+                    activeOpacity={0.7}
+                >
                     <Text style={styles.postAuthor}>
                         {post.autor.nombres} {post.autor.apellidos}
                     </Text>
                     <Text style={styles.postTime}>
                         {formatTime ? formatTime(post.fechaCreacion) : post.fechaCreacion}
                     </Text>
-                </View>
+                </TouchableOpacity>
 
                 {/* Botón tres puntitos */}
                 <TouchableOpacity onPress={() => setMenuVisible(true)}>
@@ -141,18 +165,60 @@ const PostCard = ({
                     ) : comentarios.length > 0 ? (
                         comentarios.map((comentario) => (
                             <View key={comentario.id} style={styles.commentItem}>
-                                <ImageButton
-                                    source={comentario.autor.fotoPerfil ? 
-                                        { uri: comentario.autor.fotoPerfil } : 
-                                        require("@/assets/images/react-logo.png")
-                                    }
-                                    onPress={() => {}}
-                                    size={35}
-                                    style={styles.commentUserImage}
-                                    borderWidth={2}
-                                    borderColor="#ddd"
-                                />
-                                <View style={styles.commentContent}>
+                                <TouchableOpacity 
+                                    onPress={() => {
+                                        if (comentario.usuarioID) {
+                                            if (currentUserId === comentario.usuarioID) {
+                                                router.push('./profile');
+                                            } else {
+                                                router.push({
+                                                    pathname: './otherProfile',
+                                                    params: { userId: comentario.usuarioID }
+                                                });
+                                            }
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <ImageButton
+                                        source={comentario.autor.fotoPerfil ? 
+                                            { uri: comentario.autor.fotoPerfil } : 
+                                            require("@/assets/images/react-logo.png")
+                                        }
+                                        onPress={() => {
+                                            if (comentario.usuarioID) {
+                                                if (currentUserId === comentario.usuarioID) {
+                                                    router.push('./profile');
+                                                } else {
+                                                    router.push({
+                                                        pathname: './otherProfile',
+                                                        params: { userId: comentario.usuarioID }
+                                                    });
+                                                }
+                                            }
+                                        }}
+                                        size={35}
+                                        style={styles.commentUserImage}
+                                        borderWidth={2}
+                                        borderColor="#ddd"
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={styles.commentContent}
+                                    onPress={() => {
+                                        if (comentario.usuarioID) {
+                                            if (currentUserId === comentario.usuarioID) {
+                                                router.push('./profile');
+                                            } else {
+                                                router.push({
+                                                    pathname: './otherProfile',
+                                                    params: { userId: comentario.usuarioID }
+                                                });
+                                            }
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
                                     <Text style={styles.commentAuthor}>
                                         {comentario.autor.nombres} {comentario.autor.apellidos}
                                     </Text>
@@ -160,7 +226,7 @@ const PostCard = ({
                                     <Text style={styles.commentTime}>
                                         {formatTime ? formatTime(comentario.fecha) : comentario.fecha}
                                     </Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                         ))
                     ) : (

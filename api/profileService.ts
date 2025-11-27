@@ -166,14 +166,18 @@ export const contarSeguidos = async (usuarioID: string): Promise<number> => {
     const contactosRef = collection(db, "Usuarios", usuarioID, "contactos");
     const contactosSnapshot = await getDocs(contactosRef);
     
-    let seguidosCount = 0;
+    // Usar un Set para evitar duplicados
+    const seguidosSet = new Set<string>();
     contactosSnapshot.forEach((doc) => {
-      if (doc.data().seguidoID) {
-        seguidosCount++;
+      const data = doc.data();
+      // Solo contar si tiene seguidoID (los contactos válidos tienen seguidoID)
+      if (data.seguidoID) {
+        seguidosSet.add(data.seguidoID);
       }
     });
 
-    return seguidosCount;
+    console.log(`📊 Contando seguidos para ${usuarioID}: ${seguidosSet.size} únicos de ${contactosSnapshot.size} documentos`);
+    return seguidosSet.size;
   } catch (error) {
     console.error("❌ Error contando seguidos:", error);
     return 0;
@@ -314,15 +318,19 @@ export const obtenerListaSeguidos = async (usuarioID: string): Promise<string[]>
     const contactosRef = collection(db, "Usuarios", usuarioID, "contactos");
     const contactosSnapshot = await getDocs(contactosRef);
     
-    const seguidosIDs: string[] = [];
+    // Usar un Set para evitar duplicados
+    const seguidosSet = new Set<string>();
     contactosSnapshot.forEach((doc) => {
       const data = doc.data();
+      // Solo incluir si tiene seguidoID (los contactos válidos tienen seguidoID)
       if (data.seguidoID) {
-        seguidosIDs.push(data.seguidoID);
+        seguidosSet.add(data.seguidoID);
       }
     });
 
-    return seguidosIDs;
+    const seguidosArray = Array.from(seguidosSet);
+    console.log(`📊 Obteniendo seguidos para ${usuarioID}: ${seguidosArray.length} únicos de ${contactosSnapshot.size} documentos`);
+    return seguidosArray;
   } catch (error) {
     console.error("❌ Error obteniendo seguidos:", error);
     return [];

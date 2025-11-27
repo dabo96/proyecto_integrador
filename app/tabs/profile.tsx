@@ -1,4 +1,5 @@
-import { actualizarFotoPerfil, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil } from '@/api/profileService';
+import { actualizarFotoPerfil, obtenerListaSeguidos, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, PublicacionPerfil } from '@/api/profileService';
+import { obtenerUsuarioPorId } from '@/api/usuariosService';
 import PostCard from '@/components/cards/PostCard';
 import { db } from '@/services/firebase';
 import { validarYSubirImagen } from '@/services/imageModerationClient';
@@ -9,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
@@ -34,6 +35,7 @@ const Profile = () => {
   const [userPosts, setUserPosts] = useState<PublicacionPerfil[]>([]);
 
   const [seguidores, setSeguidores] = useState<number>(0);
+  const [seguidos, setSeguidos] = useState<number>(0);
   const [currentUserID, setCurrentUserID] = useState<string>('');
 
   // 🔹 Estados para interacciones
@@ -47,6 +49,10 @@ const Profile = () => {
   const [showModal, setShowModal] = useState(false); // Confirmar cierre
   const [showLoggingOutModal, setShowLoggingOutModal] = useState(false); // Mostrando "Cerrando sesión..."
   const [uploadingImage, setUploadingImage] = useState(false); // Subiendo imagen
+  const [showUsersModal, setShowUsersModal] = useState(false);
+  const [modalType, setModalType] = useState<'seguidos' | 'seguidores'>('seguidos');
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   // Animaciones
   const headerHeight = scrollY.interpolate({
@@ -133,6 +139,7 @@ const Profile = () => {
       }
 
       setSeguidores(perfil.seguidores);
+      setSeguidos(perfil.seguidos);
     } catch (error) {
       console.error('Error cargando datos del perfil:', error);
     } finally {
@@ -333,6 +340,109 @@ const Profile = () => {
     } catch (error) {
       console.error('Error actualizando conteos:', error);
     }
+  };
+
+  // Función para obtener lista de usuarios seguidos con datos completos
+  const obtenerSeguidosCompletos = async (usuarioID: string): Promise<any[]> => {
+    try {
+      setLoadingUsers(true);
+      const seguidosIDs = await obtenerListaSeguidos(usuarioID);
+      console.log('📊 IDs de seguidos obtenidos:', seguidosIDs.length, seguidosIDs);
+      
+      // Usar un Set para evitar duplicados
+      const usuariosUnicos = new Map<string, any>();
+      
+      for (const seguidoID of seguidosIDs) {
+        // Evitar procesar el mismo ID dos veces
+        if (usuariosUnicos.has(seguidoID)) continue;
+        
+        const usuario = await obtenerUsuarioPorId(seguidoID);
+        if (usuario) {
+          usuariosUnicos.set(seguidoID, {
+            id: usuario.id,
+            nombre: usuario.nombreCompleto || usuario.nombre || 'Usuario',
+            codigo: usuario.codigo || usuario.codigoUniversitario || undefined,
+            carrera: usuario.carrera || undefined,
+            correo: usuario.correo || undefined,
+            fotoPerfil: usuario.fotoPerfil || undefined,
+          });
+        }
+      }
+
+      const usuarios = Array.from(usuariosUnicos.values());
+      console.log('📊 Usuarios seguidos únicos:', usuarios.length);
+      return usuarios;
+    } catch (error) {
+      console.error('Error obteniendo seguidos:', error);
+      return [];
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Función para obtener lista de seguidores con datos completos
+  const obtenerSeguidoresCompletos = async (usuarioID: string): Promise<any[]> => {
+    try {
+      setLoadingUsers(true);
+      const todosUsuarios = await getDocs(collection(db, 'Usuarios'));
+      const seguidores: any[] = [];
+
+      for (const usuarioDoc of todosUsuarios.docs) {
+        const contactosRef = collection(db, 'Usuarios', usuarioDoc.id, 'contactos');
+        const contactosSnapshot = await getDocs(contactosRef);
+
+        let esSeguidor = false;
+        contactosSnapshot.forEach((contactoDoc) => {
+          const data = contactoDoc.data();
+          if (data.seguidoID === usuarioID) {
+            esSeguidor = true;
+          }
+        });
+
+        if (esSeguidor) {
+          const usuario = await obtenerUsuarioPorId(usuarioDoc.id);
+          if (usuario) {
+            seguidores.push({
+              id: usuario.id,
+              nombre: usuario.nombreCompleto || usuario.nombre || 'Usuario',
+              codigo: usuario.codigo || usuario.codigoUniversitario || undefined,
+              carrera: usuario.carrera || undefined,
+              correo: usuario.correo || undefined,
+              fotoPerfil: usuario.fotoPerfil || undefined,
+            });
+          }
+        }
+      }
+
+      return seguidores;
+    } catch (error) {
+      console.error('Error obteniendo seguidores:', error);
+      return [];
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Función para abrir modal de seguidos
+  const handleOpenSeguidos = async () => {
+    if (!currentUserID) return;
+    setModalType('seguidos');
+    setShowUsersModal(true);
+    const usuarios = await obtenerSeguidosCompletos(currentUserID);
+    setUsersList(usuarios);
+    // Actualizar el contador basándose en la lista real
+    setSeguidos(usuarios.length);
+  };
+
+  // Función para abrir modal de seguidores
+  const handleOpenSeguidores = async () => {
+    if (!currentUserID) return;
+    setModalType('seguidores');
+    setShowUsersModal(true);
+    const usuarios = await obtenerSeguidoresCompletos(currentUserID);
+    setUsersList(usuarios);
+    // Actualizar el contador basándose en la lista real
+    setSeguidores(usuarios.length);
   };
 
   // 🔹 Mostrar modal antes de salir
@@ -602,14 +712,22 @@ const Profile = () => {
               },
             ]}
           >
-            <View style={styles.statBox}>
+            <TouchableOpacity 
+              style={styles.statBox}
+              onPress={handleOpenSeguidores}
+              activeOpacity={0.7}
+            >
               <Text style={styles.statNumber}>{seguidores}</Text>
               <Text style={styles.statLabel}>Seguidores</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statNumber}>0</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statBox}
+              onPress={handleOpenSeguidos}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.statNumber}>{seguidos}</Text>
               <Text style={styles.statLabel}>Seguidos</Text>
-            </View>
+            </TouchableOpacity>
           </Animated.View>
 
           <Animated.View
@@ -693,6 +811,7 @@ const Profile = () => {
               onLike={handleLike}
               onComment={handleComment}
               onDelete={handleDelete}
+              currentUserId={currentUserID}
               formatTime={(timestamp) => {
                 if (!timestamp) return 'Hace un momento';
                 const now = new Date();
@@ -773,6 +892,84 @@ const Profile = () => {
           <View style={styles.modalContent}>
             <ActivityIndicator size="large" color="#2F4AA6" />
             <Text style={styles.modalMessage}>Subiendo foto de perfil...</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de lista de usuarios */}
+      <Modal
+        visible={showUsersModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowUsersModal(false)}
+      >
+        <View style={styles.usersModalOverlay}>
+          <View style={styles.usersModalContainer}>
+            <View style={styles.usersModalHeader}>
+              <Text style={styles.usersModalTitle}>
+                {modalType === 'seguidos' ? 'Seguidos' : 'Seguidores'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowUsersModal(false)}
+                style={styles.usersModalCloseButton}
+              >
+                <Text style={styles.usersModalCloseButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingUsers ? (
+              <View style={styles.usersModalLoadingContainer}>
+                <ActivityIndicator size="large" color="#2F4AA6" />
+                <Text style={styles.usersModalLoadingText}>Cargando...</Text>
+              </View>
+            ) : usersList.length === 0 ? (
+              <View style={styles.usersModalEmptyContainer}>
+                <Text style={styles.usersModalEmptyText}>
+                  {modalType === 'seguidos' 
+                    ? 'No sigues a nadie' 
+                    : 'No tienes seguidores'}
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={usersList}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.usersModalUserItem}
+                    onPress={() => {
+                      setShowUsersModal(false);
+                      if (item.id === currentUserID) {
+                        // Ya estamos en nuestro perfil, no hacer nada o recargar
+                        loadUserData();
+                      } else {
+                        router.push({
+                          pathname: './otherProfile',
+                          params: { userId: item.id }
+                        });
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={
+                        item.fotoPerfil
+                          ? { uri: item.fotoPerfil }
+                          : require('@/assets/images/react-logo.png')
+                      }
+                      style={styles.usersModalUserAvatar}
+                    />
+                    <View style={styles.usersModalUserInfo}>
+                      <Text style={styles.usersModalUserName}>{item.nombre}</Text>
+                      {item.carrera && (
+                        <Text style={styles.usersModalUserCarrera}>{item.carrera}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
+                style={styles.usersModalList}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -914,6 +1111,91 @@ const styles = StyleSheet.create({
   postImage: { width: '100%', height: 250, resizeMode: 'cover' },
   bottomSpace: { height: 50 },
 
+  // 🔹 Modal de usuarios
+  usersModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  usersModalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  usersModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  usersModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  usersModalCloseButton: {
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  usersModalCloseButtonText: {
+    fontSize: 24,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  usersModalLoadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  usersModalLoadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  usersModalEmptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  usersModalEmptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  usersModalList: {
+    flex: 1,
+  },
+  usersModalUserItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  usersModalUserAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+  },
+  usersModalUserInfo: {
+    flex: 1,
+  },
+  usersModalUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  usersModalUserCarrera: {
+    fontSize: 14,
+    color: '#666',
+  },
   // 🔹 Modal general
   modalOverlay: {
     flex: 1,

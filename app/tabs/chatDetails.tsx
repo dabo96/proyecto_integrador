@@ -1,4 +1,4 @@
-import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
+import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
 import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,9 +6,9 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type Message = {
   id: string;
@@ -75,6 +75,10 @@ const ChatDetails = () => {
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string; mimeType: string } | null>(null);
+  const [showEditGroupNameModal, setShowEditGroupNameModal] = useState(false);
+  const [editingGroupName, setEditingGroupName] = useState("");
+  const [savingGroupName, setSavingGroupName] = useState(false);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -203,6 +207,25 @@ const ChatDetails = () => {
 
     cargarChat();
   }, [userId, currentUser, paramChatId, paramIsGroup]);
+
+  // 🔹 Escuchar cambios en el chat grupal (para actualizar nombre del grupo en tiempo real)
+  useEffect(() => {
+    if (!chatId || !isGroup) return;
+
+    const chatRef = doc(db, "Chats", chatId);
+    const unsubscribe = onSnapshot(chatRef, (chatDoc) => {
+      if (chatDoc.exists()) {
+        const chatData = chatDoc.data();
+        if (chatData.groupName && chatData.groupName !== groupName) {
+          setGroupName(chatData.groupName);
+        }
+      }
+    }, (error) => {
+      console.error("Error escuchando cambios del chat:", error);
+    });
+
+    return () => unsubscribe();
+  }, [chatId, isGroup]);
 
   // 🔹 Escuchar mensajes cuando tenemos el chatId
   useEffect(() => {
@@ -423,6 +446,39 @@ const ChatDetails = () => {
     });
   };
 
+  // 🔹 Abrir modal de edición de nombre del grupo
+  const handleOpenEditGroupName = () => {
+    setEditingGroupName(groupName);
+    setShowEditGroupNameModal(true);
+    setShowGroupMenu(false); // Cerrar el menú si está abierto
+  };
+
+  // 🔹 Guardar nuevo nombre del grupo
+  const handleSaveGroupName = async () => {
+    if (!chatId || !editingGroupName.trim()) {
+      Alert.alert("Error", "El nombre del grupo no puede estar vacío");
+      return;
+    }
+
+    if (editingGroupName.trim() === groupName) {
+      setShowEditGroupNameModal(false);
+      return;
+    }
+
+    try {
+      setSavingGroupName(true);
+      await updateGroupName(chatId, editingGroupName.trim());
+      setGroupName(editingGroupName.trim());
+      setShowEditGroupNameModal(false);
+      Alert.alert("Éxito", "El nombre del grupo se ha actualizado correctamente");
+    } catch (error) {
+      console.error("Error actualizando nombre del grupo:", error);
+      Alert.alert("Error", "No se pudo actualizar el nombre del grupo");
+    } finally {
+      setSavingGroupName(false);
+    }
+  };
+
   // 🔹 Render burbujas de mensaje
   const MessageBubble = ({ message }: { message: Message }) => {
     const isMe = message.senderId === currentUser?.id;
@@ -625,17 +681,24 @@ const ChatDetails = () => {
         </TouchableOpacity>
 
         {isGroup ? (
-          <View style={styles.headerUserInfo}>
+          <TouchableOpacity 
+            style={styles.headerUserInfo}
+            onPress={handleOpenEditGroupName}
+            activeOpacity={0.7}
+          >
             <View style={[styles.headerAvatarContainer, styles.headerAvatarGroup]}>
               <Text style={styles.headerAvatarText}>👥</Text>
             </View>
-            <View>
-              <Text style={styles.headerNameBlack}>{groupName || "Chat grupal"}</Text>
+            <View style={styles.headerGroupInfo}>
+              <View style={styles.headerGroupNameRow}>
+                <Text style={styles.headerNameBlack}>{groupName || "Chat grupal"}</Text>
+                <Ionicons name="pencil" size={16} color="#666" style={styles.editIcon} />
+              </View>
               <Text style={styles.headerStatusBlack}>
                 {participantes.length} {participantes.length === 1 ? "participante" : "participantes"}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity 
             style={styles.headerUserInfo}
@@ -676,7 +739,14 @@ const ChatDetails = () => {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.menuButton}>
+        <TouchableOpacity 
+          style={styles.menuButton}
+          onPress={() => {
+            if (isGroup) {
+              setShowGroupMenu(true);
+            }
+          }}
+        >
           <Ionicons name="ellipsis-vertical" size={20} color="#333" />
         </TouchableOpacity>
       </View>
@@ -772,6 +842,91 @@ const ChatDetails = () => {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Modal de menú de opciones del grupo */}
+      {isGroup && (
+        <Modal
+          transparent
+          visible={showGroupMenu}
+          animationType="fade"
+          onRequestClose={() => setShowGroupMenu(false)}
+        >
+          <TouchableOpacity
+            style={styles.menuModalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowGroupMenu(false)}
+          >
+            <View style={styles.groupMenuBox}>
+              <TouchableOpacity
+                style={styles.groupMenuItem}
+                onPress={handleOpenEditGroupName}
+              >
+                <Ionicons name="pencil" size={20} color="#333" style={styles.groupMenuIcon} />
+                <Text style={styles.groupMenuText}>Editar nombre del grupo</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Modal para editar nombre del grupo */}
+      <Modal
+        visible={showEditGroupNameModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditGroupNameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar nombre del grupo</Text>
+              <TouchableOpacity
+                onPress={() => setShowEditGroupNameModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={styles.modalLabel}>Nombre del grupo</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ingresa el nombre del grupo"
+                placeholderTextColor="#999"
+                value={editingGroupName}
+                onChangeText={setEditingGroupName}
+                maxLength={50}
+                autoFocus
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowEditGroupNameModal(false);
+                  setEditingGroupName("");
+                }}
+                disabled={savingGroupName}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSaveButton, savingGroupName && styles.modalSaveButtonDisabled]}
+                onPress={handleSaveGroupName}
+                disabled={savingGroupName || !editingGroupName.trim()}
+              >
+                {savingGroupName ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalSaveButtonText}>Guardar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -969,4 +1124,128 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, color: "#666", textAlign: "center", marginBottom: 24 },
   retryButton: { backgroundColor: "#0491C6", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
   retryButtonText: { color: "white", fontSize: 16, fontWeight: "600" },
+  headerGroupInfo: { flex: 1 },
+  headerGroupNameRow: { flexDirection: "row", alignItems: "center" },
+  editIcon: { marginLeft: 8 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: "85%",
+    maxWidth: 400,
+    padding: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#333",
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalContent: {
+    padding: 20,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+    gap: 12,
+  },
+  modalCancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "500",
+  },
+  modalSaveButton: {
+    backgroundColor: "#0491C6",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSaveButtonDisabled: {
+    opacity: 0.5,
+  },
+  modalSaveButtonText: {
+    fontSize: 16,
+    color: "white",
+    fontWeight: "600",
+  },
+  menuModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 60,
+    paddingRight: 10,
+  },
+  groupMenuBox: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  groupMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  groupMenuIcon: {
+    marginRight: 12,
+  },
+  groupMenuText: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
 });
