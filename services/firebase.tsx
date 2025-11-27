@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { enableNetwork, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -16,4 +16,10 @@ const firebaseConfig = {
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, "linku");
+
+// Asegurar que la red esté habilitada para tiempo real
+enableNetwork(db).catch((error) => {
+  console.error("Error habilitando red de Firestore:", error);
+});
+
 export const storage = getStorage(app);

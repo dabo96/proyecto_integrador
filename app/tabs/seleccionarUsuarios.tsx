@@ -1,5 +1,5 @@
 import { getOrCreateGroupChat } from '@/api/messageService';
-import { obtenerTodosLosUsuarios, obtenerUsuarioActual, Usuario } from '@/api/usuariosService';
+import { escucharEstadoUsuario, obtenerTodosLosUsuarios, obtenerUsuarioActual, Usuario } from '@/api/usuariosService';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -13,6 +13,7 @@ const SeleccionarUsuarios = () => {
     const [loading, setLoading] = useState(true);
     const [usuariosSeleccionados, setUsuariosSeleccionados] = useState<Set<string>>(new Set());
     const [creandoChat, setCreandoChat] = useState(false);
+    const [onlineStatus, setOnlineStatus] = useState<{ [userId: string]: boolean }>({});
 
     useEffect(() => {
         cargarUsuarios();
@@ -21,6 +22,32 @@ const SeleccionarUsuarios = () => {
     useEffect(() => {
         filtrarUsuarios();
     }, [busqueda, usuarios]);
+
+    // Escuchar estados de conexión de los usuarios
+    useEffect(() => {
+        if (usuariosFiltrados.length === 0) return;
+
+        const unsubscribes: (() => void)[] = [];
+        const userIds = usuariosFiltrados.map(u => u.id);
+        
+        console.log("👂 Configurando listeners de estado para usuarios seleccionados:", userIds);
+        
+        usuariosFiltrados.forEach(usuario => {
+            const unsubscribe = escucharEstadoUsuario(usuario.id, (online) => {
+                console.log(`📡 Estado actualizado para ${usuario.id}:`, online ? "en línea" : "desactivado");
+                setOnlineStatus(prev => ({
+                    ...prev,
+                    [usuario.id]: online
+                }));
+            });
+            unsubscribes.push(unsubscribe);
+        });
+
+        return () => {
+            console.log("🧹 Limpiando listeners de estado de usuarios seleccionados");
+            unsubscribes.forEach(unsub => unsub());
+        };
+    }, [usuariosFiltrados]);
 
     const cargarUsuarios = async () => {
         try {
@@ -129,6 +156,8 @@ const SeleccionarUsuarios = () => {
 
     const renderUsuario = ({ item }: { item: Usuario }) => {
         const estaSeleccionado = usuariosSeleccionados.has(item.id);
+        const isOnline = onlineStatus[item.id] ?? false;
+        
         return (
             <TouchableOpacity
                 style={[
@@ -137,15 +166,32 @@ const SeleccionarUsuarios = () => {
                 ]}
                 onPress={() => seleccionarUsuarioIndividual(item)}
             >
-                <View style={styles.avatarContainer}>
-                    <Text style={styles.avatarText}>
-                        {(item.nombreCompleto || item.nombre || 'U')
-                            .charAt(0)
-                            .toUpperCase()}
-                    </Text>
+                <View style={styles.avatarWrapper}>
+                    <View style={styles.avatarContainer}>
+                        <Text style={styles.avatarText}>
+                            {(item.nombreCompleto || item.nombre || 'U')
+                                .charAt(0)
+                                .toUpperCase()}
+                        </Text>
+                    </View>
+                    {isOnline && <View style={styles.onlineDot} />}
                 </View>
                 <View style={styles.usuarioInfo}>
-                    <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
+                    <View style={styles.usuarioNombreRow}>
+                        <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
+                        <View style={styles.statusContainer}>
+                            <View style={[
+                                styles.statusDot,
+                                isOnline ? styles.statusDotOnline : styles.statusDotOffline
+                            ]} />
+                            <Text style={[
+                                styles.statusText,
+                                isOnline ? styles.statusTextOnline : styles.statusTextOffline
+                            ]}>
+                                {isOnline ? "en línea" : "desactivado"}
+                            </Text>
+                        </View>
+                    </View>
                     <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
                     <Text style={styles.usuarioCarrera}>{item.carrera}</Text>
                 </View>
@@ -296,6 +342,10 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#e5e5e5',
     },
+    avatarWrapper: {
+        position: 'relative',
+        marginRight: 12,
+    },
     avatarContainer: {
         width: 50,
         height: 50,
@@ -303,21 +353,62 @@ const styles = StyleSheet.create({
         backgroundColor: '#0491C6',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
     },
     avatarText: {
         fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
     },
+    onlineDot: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 14,
+        height: 14,
+        backgroundColor: '#22c55e',
+        borderRadius: 7,
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
     usuarioInfo: {
         flex: 1,
+    },
+    usuarioNombreRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
     },
     usuarioNombre: {
         fontSize: 16,
         fontWeight: '600',
         color: '#000',
-        marginBottom: 4,
+        marginRight: 8,
+    },
+    statusContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 4,
+    },
+    statusDotOnline: {
+        backgroundColor: '#22c55e',
+    },
+    statusDotOffline: {
+        backgroundColor: '#ef4444',
+    },
+    statusText: {
+        fontSize: 11,
+        fontWeight: '500',
+    },
+    statusTextOnline: {
+        color: '#22c55e',
+    },
+    statusTextOffline: {
+        color: '#ef4444',
     },
     usuarioCodigo: {
         fontSize: 14,

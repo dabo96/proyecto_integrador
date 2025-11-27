@@ -1,6 +1,7 @@
 import { db } from "@/services/firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
+
 
 export type Usuario = {
   id: string;
@@ -120,4 +121,108 @@ export const obtenerUsuarioPorId = async (userId: string): Promise<Usuario | nul
         console.error("Error al obtener usuario por ID:", error);
         return null;
     }
+};
+
+export const actualizarEstadoOnline = async (usuarioID: string): Promise<void> => {
+  try {
+    const userRef = doc(db, "Usuarios", usuarioID);
+    await updateDoc(userRef, {
+      online: true,
+      lastSeen: serverTimestamp(),
+    });
+    console.log("✅ Estado online actualizado para:", usuarioID);
+  } catch (error) {
+    console.error("Error actualizando estado online:", error);
+    throw error;
+  }
+};
+
+// Actualizar estado de conexión del usuario (desconectado)
+export const actualizarEstadoOffline = async (usuarioID: string): Promise<void> => {
+  try {
+    const userRef = doc(db, "Usuarios", usuarioID);
+    await updateDoc(userRef, {
+      online: false,
+      lastSeen: serverTimestamp(),
+    });
+    console.log("✅ Estado offline actualizado para usuario:", usuarioID);
+  } catch (error) {
+    console.error("Error actualizando estado offline:", error);
+    throw error;
+  }
+};
+
+// Escuchar cambios en el estado de conexión de un usuario
+// Usa tiempo real de Firestore para detectar cambios inmediatos
+export const escucharEstadoUsuario = (
+  usuarioID: string,
+  callback: (online: boolean, lastSeen: any) => void
+): (() => void) => {
+  const userRef = doc(db, "Usuarios", usuarioID);
+  // Umbral más largo para usuarios que tienen online=true (pueden estar en proceso de actualizar lastSeen)
+  const OFFLINE_THRESHOLD_STRICT = 120000; // 2 minutos sin actualización = offline (más tolerante)
+  const OFFLINE_THRESHOLD_LOOSE = 30000; // 30 segundos para usuarios con online=false
+  
+  console.log("👂 Iniciando listener de estado para usuario:", usuarioID);
+  
+  return onSnapshot(
+    userRef,
+    { includeMetadataChanges: true }, // Incluir cambios de metadata para mejor sincronización
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const online = data.online || false;
+        const lastSeen = data.lastSeen;
+        
+        // Si online es true, confiar más en ese campo y ser más tolerante con lastSeen
+        let isActuallyOnline = online;
+        
+        if (lastSeen) {
+          try {
+            const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
+            const now = Date.now();
+            const timeSinceLastSeen = now - lastSeenTime;
+            
+            // Usar umbral diferente según el estado de online
+            const threshold = online ? OFFLINE_THRESHOLD_STRICT : OFFLINE_THRESHOLD_LOOSE;
+            
+            if (timeSinceLastSeen > threshold) {
+              // Solo marcar como offline si el tiempo es muy largo
+              isActuallyOnline = false;
+              console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s, online=${online})`);
+            } else {
+              // Si online es true, confiar en ese campo incluso si lastSeen es un poco antiguo
+              isActuallyOnline = online;
+              if (online) {
+                console.log(`✅ Usuario ${usuarioID} online (última actualización hace ${Math.round(timeSinceLastSeen / 1000)}s)`);
+              } else {
+                console.log(`📴 Usuario ${usuarioID} offline (última actualización hace ${Math.round(timeSinceLastSeen / 1000)}s)`);
+              }
+            }
+          } catch (error) {
+            console.error("Error procesando lastSeen:", error);
+            // Si hay error, confiar completamente en el campo online
+            isActuallyOnline = online;
+          }
+        } else {
+          // Si no hay lastSeen, confiar completamente en el campo online
+          isActuallyOnline = online;
+          if (online) {
+            console.log(`🟢 Usuario ${usuarioID} online (sin lastSeen pero online=true)`);
+          } else {
+            console.log(`📴 Usuario ${usuarioID} offline (sin lastSeen y online=false)`);
+          }
+        }
+        
+        callback(isActuallyOnline, lastSeen);
+      } else {
+        console.log(`❌ Usuario ${usuarioID} no existe en Firestore`);
+        callback(false, null);
+      }
+    },
+    (error) => {
+      console.error("❌ Error escuchando estado del usuario:", error);
+      callback(false, null);
+    }
+  );
 };

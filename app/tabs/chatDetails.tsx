@@ -1,5 +1,5 @@
 import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
-import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
+import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -56,6 +56,7 @@ const getParticipantColor = (userId: string): string => {
   return PARTICIPANT_COLORS[index];
 };
 
+
 const ChatDetails = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -79,6 +80,7 @@ const ChatDetails = () => {
   const [editingGroupName, setEditingGroupName] = useState("");
   const [savingGroupName, setSavingGroupName] = useState(false);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const [isUserOnline, setIsUserOnline] = useState(false);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -149,7 +151,7 @@ const ChatDetails = () => {
             const uniqueParticipantIds = [...new Set(participantIds)];
             
             const participantesData = await Promise.all(
-              uniqueParticipantIds.map((id: string) => obtenerUsuarioPorId(id))
+              uniqueParticipantIds.map((id) => obtenerUsuarioPorId(String(id)))
             );
             const participantesFiltrados = participantesData.filter(u => u !== null) as Usuario[];
             
@@ -226,6 +228,23 @@ const ChatDetails = () => {
 
     return () => unsubscribe();
   }, [chatId, isGroup]);
+
+  useEffect(() => {
+    if (isGroup || !userId) return;
+
+    console.log("👂 Configurando listener de estado para chatDetails, usuario:", userId);
+    
+    const unsubscribe = escucharEstadoUsuario(String(userId), (online, lastSeen) => {
+      console.log(`📡 Estado actualizado en chatDetails para ${userId}:`, online ? "en línea" : "desactivado");
+      setIsUserOnline(online);
+    });
+
+    return () => {
+      console.log("🧹 Limpiando listener de estado en chatDetails");
+      unsubscribe();
+    };
+  }, [userId, isGroup]);
+
 
   // 🔹 Escuchar mensajes cuando tenemos el chatId
   useEffect(() => {
@@ -730,11 +749,21 @@ const ChatDetails = () => {
             </View>
             <View>
               <Text style={styles.headerNameBlack}>{usuario?.nombre || "Usuario"}</Text>
-              <Text style={styles.headerStatusBlack}>
-                {usuario?.carrera && usuario?.codigo
-                  ? `${usuario.carrera} - ${usuario.codigo}`
-                  : "En línea"}
-              </Text>
+              <View style={styles.headerStatusRow}>
+                <View style={[
+                  styles.statusDotHeader,
+                  isUserOnline ? styles.statusDotOnlineHeader : styles.statusDotOfflineHeader
+                ]} />
+                <Text style={[
+                  styles.headerStatusBlack,
+                  isUserOnline ? styles.statusTextOnlineHeader : styles.statusTextOfflineHeader
+                ]}>
+                  {isUserOnline ? "en línea" : "desactivado"}
+                </Text>
+              </View>
+
+                  
+              
             </View>
           </TouchableOpacity>
         )}
@@ -987,6 +1016,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 8,
     overflow: "hidden",
+  },
+  headerStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  statusDotHeader: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusDotOnlineHeader: {
+    backgroundColor: "#22c55e",
+  },
+  statusDotOfflineHeader: {
+    backgroundColor: "#ef4444",
+  },
+  statusTextOnlineHeader: {
+    fontSize: 12,
+    color: "#22c55e",
+    fontWeight: "500",
+  },
+  statusTextOfflineHeader: {
+    fontSize: 12,
+    color: "#ef4444",
+    fontWeight: "500",
   },
   messageAvatarImage: {
     width: 30,

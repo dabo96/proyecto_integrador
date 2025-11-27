@@ -1,12 +1,12 @@
 import { deleteChat, listenUserChats } from "@/api/messageService";
-import { obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
+import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
+import { showAlert } from "@/utils/alert";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { showAlert } from "@/utils/alert";
-import { Ionicons } from "@expo/vector-icons";
 
 type Chat = {
   id: string;            // ID del chat
@@ -26,6 +26,7 @@ const ChatCreem = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
+  const [onlineStatus, setOnlineStatus] = useState<{ [userId: string]: boolean }>({});
   const [usuariosCache, setUsuariosCache] = useState<{ [id: string]: Usuario }>({});
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -158,7 +159,7 @@ const ChatCreem = () => {
                 minute: "2-digit",
               }) || "",
             avatar: "", // Los chats grupales pueden tener un avatar especial más adelante
-            online: false,
+            online: false, // Se actualizará con el listener de estado
             unread: chat.unreadCount?.[currentUser.id] || 0,
             isGroup: true,
             participants: chat.participants || [],
@@ -168,6 +169,8 @@ const ChatCreem = () => {
           const otherUserId = chat.participants.find(
             (id: string) => id !== currentUser.id
           );
+
+      
 
           const otherUser = cacheRef.current[otherUserId] || { nombre: "Desconocido" };
           //console.log("💬 Formateando chat con usuario:", otherUser);
@@ -182,7 +185,7 @@ const ChatCreem = () => {
                 minute: "2-digit",
               }) || "",
             avatar: otherUser.fotoPerfil || "",
-            online: otherUser.online || false,
+            online: onlineStatus[otherUserId] ?? false,
             unread: chat.unreadCount?.[currentUser.id] || 0,
             isGroup: false,
             participants: chat.participants || [],
@@ -190,12 +193,56 @@ const ChatCreem = () => {
         }
       });
 
+
+
       //console.log("💬 Chats formateados:", chats);
       setChats(formattedChats);
     });
 
+
+
     return () => unsubscribe();
-  }, [currentUser]);
+
+
+}, [currentUser, onlineStatus]);
+
+// Escuchar estados de conexión de los usuarios en los chats
+useEffect(() => {
+  if (!currentUser || chats.length === 0) return;
+
+  const unsubscribes: (() => void)[] = [];
+  const userIdsToListen = new Set<string>();
+
+  // Recopilar todos los IDs de usuarios únicos de chats individuales
+  chats.forEach(chat => {
+    if (!chat.isGroup && chat.otherUserId) {
+      userIdsToListen.add(chat.otherUserId);
+    }
+  });
+
+  console.log("👂 Configurando listeners de estado para usuarios:", Array.from(userIdsToListen));
+
+  // Escuchar estado de cada usuario
+  userIdsToListen.forEach(userId => {
+    const unsubscribe = escucharEstadoUsuario(userId, (online, lastSeen) => {
+      console.log(`📡 Estado actualizado para ${userId}:`, online ? "en línea" : "desactivado");
+      setOnlineStatus(prev => {
+        const newStatus = {
+          ...prev,
+          [userId]: online
+        };
+        console.log("📊 Estado completo actualizado:", newStatus);
+        return newStatus;
+      });
+    });
+    unsubscribes.push(unsubscribe);
+  });
+
+  return () => {
+    console.log("🧹 Limpiando listeners de estado");
+    unsubscribes.forEach(unsub => unsub());
+  };
+}, [chats, currentUser]);
 
   // Función para manejar la eliminación de chat
   const handleDeleteChat = async (chatId: string) => {
@@ -329,7 +376,23 @@ const ChatCreem = () => {
                   {/* Info */}
                   <View style={styles.chatInfo}>
                     <View style={styles.rowBetween}>
-                      <Text style={styles.chatName}>{item.name}</Text>
+                      <View style={styles.nameContainer}>
+                        <Text style={styles.chatName}>{item.name}</Text>
+                        {!item.isGroup && (
+                          <View style={styles.statusContainer}>
+                            <View style={[
+                              styles.statusDot,
+                              item.online ? styles.statusDotOnline : styles.statusDotOffline
+                            ]} />
+                            <Text style={[
+                              styles.statusText,
+                              item.online ? styles.statusTextOnline : styles.statusTextOffline
+                            ]}>
+                              {item.online ? "en línea" : "desactivado"}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.chatTime}>{item.time}</Text>
                     </View>
                     <View style={styles.rowBetween}>
@@ -474,6 +537,38 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
   },
+
+  nameContainer: {
+    flex: 1,
+  },
+  statusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  statusDotOnline: {
+    backgroundColor: "#22c55e",
+  },
+  statusDotOffline: {
+    backgroundColor: "#ef4444",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  statusTextOnline: {
+    color: "#22c55e",
+  },
+  statusTextOffline: {
+    color: "#ef4444",
+  },
+  
   onlineDot: {
     position: "absolute",
     bottom: 0,

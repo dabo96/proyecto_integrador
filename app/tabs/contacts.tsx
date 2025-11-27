@@ -1,9 +1,10 @@
 import { aceptarSolicitud, Contacto, obtenerContactos, rechazarSolicitud, SolicitudContacto } from '@/api/contactsService';
+import { escucharEstadoUsuario } from '@/api/usuariosService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Image, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert, Image, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const Contacts = () => {
   const router = useRouter();
@@ -12,10 +13,41 @@ const Contacts = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [usuarioID, setUsuarioID] = useState<string | null>(null);
+  const [onlineStatus, setOnlineStatus] = useState<{ [userId: string]: boolean }>({});
 
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  // Escuchar estados de conexión de los contactos
+  useEffect(() => {
+    if (contacts.length === 0) return;
+
+    const unsubscribes: (() => void)[] = [];
+    const userIds: string[] = [];
+    
+    contacts.forEach(contact => {
+      const userId = 'usuarioID' in contact ? contact.usuarioID : undefined;
+      if (userId) {
+        userIds.push(userId);
+        const unsubscribe = escucharEstadoUsuario(userId, (online) => {
+          console.log(`📡 Estado actualizado para contacto ${userId}:`, online ? "en línea" : "desactivado");
+          setOnlineStatus(prev => ({
+            ...prev,
+            [userId]: online
+          }));
+        });
+        unsubscribes.push(unsubscribe);
+      }
+    });
+
+    console.log("👂 Configurando listeners de estado para contactos:", userIds);
+
+    return () => {
+      console.log("🧹 Limpiando listeners de estado de contactos");
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [contacts]);
 
   const cargarDatos = async () => {
     try {
@@ -78,26 +110,49 @@ const Contacts = () => {
   }: {
     contact: Contacto | SolicitudContacto;
     showButtons?: boolean;
-  }) => (
-    <View style={styles.contactItem}>
-      {contact.avatar ? (
-        <Image source={{ uri: contact.avatar }} style={styles.avatar} />
-      ) : (
-        <View style={[styles.avatar, styles.avatarPlaceholder]}>
-          <Text style={styles.avatarInitial}>
-            {contact.nombre.charAt(0).toUpperCase()}
-          </Text>
+  }) => {
+    const userId = 'usuarioID' in contact ? contact.usuarioID : undefined;
+    const isOnline = userId ? onlineStatus[userId] ?? false : false;
+    
+    return (
+      <View style={styles.contactItem}>
+        <View style={styles.avatarWrapper}>
+          {contact.avatar ? (
+            <Image source={{ uri: contact.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Text style={styles.avatarInitial}>
+                {contact.nombre.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          {userId && isOnline && <View style={styles.onlineDot} />}
         </View>
-      )}
-      <View style={styles.contactInfo}>
-        <Text style={styles.contactName}>{contact.nombre}</Text>
-        {contact.descripcion ? (
-          <Text style={styles.contactDescription}>{contact.descripcion}</Text>
-        ) : null}
-        {contact.tiempo ? (
-          <Text style={styles.contactTime}>{contact.tiempo}</Text>
-        ) : null}
-      </View>
+        <View style={styles.contactInfo}>
+          <View style={styles.contactNameRow}>
+            <Text style={styles.contactName}>{contact.nombre}</Text>
+            {userId && (
+              <View style={styles.statusContainer}>
+                <View style={[
+                  styles.statusDot,
+                  isOnline ? styles.statusDotOnline : styles.statusDotOffline
+                ]} />
+                <Text style={[
+                  styles.statusText,
+                  isOnline ? styles.statusTextOnline : styles.statusTextOffline
+                ]}>
+                  {isOnline ? "en línea" : "desactivado"}
+                </Text>
+              </View>
+            )}
+          </View>
+          {contact.descripcion ? (
+            <Text style={styles.contactDescription}>{contact.descripcion}</Text>
+          ) : null}
+          {contact.tiempo ? (
+            <Text style={styles.contactTime}>{contact.tiempo}</Text>
+          ) : null}
+        </View>
       {showButtons ? (
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.acceptButton} onPress={() => handleAcceptRequest(contact.id)}>
@@ -125,7 +180,8 @@ const Contacts = () => {
         </TouchableOpacity>
       )}
     </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -172,7 +228,8 @@ const styles = StyleSheet.create({
   scrollContainer: { flex: 1 },
   section: { backgroundColor: 'white', marginBottom: 10, paddingVertical: 10 },
   contactItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#E0E0E0' },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
+  avatarWrapper: { position: 'relative', marginRight: 15 },
+  avatar: { width: 50, height: 50, borderRadius: 25 },
   avatarPlaceholder: {
     backgroundColor: '#d1d5db',
     justifyContent: 'center',
@@ -183,8 +240,46 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 14,
+    height: 14,
+    backgroundColor: '#22c55e',
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
   contactInfo: { flex: 1 },
-  contactName: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 2 },
+  contactNameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  contactName: { fontSize: 16, fontWeight: '600', color: '#333', marginRight: 8 },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  statusDotOnline: {
+    backgroundColor: '#22c55e',
+  },
+  statusDotOffline: {
+    backgroundColor: '#ef4444',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  statusTextOnline: {
+    color: '#22c55e',
+  },
+  statusTextOffline: {
+    color: '#ef4444',
+  },
   contactDescription: { fontSize: 13, color: '#666', marginBottom: 1 },
   contactTime: { fontSize: 12, color: '#999' },
   buttonContainer: { flexDirection: 'row', gap: 10 },

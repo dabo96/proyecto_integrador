@@ -1,3 +1,4 @@
+import { actualizarEstadoOnline } from '@/api/usuariosService';
 import IconButton from '@/components/IconButton';
 import ImageButton from '@/components/ImageButton';
 import PostCard from '@/components/cards/PostCard';
@@ -492,6 +493,13 @@ export default function MainPageScreen() {
 
             setUsuarioID(storedUsuarioID);
             setUsuarioNombre(storedUsuarioNombre || 'Usuario');
+            
+            // Actualizar estado de conexión a online
+            try {
+                await actualizarEstadoOnline(storedUsuarioID);
+            } catch (error) {
+                console.error('Error actualizando estado online:', error);
+            }
 
             // Obtener foto de perfil del usuario
             const usuarioRef = doc(db, 'Usuarios', storedUsuarioID);
@@ -520,6 +528,11 @@ export default function MainPageScreen() {
     useEffect(() => {
         loadFeedData();
     }, []);
+
+    
+    // Nota: El estado de conexión ahora se maneja globalmente con usePresence en _layout.tsx
+    // Este useEffect ya no es necesario, pero lo mantenemos por compatibilidad
+    // El sistema de presencia actualiza automáticamente el estado cada 30 segundos
 
     // Listener para actualizar foto de perfil en tiempo real
     useEffect(() => {

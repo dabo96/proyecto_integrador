@@ -1,5 +1,5 @@
 import { cancelarSolicitudSeguimiento, dejarDeSeguirUsuario, obtenerListaSeguidos, obtenerPerfilUsuario, obtenerPublicacionesPerfil, PerfilUsuario, seguirUsuario, verificarSiSigue, verificarSolicitudPendiente } from '@/api/profileService';
-import { obtenerUsuarioPorId } from '@/api/usuariosService';
+import { escucharEstadoUsuario, obtenerUsuarioPorId } from '@/api/usuariosService';
 import PostCard from '@/components/cards/PostCard';
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
@@ -63,6 +63,7 @@ export default function OtherProfileScreen() {
     const [modalType, setModalType] = useState<'seguidos' | 'seguidores'>('seguidos');
     const [usersList, setUsersList] = useState<any[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
+    const [isUserOnline, setIsUserOnline] = useState(false);
 
     // Función para formatear fecha relativa
     const formatRelativeTime = (timestamp: any) => {
@@ -155,6 +156,23 @@ export default function OtherProfileScreen() {
 
     useEffect(() => {
         loadUserData();
+    }, [usuarioIDObjetivo]);
+
+    // Escuchar estado de conexión del usuario
+    useEffect(() => {
+        if (!usuarioIDObjetivo) return;
+
+        console.log("👂 Configurando listener de estado para otherProfile, usuario:", usuarioIDObjetivo);
+        
+        const unsubscribe = escucharEstadoUsuario(String(usuarioIDObjetivo), (online) => {
+            console.log(`📡 Estado actualizado en otherProfile para ${usuarioIDObjetivo}:`, online ? "en línea" : "desactivado");
+            setIsUserOnline(online);
+        });
+
+        return () => {
+            console.log("🧹 Limpiando listener de estado en otherProfile");
+            unsubscribe();
+        };
     }, [usuarioIDObjetivo]);
 
     // Función para cargar comentarios
@@ -535,9 +553,23 @@ export default function OtherProfileScreen() {
                                 }
                                 style={styles.avatar}
                             />
-                            <Text style={styles.name}>
-                                {userProfile.nombre} {userProfile.apellido}
-                            </Text>
+                            <View style={styles.nameContainer}>
+                                <Text style={styles.name}>
+                                    {userProfile.nombre} {userProfile.apellido}
+                                </Text>
+                                <View style={styles.statusContainer}>
+                                    <View style={[
+                                        styles.statusDot,
+                                        isUserOnline ? styles.statusDotOnline : styles.statusDotOffline
+                                    ]} />
+                                    <Text style={[
+                                        styles.statusText,
+                                        isUserOnline ? styles.statusTextOnline : styles.statusTextOffline
+                                    ]}>
+                                        {isUserOnline ? "en línea" : "desactivado"}
+                                    </Text>
+                                </View>
+                            </View>
                             <Text style={styles.profession}>{userProfile.carrera || 'Sin carrera'}</Text>
 
                             <View style={styles.statsContainer}>
@@ -715,12 +747,42 @@ const styles = StyleSheet.create({
         borderColor: 'white',
         marginBottom: 15,
     },
+    nameContainer: {
+        alignItems: 'center',
+        marginBottom: 5,
+    },
     name: {
         fontSize: 24,
         fontWeight: 'bold',
         color: 'white',
-        marginBottom: 5,
+        marginBottom: 8,
         textAlign: 'center',
+    },
+    statusContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    statusDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        marginRight: 6,
+    },
+    statusDotOnline: {
+        backgroundColor: '#22c55e',
+    },
+    statusDotOffline: {
+        backgroundColor: '#ef4444',
+    },
+    statusText: {
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    statusTextOnline: {
+        color: '#22c55e',
+    },
+    statusTextOffline: {
+        color: '#ef4444',
     },
     profession: {
         fontSize: 16,
