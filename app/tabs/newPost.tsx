@@ -1,6 +1,6 @@
 import ModButton from "@/components/ModButton";
 import { app, db } from "@/services/firebase";
-import { validarYSubirImagen } from "@/services/imageModerationClient";
+import { validarYSubirImagenPublicacion } from "@/services/imageModerationClient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -99,7 +99,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
       await uploadBytes(storageRef, blob);
 
       console.log("✅ Imagen subida, obteniendo URL...");
-      
+
       // obtiene la URL pública
       const downloadURL = await getDownloadURL(storageRef);
       console.log("✅ Imagen subida correctamente:", downloadURL);
@@ -129,7 +129,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
       console.log("🔹 Publicando con imagen:", imagen);
       if (imagen) {
         // Validar contenido de la imagen antes de publicar
-        const result = await validarYSubirImagen(
+        const result = await validarYSubirImagenPublicacion(
           subirImagenAFirebase,
           imagen
         );
@@ -214,7 +214,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
           backgroundColor="#1d4ed8"
           style={{ borderRadius: 20 }}
         />
-      </View>     
+      </View>
 
       <View style={styles.textInputCont}>
         {isCommunityPost && (
@@ -235,7 +235,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
           maxLength={280}
         />
       </View>
-      
+
 
       {imagen && (
         <View style={styles.imagePreviewContainer}>

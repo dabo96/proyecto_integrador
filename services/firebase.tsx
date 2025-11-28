@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { enableNetwork, getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -23,3 +24,4 @@ enableNetwork(db).catch((error) => {
 });
 
 export const storage = getStorage(app);
+export const functions = getFunctions(app);

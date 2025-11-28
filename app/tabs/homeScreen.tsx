@@ -73,6 +73,9 @@ export default function MainPageScreen() {
     const [selectedPostId, setSelectedPostId] = useState<string>('');
     const [reportMotivo, setReportMotivo] = useState<string>('');
     const [reportDetalle, setReportDetalle] = useState<string>('');
+    const [likesModalVisible, setLikesModalVisible] = useState(false);
+    const [likesList, setLikesList] = useState<Usuario[]>([]);
+    const [loadingLikes, setLoadingLikes] = useState(false);
 
     // Función para formatear fecha relativa
     const formatRelativeTime = (timestamp: any) => {
@@ -473,6 +476,49 @@ export default function MainPageScreen() {
         }
     };
 
+    // Función para obtener los detalles de los likes
+    const fetchLikesDetails = async (postId: string) => {
+        setLoadingLikes(true);
+        setLikesModalVisible(true);
+        setLikesList([]);
+        try {
+            const likesQuery = query(
+                collection(db, 'interacciones'),
+                where('publicacionID', '==', postId),
+                where('tipo', '==', 'like')
+            );
+            const likesSnapshot = await getDocs(likesQuery);
+            const users: Usuario[] = [];
+
+            for (const docSnapshot of likesSnapshot.docs) {
+                const data = docSnapshot.data();
+                const userRef = doc(db, 'Usuarios', data.usuarioID);
+                const userDoc = await getDoc(userRef);
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    const nombreOrigen = userData.nombreCompleto || userData.nombre || [userData.nombres, userData.apellidos].filter(Boolean).join(' ');
+                    const partesNombre = (nombreOrigen || '').trim().split(' ');
+                    const nombres = userData.nombres || partesNombre[0] || '';
+                    const apellidos = userData.apellidos || partesNombre.slice(1).join(' ') || '';
+
+                    users.push({
+                        id: userDoc.id,
+                        usuarioID: userDoc.id,
+                        nombres,
+                        apellidos,
+                        fotoPerfil: userData.fotoPerfil
+                    });
+                }
+            }
+            setLikesList(users);
+        } catch (error) {
+            console.error("Error fetching likes details:", error);
+            Alert.alert("Error", "No se pudieron cargar los likes.");
+        } finally {
+            setLoadingLikes(false);
+        }
+    };
+
     // Función para cargar datos del feed
     const loadFeedData = async () => {
         try {
@@ -493,7 +539,7 @@ export default function MainPageScreen() {
 
             setUsuarioID(storedUsuarioID);
             setUsuarioNombre(storedUsuarioNombre || 'Usuario');
-            
+
             // Actualizar estado de conexión a online
             try {
                 await actualizarEstadoOnline(storedUsuarioID);
@@ -529,7 +575,7 @@ export default function MainPageScreen() {
         loadFeedData();
     }, []);
 
-    
+
     // Nota: El estado de conexión ahora se maneja globalmente con usePresence en _layout.tsx
     // Este useEffect ya no es necesario, pero lo mantenemos por compatibilidad
     // El sistema de presencia actualiza automáticamente el estado cada 30 segundos
@@ -730,8 +776,8 @@ export default function MainPageScreen() {
         // por ahora solo dejamos el log
     };
 
-    
-    
+
+
 
     // Función para verificar si el usuario ya reportó una publicación
     const verificarReporteExistente = async (postId: string): Promise<boolean> => {
@@ -966,6 +1012,201 @@ export default function MainPageScreen() {
         }
     };
 
+    // return (
+    //     <View style={{ flex: 1, backgroundColor: 'white' }}>
+    //         <LinearGradient
+    //             colors={['#2F4AA6', '#0491C6']}
+    //             style={styles.gradientContainer}
+    //         >
+    //             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 2, marginTop: 10 }}>
+    //                 <View style={{ alignItems: "center" }}>
+    //                     <ImageButton
+    //                         source={usuarioFotoPerfil ?
+    //                             { uri: usuarioFotoPerfil } :
+    //                             require("@/assets/images/react-logo.png")
+    //                         }
+    //                         onPress={() => { router.push("./profile") }}
+    //                         size={70}
+    //                         style={styles.btnProfile}
+    //                         borderWidth={4}
+    //                         borderColor="white"
+    //                     />
+    //                     <Text style={styles.Title}>Hola {usuarioNombre}</Text>
+    //                     <Text style={styles.Subtitle}>¡Bienvenido!</Text>
+    //                 </View>
+
+    //                 <View style={{ flexDirection: "row", gap: 10, marginRight: 20 }}>
+    //                     <IconButton
+    //                         onPress={() => { router.push("./chats") }}
+    //                         size={30}
+    //                         backgroundColor="transparent"
+    //                         iconName="chat-bubble-outline"
+    //                         iconLib="MaterialIcons"
+    //                     />
+    //                     <IconButton
+    //                         onPress={() => { router.push("./notificaciones") }}
+    //                         size={30}
+    //                         backgroundColor="transparent"
+    //                         iconName="notifications-outline"
+    //                         iconLib="Ionicons"
+    //                     />
+    //                 </View>
+    //             </View>
+
+    //             <View>
+    //                 <View style={styles.inputContainer}>
+    //                     <Ionicons name="search" size={20} color="gray" style={styles.icon} />
+    //                     <TextInput
+    //                         style={styles.input}
+    //                         placeholder="Buscar usuarios..."
+    //                         placeholderTextColor="gray"
+    //                         value={searchText}
+    //                         onChangeText={(text) => {
+    //                             setSearchText(text);
+    //                             buscarUsuarios(text);
+    //                         }}
+    //                     />
+    //                     {searchText.length > 0 && (
+    //                         <TouchableOpacity onPress={() => {
+    //                             setSearchText('');
+    //                             setSearchResults([]);
+    //                             setShowSearchResults(false);
+    //                         }}>
+    //                             <Ionicons name="close-circle" size={20} color="gray" />
+    //                         </TouchableOpacity>
+    //                     )}
+    //                 </View>
+    //             </View>
+    //         </LinearGradient>
+
+    //         {/* Resultados de búsqueda */}
+    //         {showSearchResults && (
+    //             <View style={styles.searchResultsContainer}>
+    //                 <ScrollView style={styles.searchResultsList} nestedScrollEnabled>
+    //                     {searchResults.map((usuario) => (
+    //                         <TouchableOpacity
+    //                             key={usuario.id}
+    //                             style={styles.searchResultItem}
+    //                             onPress={() => {
+    //                                 setSearchText('');
+    //                                 setShowSearchResults(false);
+    //                                 router.push({
+    //                                     pathname: './otherProfile',
+    //                                     params: { userId: usuario.id }
+    //                                 });
+    //                             }}
+    //                         >
+    //                             <ImageButton
+    //                                 source={usuario.fotoPerfil ?
+    //                                     { uri: usuario.fotoPerfil } :
+    //                                     require("@/assets/images/react-logo.png")
+    //                                 }
+    //                                 onPress={() => { }}
+    //                                 size={45}
+    //                                 style={styles.searchResultImage}
+    //                                 borderWidth={2}
+    //                                 borderColor="#ddd"
+    //                             />
+    //                             <View style={styles.searchResultInfo}>
+    //                                 <Text style={styles.searchResultName}>
+    //                                     {usuario.nombres} {usuario.apellidos}
+    //                                 </Text>
+    //                             </View>
+    //                         </TouchableOpacity>
+    //                     ))}
+    //                 </ScrollView>
+    //             </View>
+    //         )}
+
+    //         <ScrollView style={styles.whiteContainer}>
+    //             {loading ? (
+    //                 <View style={styles.loadingContainer}>
+    //                     <ActivityIndicator size="large" color="#2F4AA6" />
+    //                     <Text style={styles.loadingText}>Cargando publicaciones...</Text>
+    //                 </View>
+    //             ) : error ? (
+    //                 <View style={styles.errorContainer}>
+    //                     <Text style={styles.errorText}>{error}</Text>
+    //                     <TouchableOpacity style={styles.retryButton} onPress={loadFeedData}>
+    //                         <Text style={styles.retryButtonText}>Reintentar</Text>
+    //                     </TouchableOpacity>
+    //                 </View>
+    //             ) : posts.length === 0 ? (
+    //                 <View style={styles.emptyContainer}>
+    //                     <Text style={styles.emptyText}>No hay publicaciones para mostrar</Text>
+    //                     <Text style={styles.emptySubtext}>Sigue a más personas para ver sus publicaciones</Text>
+    //                 </View>
+    //             ) : (
+    //                 posts.map((post) => (
+    //                     <PostCard
+    //                         key={post.id}
+    //                         post={post}
+    //                         liked={likedPosts[post.id] || false}
+    //                         onLike={handleLike}
+    //                         onComment={handleComment}
+    //                         onReport={handleReport}
+    //                         formatTime={formatRelativeTime}
+    //                         comentarios={comentarios[post.id]}
+    //                         loadingComments={loadingComments === post.id}
+    //                         Alert.alert('Error', 'Por favor selecciona un motivo para el reporte');
+    //             return;
+    //     }
+
+    //             if (!reportDetalle.trim()) {
+    //                 Alert.alert('Error', 'Por favor proporciona más detalles sobre el reporte');
+    //             return;
+    //     }
+
+    //             try {
+    //         // Obtener el usuario reportado
+    //         const usuarioReportadoID = await obtenerUsuarioReportado(selectedPostId);
+    //             if (!usuarioReportadoID) {
+    //                 Alert.alert('Error', 'No se pudo obtener la información de la publicación');
+    //             return;
+    //         }
+
+    //             // Crear el reporte
+    //             const reporteRef = await addDoc(collection(db, 'publicaciones', selectedPostId, 'reportes'), {
+    //                 reportanteID: usuarioID,
+    //             usuarioReportado: usuarioReportadoID,
+    //             motivo: reportMotivo,
+    //             detalle: reportDetalle,
+    //             fechaReporte: new Date(),
+    //             estado: 'activo'
+    //         });
+
+    //             console.log('Reporte creado exitosamente:', reporteRef.id);
+
+    //             // Actualizar contador de reportes
+    //             const reportesCount = await actualizarContadorReportes(selectedPostId);
+
+    //         // Aplicar penalización según el número de reportes
+    //         if (reportesCount >= 5) {
+    //                 // Penalización severa por múltiples reportes
+    //                 await actualizarIndiceConducta(usuarioReportadoID, -2, `Múltiples reportes (${reportesCount})`);
+    //         } else if (reportesCount >= 3) {
+    //                 // Penalización moderada
+    //                 await actualizarIndiceConducta(usuarioReportadoID, -1, `Reportes moderados (${reportesCount})`);
+    //         }
+
+    //             // Cerrar modal y limpiar datos
+    //             setShowReportModal(false);
+    //             setSelectedPostId('');
+    //             setReportMotivo('');
+    //             setReportDetalle('');
+
+    //             Alert.alert(
+    //             'Reporte enviado',
+    //             'Tu reporte ha sido enviado exitosamente. Será revisado por el equipo de moderación.',
+    //             [{text: 'OK' }]
+    //             );
+
+    //     } catch (error) {
+    //                 console.error('Error enviando reporte:', error);
+    //             Alert.alert('Error', 'Ocurrió un error al enviar el reporte');
+    //     }
+    // };
+
     return (
         <View style={{ flex: 1, backgroundColor: 'white' }}>
             <LinearGradient
@@ -1072,7 +1313,7 @@ export default function MainPageScreen() {
                 </View>
             )}
 
-            <ScrollView 
+            <ScrollView
                 ref={scrollViewRef}
                 style={styles.whiteContainer}
             >
@@ -1116,11 +1357,55 @@ export default function MainPageScreen() {
                                 delete newComentarios[post.id];
                                 setComentarios(newComentarios);
                             }}
-                            currentUserId={usuarioID}
+                            onLikeDetails={() => fetchLikesDetails(post.id)}
                         />
                     ))
                 )}
             </ScrollView>
+
+            {/* Modal de Likes */}
+            <Modal
+                visible={likesModalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setLikesModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Me gusta</Text>
+                            <TouchableOpacity onPress={() => setLikesModalVisible(false)}>
+                                <Ionicons name="close" size={24} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+                        {loadingLikes ? (
+                            <ActivityIndicator size="large" color="#2F4AA6" style={{ marginTop: 20 }} />
+                        ) : (
+                            <ScrollView style={styles.likesList}>
+                                {likesList.length > 0 ? (
+                                    likesList.map((user) => (
+                                        <View key={user.id} style={styles.likeItem}>
+                                            <ImageButton
+                                                source={user.fotoPerfil ? { uri: user.fotoPerfil } : require("@/assets/images/react-logo.png")}
+                                                onPress={() => {
+                                                    setLikesModalVisible(false);
+                                                    // Navegar al perfil del usuario si es necesario
+                                                    // router.push(...) 
+                                                }}
+                                                size={40}
+                                                style={styles.likeUserImage}
+                                            />
+                                            <Text style={styles.likeUserName}>{user.nombres} {user.apellidos}</Text>
+                                        </View>
+                                    ))
+                                ) : (
+                                    <Text style={styles.noLikesText}>Aún no hay me gusta.</Text>
+                                )}
+                            </ScrollView>
+                        )}
+                    </View>
+                </View>
+            </Modal>
 
             {/* Modal de Reporte */}
             <Modal
@@ -1257,80 +1542,6 @@ const styles = StyleSheet.create({
         marginTop: 2,
         marginLeft: 30,
     },
-    postCard: {
-        backgroundColor: 'white',
-        marginHorizontal: 15,
-        marginVertical: 8,
-        borderRadius: 15,
-        overflow: 'hidden',
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-    },
-    postImage: {
-        width: '100%',
-        height: 250,
-        resizeMode: 'cover',
-    },
-    postHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 15,
-        paddingBottom: 10,
-    },
-    postUserInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    postUserImage: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-    },
-    postUserName: {
-        fontWeight: '600',
-        fontSize: 14,
-        color: '#333',
-    },
-    postTimestamp: {
-        fontSize: 12,
-        color: '#666',
-        marginTop: 2,
-    },
-    postContent: {
-        paddingHorizontal: 15,
-        paddingBottom: 10,
-    },
-    postDescription: {
-        fontSize: 14,
-        color: '#666',
-        lineHeight: 20,
-    },
-    postActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        gap: 10,
-        alignItems: 'center',
-    },
-    actionButton: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: 8,
-    },
-    actionText: {
-        fontSize: 16,
-        color: '#666',
-        fontWeight: '500',
-    },
-    actionTextLiked: {
-        color: '#ff4444',
-    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -1386,103 +1597,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#999',
         textAlign: 'center',
-        fontFamily: 'Montserrat_400Regular',
-    },
-    commentInputContainer: {
-        padding: 15,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-    },
-    commentInput: {
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        padding: 10,
-        fontSize: 14,
-        fontFamily: 'Montserrat_400Regular',
-        minHeight: 40,
-        maxHeight: 100,
-    },
-    commentButtons: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        marginTop: 10,
-        gap: 10,
-    },
-    commentButton: {
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: '#ddd',
-    },
-    commentButtonPrimary: {
-        backgroundColor: '#2F4AA6',
-        borderColor: '#2F4AA6',
-    },
-    commentButtonText: {
-        fontSize: 14,
-        color: '#666',
-        fontFamily: 'Montserrat_400Regular',
-    },
-    commentButtonTextPrimary: {
-        color: 'white',
-    },
-    commentsListContainer: {
-        maxHeight: 300,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-        paddingVertical: 10,
-    },
-    commentsLoadingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 20,
-        gap: 10,
-    },
-    commentsLoadingText: {
-        fontSize: 14,
-        color: '#666',
-        fontFamily: 'Montserrat_400Regular',
-    },
-    commentItem: {
-        flexDirection: 'row',
-        paddingHorizontal: 15,
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f5f5f5',
-    },
-    commentUserImage: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-    },
-    commentContent: {
-        flex: 1,
-        marginLeft: 10,
-    },
-    commentAuthor: {
-        fontWeight: '600',
-        fontSize: 13,
-        color: '#333',
-        marginBottom: 2,
-    },
-    commentText: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 4,
-        lineHeight: 18,
-    },
-    commentTime: {
-        fontSize: 11,
-        color: '#999',
-    },
-    noCommentsText: {
-        textAlign: 'center',
-        paddingVertical: 20,
-        fontSize: 14,
-        color: '#999',
         fontFamily: 'Montserrat_400Regular',
     },
     searchResultsContainer: {
@@ -1645,5 +1759,29 @@ const styles = StyleSheet.create({
         color: 'white',
         fontWeight: '600',
         fontFamily: 'Montserrat_600SemiBold',
+    },
+    likesList: {
+        maxHeight: 400,
+    },
+    likeItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    likeUserImage: {
+        marginRight: 10,
+    },
+    likeUserName: {
+        fontSize: 16,
+        color: '#333',
+        fontFamily: 'Montserrat_500Medium',
+    },
+    noLikesText: {
+        textAlign: 'center',
+        color: '#666',
+        marginTop: 20,
+        fontFamily: 'Montserrat_400Regular',
     },
 });

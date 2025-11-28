@@ -9,10 +9,16 @@
  */
 
 import { deleteImageByUrl, subirImagenFinal, subirImagenTemporal } from "@/api/profileService";
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from './firebase';
 
+const functions = getFunctions(app);
 
-// URL de la función de Firebase (onRequest en lugar de onCall)
-const FUNCTION_URL = 'https://us-central1-apolo-marketplace.cloudfunctions.net/validarContenidoImagen';
+// Llamar a la función de Firebase usando httpsCallable
+const validarContenidoImagenFunction = httpsCallable<
+  { imageUrl: string },
+  { valida: boolean; motivo: string | null; detalles: { nivelRiesgo: string } }
+>(functions, 'validarContenidoImagen');
 
 export interface ValidacionResultado {
   valida: boolean;
@@ -30,28 +36,16 @@ export const validarContenidoImagen = async (
   imageUrl: string
 ): Promise<ValidacionResultado> => {
   try {
-    const response = await fetch(FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ imageUrl }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error en la respuesta: ${response.status}`);
-    }
-
-    const resultado = await response.json();
+    const resultado = await validarContenidoImagenFunction({ imageUrl });
 
     return {
-      valida: resultado.valida,
-      motivo: resultado.motivo,
-      nivelRiesgo: resultado.detalles.nivelRiesgo as 'bajo' | 'alto',
+      valida: resultado.data.valida,
+      motivo: resultado.data.motivo,
+      nivelRiesgo: resultado.data.detalles.nivelRiesgo as 'bajo' | 'alto',
     };
   } catch (error: any) {
     console.error('Error validando contenido:', error);
-    
+
     // En caso de error, por seguridad rechazamos la imagen
     // Puedes cambiar esto según tus necesidades
     throw new Error(
@@ -63,16 +57,7 @@ export const validarContenidoImagen = async (
 /**
  * Helper para integrar en el flujo de subida de imágenes
  * 
- * Ejemplo de uso:
- * 
- * const imagenUrl = await subirImagenAFirebase(imagen);
- * const validacion = await validarContenidoImagen(imagenUrl);
- * 
- * if (!validacion.valida) {
- *   Alert.alert('Contenido no permitido', validacion.motivo || 'La imagen no cumple con nuestras políticas');
- *   // Eliminar imagen de Storage
- *   return;
- * }
+ * Versión para foto de perfil (usa subirImagenTemporal y subirImagenFinal)
  */
 export const validarYSubirImagen = async (
   imageUri: string,
@@ -104,6 +89,41 @@ export const validarYSubirImagen = async (
     return {
       success: false,
       error: error.message,
+    };
+  }
+};
+
+/**
+ * Helper para publicaciones (usa función de subida personalizada)
+ */
+export const validarYSubirImagenPublicacion = async (
+  subirImagenAFirebase: (uri: string) => Promise<string>,
+  imageUri: string
+): Promise<{ success: boolean; url?: string; error?: string }> => {
+  try {
+    // Primero subir la imagen
+    const imageUrl = await subirImagenAFirebase(imageUri);
+
+    // Luego validar el contenido
+    const validacion = await validarContenidoImagen(imageUrl);
+
+    if (!validacion.valida) {
+      // TODO: Eliminar la imagen de Storage si es rechazada
+      // await deleteImageByUrl(imageUrl);
+      return {
+        success: false,
+        error: validacion.motivo || 'El contenido no cumple con nuestras políticas',
+      };
+    }
+
+    return {
+      success: true,
+      url: imageUrl,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Error al procesar la imagen',
     };
   }
 };

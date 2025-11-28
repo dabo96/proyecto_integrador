@@ -27,7 +27,7 @@ export default function SignInScreen() {
         try {
             const correoNormalizado = correo.trim().toLowerCase();
             console.log("🔍 Buscando usuario con correo:", correoNormalizado);
-            
+
             const q = query(collection(db, "Usuarios"), where("correo", "==", correoNormalizado));
             const querySnapshot = await getDocs(q);
 
@@ -65,7 +65,9 @@ export default function SignInScreen() {
                 return;
             }
 
-            if (userFound?.contrasena === contrasena.trim()) {
+            const passwordStored = userFound?.contrasena || userFound?.contraseña;
+
+            if (passwordStored === contrasena.trim()) {
                 // Guardar el usuarioID en AsyncStorage
                 await AsyncStorage.setItem('usuarioID', userFound.id);
                 const nombreCompleto = userFound.nombreCompleto || userFound.nombres || userFound.nombre || 'Usuario';
@@ -82,7 +84,7 @@ export default function SignInScreen() {
             console.error("❌ Error al iniciar sesión:", error);
             console.error("Mensaje de error:", error?.message);
             setLoading(false);
-            
+
             // Verificar si es un error de conexión o de usuario no encontrado
             if (error?.code === 'unavailable' || error?.message?.includes('network')) {
                 Alert.alert(
@@ -233,6 +235,7 @@ const styles = StyleSheet.create({
         shadowOffset: {
             width: 0,
             height: 2,
+
         },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,

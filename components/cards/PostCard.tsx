@@ -1,5 +1,6 @@
 import ImageButton from '@/components/ImageButton';
-import { EvilIcons, Feather, MaterialIcons } from "@expo/vector-icons";
+
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
 import React, { useState } from "react";
 import { ActivityIndicator, Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -36,6 +37,7 @@ type Props = {
     post: Post;
     liked?: boolean;
     onLike?: (id: string) => void;
+    onLikeDetails?: (id: string) => void;
     onComment?: (id: string) => void;
     onReport?: (id: string) => void;
     onDelete?: (id: string) => void;
@@ -51,18 +53,19 @@ type Props = {
     currentUserId?: string; // ID del usuario actual para determinar si navegar a profile o otherProfile
 };
 
-const PostCard = ({ 
-    post, 
-    liked = false, 
-    onLike, 
-    onComment, 
-    onReport, 
+const PostCard = ({
+    post,
+    liked,
+    onLike,
+    onLikeDetails,
+    onComment,
+    onReport,
     onDelete,
     formatTime,
-    comentarios = [],
-    loadingComments = false,
-    showCommentInput = false,
-    commentText = '',
+    comentarios,
+    loadingComments,
+    showCommentInput,
+    commentText,
     onCommentTextChange,
     onSendComment,
     onCloseComment,
@@ -74,7 +77,7 @@ const PostCard = ({
 
     const handleUserPress = () => {
         if (!post.usuarioID) return;
-        
+
         // Si es el usuario actual, navegar a su perfil
         if (currentUserId === post.usuarioID) {
             router.push('./profile');
@@ -91,65 +94,69 @@ const PostCard = ({
         <View style={styles.post}>
             {/* Header */}
             <View style={styles.postHeader}>
-                <TouchableOpacity onPress={handleUserPress} activeOpacity={0.7}>
-                    <ImageButton
-                        source={post.autor.fotoPerfil ? 
-                            { uri: post.autor.fotoPerfil } : 
-                            require("@/assets/images/react-logo.png")
-                        }
-                        onPress={handleUserPress}
-                        size={45}
-                        style={styles.postAvatar}
-                        borderWidth={4}
-                        borderColor="white"
-                    />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                    style={{ flex: 1 }} 
+                <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}
                     onPress={handleUserPress}
                     activeOpacity={0.7}
                 >
-                    <Text style={styles.postAuthor}>
-                        {post.autor.nombres} {post.autor.apellidos}
-                    </Text>
-                    <Text style={styles.postTime}>
-                        {formatTime ? formatTime(post.fechaCreacion) : post.fechaCreacion}
-                    </Text>
+                    <ImageButton
+                        source={post.autor.fotoPerfil ?
+                            { uri: post.autor.fotoPerfil } :
+                            require("@/assets/images/react-logo.png")
+                        }
+                        onPress={handleUserPress}
+                        size={40}
+                        style={styles.postAvatar}
+                        borderWidth={2}
+                        borderColor="#ddd"
+                    />
+                    <View>
+                        <Text style={styles.postAuthor}>
+                            {post.autor.nombres} {post.autor.apellidos}
+                        </Text>
+                        <Text style={styles.postTime}>
+                            {formatTime ? formatTime(post.fechaCreacion) : 'Hace un momento'}
+                        </Text>
+                    </View>
                 </TouchableOpacity>
 
                 {/* Botón tres puntitos */}
                 <TouchableOpacity onPress={() => setMenuVisible(true)}>
-                    <MaterialIcons name="more-horiz" size={24} color="#666" />
+                    <Feather name="more-horizontal" size={24} color="#666" />
                 </TouchableOpacity>
             </View>
 
-            {/* Contenido */}
+            {/* Content */}
             <Text style={styles.postContent}>{post.contenido}</Text>
-            {post.imagen && <Image source={{ uri: post.imagen }} style={styles.postImage} />}
+            {post.imagen && (
+                <Image source={{ uri: post.imagen }} style={styles.postImage} />
+            )}
 
-            {/* Acciones */}
+            {/* Actions */}
             <View style={styles.actions}>
                 <TouchableOpacity
                     style={styles.actionBtn}
-                    onPress={() => {
-                        onLike?.(post.id);
-                    }}
+                    onPress={() => onLike?.(post.id)}
                 >
-                    <Feather 
-                        name="heart" 
-                        size={18} 
-                        color={liked ? '#ff4444' : '#666'} 
-                        fill={liked ? '#ff4444' : 'none'}
+                    <Feather
+                        name="heart"
+                        size={24}
+                        color={liked ? "#ff4444" : "#666"}
+                        fill={liked ? "#ff4444" : "none"}
                     />
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => onLikeDetails?.(post.id)}>
                     <Text style={[styles.actionText, liked && styles.actionTextLiked]}>
                         {post.likes}
                     </Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                    style={styles.actionBtn} 
+
+                <TouchableOpacity
+                    style={styles.actionBtn}
                     onPress={() => onComment?.(post.id)}
                 >
-                    <EvilIcons name="comment" size={25} color="#666" />
+                    <Feather name="message-circle" size={24} color="#666" />
                     <Text style={styles.actionText}>{post.comentarios}</Text>
                 </TouchableOpacity>
             </View>
@@ -165,7 +172,7 @@ const PostCard = ({
                     ) : comentarios.length > 0 ? (
                         comentarios.map((comentario) => (
                             <View key={comentario.id} style={styles.commentItem}>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     onPress={() => {
                                         if (comentario.usuarioID) {
                                             if (currentUserId === comentario.usuarioID) {
@@ -181,8 +188,8 @@ const PostCard = ({
                                     activeOpacity={0.7}
                                 >
                                     <ImageButton
-                                        source={comentario.autor.fotoPerfil ? 
-                                            { uri: comentario.autor.fotoPerfil } : 
+                                        source={comentario.autor.fotoPerfil ?
+                                            { uri: comentario.autor.fotoPerfil } :
                                             require("@/assets/images/react-logo.png")
                                         }
                                         onPress={() => {
@@ -203,7 +210,7 @@ const PostCard = ({
                                         borderColor="#ddd"
                                     />
                                 </TouchableOpacity>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.commentContent}
                                     onPress={() => {
                                         if (comentario.usuarioID) {
@@ -265,7 +272,7 @@ const PostCard = ({
             )}
 
             {/* Modal menú opciones */}
-            <Modal transparent visible={menuVisible} animationType="fade">
+            <Modal transparent visible={menuVisible} animationType="fade" onRequestClose={() => setMenuVisible(false)}>
                 <TouchableOpacity
                     style={styles.modalOverlay}
                     activeOpacity={1}
@@ -318,6 +325,7 @@ const styles = StyleSheet.create({
     postHeader: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         padding: 15,
         paddingBottom: 10,
     },

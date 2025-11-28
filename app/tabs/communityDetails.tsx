@@ -440,7 +440,7 @@ const CommunityDetails = () => {
       };
 
       await setDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidad.id), payload);
-      await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => {});
+      await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => { });
     } catch (error) {
       console.warn('No se pudo registrar la membresía:', error);
     }
@@ -512,8 +512,8 @@ const CommunityDetails = () => {
   };
 
   const eliminarMembresiaUsuario = async (userId: string, comunidadId: string) => {
-    await deleteDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidadId)).catch(() => {});
-    await deleteDoc(doc(db, 'usuarios', userId, 'comunidades', comunidadId)).catch(() => {});
+    await deleteDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidadId)).catch(() => { });
+    await deleteDoc(doc(db, 'usuarios', userId, 'comunidades', comunidadId)).catch(() => { });
   };
 
   const handleCreatePost = () => {
