@@ -349,18 +349,6 @@ export default function ComunidadScreen(): JSX.Element {
         <View style={styles.verTodoContainer}>
           <LinearGradient
             colors={['#2F4AA6', '#0491C6']}
-            style={styles.verTodoButton}
-          >
-            <ModButton 
-              title="Ver todo" 
-              onPress={() => { }} 
-              backgroundColor="transparent" 
-              style={styles.verTodoButtonInner}
-              textStyle={styles.verTodoText}
-            />
-          </LinearGradient>
-          <LinearGradient
-            colors={['#2F4AA6', '#0491C6']}
             style={styles.addButton}
           >
             <TouchableOpacity 
@@ -385,42 +373,48 @@ export default function ComunidadScreen(): JSX.Element {
             };
             return (
               <View key={item.id} style={styles.communityWrapper}>
-              <CommunityCard
-                  comunidad={communityData}
-                  onPress={() =>
-                    router.push({
-                      pathname: './communityDetails',
-                      params: { communityId: item.id },
-                    })
-                  }
-                />
-                <View style={styles.actionRow}>
-                  <ModButton
-                    title="Ver"
+                <View style={styles.communityRow}>
+                  <CommunityCard
+                    comunidad={communityData}
                     onPress={() =>
                       router.push({
                         pathname: './communityDetails',
                         params: { communityId: item.id },
                       })
                     }
-                    backgroundColor="#2563eb"
-                    style={styles.actionButton}
                   />
-                  <ModButton
-                    title={item.creadorID === usuarioID ? 'Eliminar' : 'Salir'}
-                    onPress={() => {
-                      console.log('🔘 Botón presionado:', item.creadorID === usuarioID ? 'Eliminar' : 'Salir', 'Comunidad:', item.nombre);
-                      if (item.creadorID === usuarioID) {
-                        handleDeleteCommunity(item);
-                      } else {
-                        handleLeaveCommunity(item);
+                  <LinearGradient
+                    colors={['#2F4AA6', '#0491C6']}
+                    style={styles.verButtonGradient}
+                  >
+                    <ModButton
+                      title="Ver"
+                      onPress={() =>
+                        router.push({
+                          pathname: './communityDetails',
+                          params: { communityId: item.id },
+                        })
                       }
-                    }}
-                    backgroundColor={item.creadorID === usuarioID ? '#dc2626' : '#9ca3af'}
-                    style={styles.actionButton}
-                    disabled={gestionando}
-                  />
+                      backgroundColor="transparent"
+                      textColor="#FFFFFF"
+                      style={styles.verButton}
+                    />
+                  </LinearGradient>
                 </View>
+                {item.creadorID === usuarioID && (
+                  <View style={styles.actionRow}>
+                    <ModButton
+                      title="Eliminar"
+                      onPress={() => {
+                        console.log('🔘 Botón presionado: Eliminar, Comunidad:', item.nombre);
+                        handleDeleteCommunity(item);
+                      }}
+                      backgroundColor="#dc2626"
+                      style={styles.actionButton}
+                      disabled={gestionando}
+                    />
+                  </View>
+                )}
               </View>
             );
           })
@@ -574,6 +568,22 @@ const styles = StyleSheet.create({
   },
   communityWrapper: {
     marginBottom: 18,
+  },
+  communityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  verButtonGradient: {
+    borderRadius: 16,
+    marginLeft: 8,
+  },
+  verButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    minWidth: 60,
   },
   actionRow: {
     flexDirection: 'row',

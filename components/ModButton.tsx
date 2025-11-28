@@ -1,6 +1,6 @@
+import { AntDesign, Feather, FontAwesome, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import React from 'react';
-import { Pressable, Text, View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome, AntDesign, Feather, MaterialCommunityIcons } from "@expo/vector-icons"
+import { Platform, Pressable, StyleSheet, Text, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 type IconLibrary = "Ionicons" | "MaterialIcons" | "FontAwesome" | "AntDesign" | "Feather" | "MaterialCommunityIcons";
 
@@ -56,6 +56,51 @@ export default function ModButton({
     }
   };
 
+  // Estado para manejar el estado pressed en web
+  const [pressed, setPressed] = React.useState(false);
+
+  // En web, usar TouchableOpacity para mejor compatibilidad
+  if (Platform.OS === 'web') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        activeOpacity={0.7}
+        onPressIn={() => setPressed(true)}
+        onPressOut={() => setPressed(false)}
+        style={[
+          styles.button,
+          styles.webButton,
+          { backgroundColor },
+          style,
+          disabled && styles.disabledButton,
+          pressed && !disabled && pressedStyle,
+        ]}
+      >
+        <View style={styles.content}>
+          {iconName && iconPosition === "left" && renderIcon(pressed && !disabled && pressedTextColor ? pressedTextColor : textColor)}
+          <Text
+            style={[
+              {
+                color: pressed && !disabled && pressedTextColor ? pressedTextColor : textColor,
+                fontWeight: fontWeight,
+                fontFamily: 'Montserrat_400Regular',
+                fontSize: 16,
+                opacity: disabled ? 0.7 : 1,
+              },
+              styles.text,
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
+          {iconName && iconPosition === "right" && renderIcon(pressed && !disabled && pressedTextColor ? pressedTextColor : textColor)}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  // En móvil, usar Pressable
   return (
     <Pressable
       onPress={onPress}
@@ -101,6 +146,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  webButton: {
+    cursor: 'pointer',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    MozUserSelect: 'none',
+    msUserSelect: 'none',
+    // @ts-ignore - Propiedades web específicas
+    transition: 'opacity 0.2s ease-in-out',
+  },
   content: {
     flexDirection: "row",
     alignItems: "center",
@@ -113,5 +167,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.8,
+    cursor: 'not-allowed',
   },
 });
