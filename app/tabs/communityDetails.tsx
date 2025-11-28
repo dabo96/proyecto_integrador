@@ -614,9 +614,10 @@ const CommunityDetails = () => {
         transparent
         animationType="slide"
         onRequestClose={() => setShowReportModal(false)}
+        accessibilityViewIsModal={true}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <View style={styles.modalContainer} accessibilityViewIsModal={true}>
             <Text style={styles.modalTitle}>Reportar publicación</Text>
             <Text style={styles.modalDescription}>
               Describe la razón por la cual deseas reportar esta publicación.

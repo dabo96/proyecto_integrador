@@ -163,33 +163,11 @@ export default function ComunidadScreen(): JSX.Element {
   };
 
   const performLeaveCommunity = async (comunidad: Comunidad) => {
-    if (gestionando) return;
-
-    const currentUser = usuarioID;
-    if (!currentUser) {
-      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+    if (gestionando) {
+      console.log('⚠️ Ya hay una operación en curso');
       return;
     }
 
-    setGestionando(true);
-    try {
-      const comunidadRef = doc(db, 'comunidades', comunidad.id);
-      await updateDoc(comunidadRef, {
-        miembros: arrayRemove(currentUser),
-      });
-
-      await eliminarMembresiaUsuario(currentUser, comunidad.id);
-      Alert.alert('Saliste de la comunidad', `Ya no perteneces a ${comunidad.nombre}.`);
-      await cargarComunidades();
-    } catch (error) {
-      console.error('Error al salir de la comunidad:', error);
-      Alert.alert('Error', 'No pudimos procesar tu salida. Inténtalo nuevamente.');
-    } finally {
-      setGestionando(false);
-    }
-  };
-
-  const handleLeaveCommunity = (comunidad: Comunidad) => {
     const currentUser = usuarioID;
     if (!currentUser) {
       Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
@@ -212,56 +190,144 @@ export default function ComunidadScreen(): JSX.Element {
       return;
     }
 
+    console.log('🚪 Saliendo de la comunidad:', comunidad.nombre);
+    setGestionando(true);
+    try {
+      // 1. Remover al usuario de la lista de miembros en la comunidad
+      const comunidadRef = doc(db, 'comunidades', comunidad.id);
+      await updateDoc(comunidadRef, {
+        miembros: arrayRemove(currentUser),
+      });
+      console.log('✅ Usuario removido de la lista de miembros');
+
+      // 2. Eliminar la membresía del usuario
+      await eliminarMembresiaUsuario(currentUser, comunidad.id);
+      console.log('✅ Membresía eliminada del usuario');
+
+      Alert.alert('Saliste de la comunidad', `Ya no perteneces a ${comunidad.nombre}.`);
+      await cargarComunidades();
+    } catch (error) {
+      console.error('❌ Error al salir de la comunidad:', error);
+      Alert.alert('Error', `No pudimos procesar tu salida. ${error instanceof Error ? error.message : 'Inténtalo nuevamente.'}`);
+    } finally {
+      setGestionando(false);
+    }
+  };
+
+  const handleLeaveCommunity = (comunidad: Comunidad) => {
+    console.log('🚪 handleLeaveCommunity llamado para:', comunidad.nombre);
+    const currentUser = usuarioID;
+    if (!currentUser) {
+      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+      return;
+    }
+
     Alert.alert(
       'Salir de la comunidad',
       `¿Deseas salir de ${comunidad.nombre}?`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Cancelar', 
+          style: 'cancel',
+          onPress: () => console.log('❌ Usuario canceló la salida')
+        },
         {
           text: 'Salir',
           style: 'destructive',
-          onPress: () => performLeaveCommunity(comunidad),
+          onPress: () => {
+            console.log('✅ Usuario confirmó la salida');
+            performLeaveCommunity(comunidad);
+          },
         },
       ]
     );
   };
 
   const performDeleteCommunity = async (comunidad: Comunidad) => {
-    if (gestionando) return;
+    if (gestionando) {
+      console.log('⚠️ Ya hay una operación en curso');
+      return;
+    }
 
+    const currentUser = usuarioID;
+    if (!currentUser) {
+      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+      return;
+    }
+
+    if (comunidad.creadorID !== currentUser) {
+      Alert.alert('Error', 'Solo el creador puede eliminar la comunidad.');
+      return;
+    }
+
+    console.log('🗑️ Eliminando comunidad:', comunidad.nombre);
     setGestionando(true);
     try {
-      await deleteDoc(doc(db, 'comunidades', comunidad.id));
-
-      // Eliminar publicaciones vinculadas a la comunidad
+      // 1. Obtener todas las publicaciones de la comunidad
       const publicacionesRef = collection(db, 'publicaciones');
-      const publicacionesSnapshot = await getDocs(query(publicacionesRef, where('comunidadID', '==', comunidad.id)));
-      await Promise.all(publicacionesSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref)));
+      const publicacionesSnapshot = await getDocs(
+        query(publicacionesRef, where('comunidadID', '==', comunidad.id))
+      );
+      console.log(`📄 Encontradas ${publicacionesSnapshot.docs.length} publicaciones`);
 
+      // 2. Eliminar todas las interacciones (likes y comentarios) de cada publicación
+      const interaccionesRef = collection(db, 'interacciones');
+      let totalInteracciones = 0;
+      for (const publicacionDoc of publicacionesSnapshot.docs) {
+        const interaccionesSnapshot = await getDocs(
+          query(interaccionesRef, where('publicacionID', '==', publicacionDoc.id))
+        );
+        totalInteracciones += interaccionesSnapshot.docs.length;
+        await Promise.all(
+          interaccionesSnapshot.docs.map((interaccionDoc) => deleteDoc(interaccionDoc.ref))
+        );
+      }
+      console.log(`💬 Eliminadas ${totalInteracciones} interacciones`);
+
+      // 3. Eliminar todas las publicaciones de la comunidad
+      await Promise.all(
+        publicacionesSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref))
+      );
+      console.log('✅ Publicaciones eliminadas');
+
+      // 4. Eliminar membresías de todos los usuarios
       await Promise.all(
         (comunidad.miembros || []).map((miembroId) => eliminarMembresiaUsuario(miembroId, comunidad.id))
       );
+      console.log(`✅ Membresías eliminadas de ${comunidad.miembros?.length || 0} usuarios`);
+
+      // 5. Eliminar la comunidad
+      await deleteDoc(doc(db, 'comunidades', comunidad.id));
+      console.log('✅ Comunidad eliminada');
 
       Alert.alert('Comunidad eliminada', `${comunidad.nombre} fue eliminada correctamente.`);
       await cargarComunidades();
     } catch (error) {
-      console.error('Error al eliminar la comunidad:', error);
-      Alert.alert('Error', 'No pudimos eliminar la comunidad. Inténtalo nuevamente.');
+      console.error('❌ Error al eliminar la comunidad:', error);
+      Alert.alert('Error', `No pudimos eliminar la comunidad. ${error instanceof Error ? error.message : 'Inténtalo nuevamente.'}`);
     } finally {
       setGestionando(false);
     }
   };
 
   const handleDeleteCommunity = (comunidad: Comunidad) => {
+    console.log('🗑️ handleDeleteCommunity llamado para:', comunidad.nombre);
     Alert.alert(
       'Eliminar comunidad',
       `¿Seguro que deseas eliminar ${comunidad.nombre}? Esta acción no se puede deshacer.`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Cancelar', 
+          style: 'cancel',
+          onPress: () => console.log('❌ Usuario canceló la eliminación')
+        },
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () => performDeleteCommunity(comunidad),
+          onPress: () => {
+            console.log('✅ Usuario confirmó la eliminación');
+            performDeleteCommunity(comunidad);
+          },
         },
       ]
     );
@@ -342,13 +408,17 @@ export default function ComunidadScreen(): JSX.Element {
                   />
                   <ModButton
                     title={item.creadorID === usuarioID ? 'Eliminar' : 'Salir'}
-                    onPress={() =>
-                      item.creadorID === usuarioID
-                        ? handleDeleteCommunity(item)
-                        : handleLeaveCommunity(item)
-                    }
+                    onPress={() => {
+                      console.log('🔘 Botón presionado:', item.creadorID === usuarioID ? 'Eliminar' : 'Salir', 'Comunidad:', item.nombre);
+                      if (item.creadorID === usuarioID) {
+                        handleDeleteCommunity(item);
+                      } else {
+                        handleLeaveCommunity(item);
+                      }
+                    }}
                     backgroundColor={item.creadorID === usuarioID ? '#dc2626' : '#9ca3af'}
                     style={styles.actionButton}
+                    disabled={gestionando}
                   />
                 </View>
               </View>
