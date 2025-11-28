@@ -2,7 +2,7 @@ import { getOrCreateGroupChat } from '@/api/messageService';
 import { escucharEstadoUsuario, obtenerTodosLosUsuarios, obtenerUsuarioActual, Usuario } from '@/api/usuariosService';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SeleccionarUsuarios = () => {
@@ -168,29 +168,27 @@ const SeleccionarUsuarios = () => {
             >
                 <View style={styles.avatarWrapper}>
                     <View style={styles.avatarContainer}>
-                        <Text style={styles.avatarText}>
-                            {(item.nombreCompleto || item.nombre || 'U')
-                                .charAt(0)
-                                .toUpperCase()}
-                        </Text>
+                        {item.fotoPerfil ? (
+                            <Image
+                                source={{ uri: item.fotoPerfil }}
+                                style={styles.avatarImage}
+                            />
+                        ) : (
+                            <Text style={styles.avatarText}>
+                                {(item.nombreCompleto || item.nombre || 'U')
+                                    .charAt(0)
+                                    .toUpperCase()}
+                            </Text>
+                        )}
                     </View>
-                    {isOnline && <View style={styles.onlineDot} />}
+                    <View style={[
+                        styles.onlineDot,
+                        isOnline ? styles.onlineDotActive : styles.onlineDotInactive
+                    ]} />
                 </View>
                 <View style={styles.usuarioInfo}>
                     <View style={styles.usuarioNombreRow}>
                         <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
-                        <View style={styles.statusContainer}>
-                            <View style={[
-                                styles.statusDot,
-                                isOnline ? styles.statusDotOnline : styles.statusDotOffline
-                            ]} />
-                            <Text style={[
-                                styles.statusText,
-                                isOnline ? styles.statusTextOnline : styles.statusTextOffline
-                            ]}>
-                                {isOnline ? "en línea" : "desactivado"}
-                            </Text>
-                        </View>
                     </View>
                     <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
                     <Text style={styles.usuarioCarrera}>{item.carrera}</Text>
@@ -359,16 +357,26 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#fff',
     },
+    avatarImage: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+    },
     onlineDot: {
         position: 'absolute',
         bottom: 0,
         right: 0,
         width: 14,
         height: 14,
-        backgroundColor: '#22c55e',
         borderRadius: 7,
         borderWidth: 2,
         borderColor: '#fff',
+    },
+    onlineDotActive: {
+        backgroundColor: '#22c55e',
+    },
+    onlineDotInactive: {
+        backgroundColor: '#ef4444',
     },
     usuarioInfo: {
         flex: 1,
@@ -383,32 +391,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#000',
         marginRight: 8,
-    },
-    statusContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 4,
-    },
-    statusDotOnline: {
-        backgroundColor: '#22c55e',
-    },
-    statusDotOffline: {
-        backgroundColor: '#ef4444',
-    },
-    statusText: {
-        fontSize: 11,
-        fontWeight: '500',
-    },
-    statusTextOnline: {
-        color: '#22c55e',
-    },
-    statusTextOffline: {
-        color: '#ef4444',
     },
     usuarioCodigo: {
         fontSize: 14,

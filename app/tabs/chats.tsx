@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
+import { FlatList, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Chat = {
@@ -367,10 +367,24 @@ useEffect(() => {
                       {item.isGroup ? (
                         <Text style={styles.avatarText}>👥</Text>
                       ) : (
-                        <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                        <>
+                          {otherUser?.fotoPerfil ? (
+                            <Image
+                              source={{ uri: otherUser.fotoPerfil }}
+                              style={styles.avatarImage}
+                            />
+                          ) : (
+                            <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                          )}
+                        </>
                       )}
                     </View>
-                    {!item.isGroup && item.online && <View style={styles.onlineDot} />}
+                    {!item.isGroup && (
+                      <View style={[
+                        styles.onlineDot,
+                        item.online ? styles.onlineDotActive : styles.onlineDotInactive
+                      ]} />
+                    )}
                   </View>
 
                   {/* Info */}
@@ -378,20 +392,6 @@ useEffect(() => {
                     <View style={styles.rowBetween}>
                       <View style={styles.nameContainer}>
                         <Text style={styles.chatName}>{item.name}</Text>
-                        {!item.isGroup && (
-                          <View style={styles.statusContainer}>
-                            <View style={[
-                              styles.statusDot,
-                              item.online ? styles.statusDotOnline : styles.statusDotOffline
-                            ]} />
-                            <Text style={[
-                              styles.statusText,
-                              item.online ? styles.statusTextOnline : styles.statusTextOffline
-                            ]}>
-                              {item.online ? "en línea" : "desactivado"}
-                            </Text>
-                          </View>
-                        )}
                       </View>
                       <Text style={styles.chatTime}>{item.time}</Text>
                     </View>
@@ -537,48 +537,29 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
   },
-
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
   nameContainer: {
     flex: 1,
   },
-  statusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
-  },
-  statusDotOnline: {
-    backgroundColor: "#22c55e",
-  },
-  statusDotOffline: {
-    backgroundColor: "#ef4444",
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  statusTextOnline: {
-    color: "#22c55e",
-  },
-  statusTextOffline: {
-    color: "#ef4444",
-  },
-  
   onlineDot: {
     position: "absolute",
     bottom: 0,
     right: 0,
     width: 12,
     height: 12,
-    backgroundColor: "#22c55e",
     borderRadius: 6,
     borderWidth: 2,
     borderColor: "#fff",
+  },
+  onlineDotActive: {
+    backgroundColor: "#22c55e",
+  },
+  onlineDotInactive: {
+    backgroundColor: "#ef4444",
   },
   chatInfo: {
     flex: 1,

@@ -545,7 +545,7 @@ export default function MainPageScreen() {
             }
 
             setUsuarioID(storedUsuarioID);
-            setUsuarioNombre(storedUsuarioNombre || 'Usuario');
+            // El nombre se establecerá cuando se obtenga desde Firestore
 
             // Actualizar estado de conexión a online
             try {
@@ -554,12 +554,20 @@ export default function MainPageScreen() {
                 console.error('Error actualizando estado online:', error);
             }
 
-            // Obtener foto de perfil del usuario
+            // Obtener foto de perfil del usuario y nombre
             const usuarioRef = doc(db, 'Usuarios', storedUsuarioID);
             const usuarioDoc = await getDoc(usuarioRef);
             if (usuarioDoc.exists()) {
                 const usuarioData = usuarioDoc.data();
                 setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
+                
+                // Obtener nombre completo y extraer solo primer nombre y primer apellido
+                const nombreCompleto = usuarioData.nombreCompleto || usuarioData.nombre || storedUsuarioNombre || 'Usuario';
+                const partesNombre = nombreCompleto.trim().split(' ');
+                const primerNombre = partesNombre[0] || 'Usuario';
+                const primerApellido = partesNombre[1] || '';
+                const nombreFormateado = primerApellido ? `${primerNombre} ${primerApellido}` : primerNombre;
+                setUsuarioNombre(nombreFormateado);
             }
 
             // Obtener contactos (usuarios que el usuario actual sigue)
@@ -587,7 +595,7 @@ export default function MainPageScreen() {
     // Este useEffect ya no es necesario, pero lo mantenemos por compatibilidad
     // El sistema de presencia actualiza automáticamente el estado cada 30 segundos
 
-    // Listener para actualizar foto de perfil en tiempo real
+    // Listener para actualizar foto de perfil y nombre en tiempo real
     useEffect(() => {
         if (!usuarioID) return;
 
@@ -597,6 +605,14 @@ export default function MainPageScreen() {
                 const usuarioData = docSnapshot.data();
                 setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
                 console.log('📸 Foto de perfil actualizada:', usuarioData.fotoPerfil);
+                
+                // Actualizar nombre (solo primer nombre y primer apellido)
+                const nombreCompleto = usuarioData.nombreCompleto || usuarioData.nombre || 'Usuario';
+                const partesNombre = nombreCompleto.trim().split(' ');
+                const primerNombre = partesNombre[0] || 'Usuario';
+                const primerApellido = partesNombre[1] || '';
+                const nombreFormateado = primerApellido ? `${primerNombre} ${primerApellido}` : primerNombre;
+                setUsuarioNombre(nombreFormateado);
             }
         }, (error) => {
             console.error('Error en listener de foto de perfil:', error);

@@ -81,6 +81,7 @@ const ChatDetails = () => {
   const [savingGroupName, setSavingGroupName] = useState(false);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
   const [isUserOnline, setIsUserOnline] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -590,12 +591,8 @@ const ChatDetails = () => {
           {message.imageUrl && (
             <TouchableOpacity
               style={styles.messageImageContainer}
-              onPress={() => {
-                Alert.alert("Imagen", "Ver imagen en tamaño completo", [
-                  { text: "Ver", onPress: () => Linking.openURL(message.imageUrl!) },
-                  { text: "Cerrar", style: "cancel" },
-                ]);
-              }}
+              onPress={() => setPreviewImage(message.imageUrl!)}
+              activeOpacity={0.9}
             >
               <Image
                 source={{ uri: message.imageUrl }}
@@ -897,6 +894,30 @@ const ChatDetails = () => {
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* Modal de previsualización de imagen */}
+      <Modal
+        visible={previewImage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImage(null)}
+      >
+        <View style={styles.imagePreviewOverlay}>
+          <TouchableOpacity
+            style={styles.imagePreviewCloseButton}
+            onPress={() => setPreviewImage(null)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+          {previewImage && (
+            <Image
+              source={{ uri: previewImage }}
+              style={styles.imagePreview}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
 
       {/* Modal para editar nombre del grupo */}
       <Modal
@@ -1303,5 +1324,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     fontWeight: "500",
+  },
+  imagePreviewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imagePreviewCloseButton: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    borderRadius: 20,
+    padding: 8,
+  },
+  imagePreview: {
+    width: "100%",
+    height: "100%",
   },
 });
