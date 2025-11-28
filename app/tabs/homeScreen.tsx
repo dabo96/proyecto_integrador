@@ -329,6 +329,13 @@ export default function MainPageScreen() {
                 const nuevasPublicaciones: Post[] = [];
 
                 for (const docSnapshot of snapshot.docs) {
+                    const data = docSnapshot.data();
+                    // Filtrar publicaciones que pertenecen a comunidades (solo mostrar en perfiles y comunidades)
+                    if (data.comunidadID) {
+                        console.log('Publicación de comunidad excluida del feed:', docSnapshot.id);
+                        continue;
+                    }
+                    
                     const publicacion = await procesarPublicacion(docSnapshot);
                     if (publicacion) {
                         nuevasPublicaciones.push(publicacion);
