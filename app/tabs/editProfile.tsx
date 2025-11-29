@@ -11,7 +11,7 @@ import {
     Alert,
     Image,
     KeyboardAvoidingView,
-    Platform,   
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -50,15 +50,19 @@ const EditProfile = () => {
             const userDoc = await getDoc(doc(db, 'Usuarios', storedUserId));
             if (userDoc.exists()) {
                 const data = userDoc.data();
-                setNombre(data.nombre || '');
-                setApellido(data.apellido || '');
+                // Intentar cargar desde 'nombre' o 'nombres', y 'apellido' o 'apellidos'
+                const nombreValue = data.nombre || data.nombres || '';
+                const apellidoValue = data.apellido || data.apellidos || '';
+                
+                setNombre(nombreValue);
+                setApellido(apellidoValue);
                 setFotoPerfil(data.fotoPerfil || '');
                 // Password is not usually stored in plain text in Firestore, so we leave it empty.
                 // If the user wants to change it, they type a new one.
 
                 setOriginalData({
-                    nombre: data.nombre || '',
-                    apellido: data.apellido || '',
+                    nombre: nombreValue,
+                    apellido: apellidoValue,
                     fotoPerfil: data.fotoPerfil || ''
                 });
             }
@@ -128,22 +132,53 @@ const EditProfile = () => {
     };
 
     const handleSave = async () => {
-        if (!userId) return;
+        if (!userId) {
+            Alert.alert('Error', 'No se encontró el ID del usuario');
+            return;
+        }
+        
+        // Validar que el nombre no esté vacío
+        if (!nombre.trim()) {
+            Alert.alert('Error', 'El nombre es obligatorio');
+            return;
+        }
+        
         setSaving(true);
 
         try {
             let imageUrl = fotoPerfil;
 
             // If image is local (newly picked), upload it
-            if (fotoPerfil && !fotoPerfil.startsWith('http')) {
+            if (fotoPerfil && !fotoPerfil.startsWith('http') && !fotoPerfil.startsWith('https')) {
+                console.log('📤 Subiendo imagen nueva...');
                 imageUrl = await uploadImage(fotoPerfil);
+                console.log('✅ Imagen subida:', imageUrl);
             }
 
-            const updates: any = {
-                nombre,
-                apellido,
+            // Crear nombreCompleto combinando nombre y apellido
+            const nombreTrimmed = nombre.trim();
+            const apellidoTrimmed = apellido.trim();
+            const nombreCompleto = `${nombreTrimmed} ${apellidoTrimmed}`.trim();
+
+            console.log('💾 Actualizando perfil con:', {
+                nombre: nombreTrimmed,
+                apellido: apellidoTrimmed,
+                nombreCompleto,
                 fotoPerfil: imageUrl
+            });
+
+            const updates: any = {
+                nombre: nombreTrimmed,
+                apellido: apellidoTrimmed,
+                nombreCompleto: nombreCompleto,
+                nombres: nombreTrimmed, // Mantener compatibilidad
+                apellidos: apellidoTrimmed, // Mantener compatibilidad
             };
+
+            // Solo actualizar fotoPerfil si hay una imagen
+            if (imageUrl) {
+                updates.fotoPerfil = imageUrl;
+            }
 
             // Note: Updating password in Firebase Auth requires re-authentication usually.
             // For this demo, we are only updating Firestore fields. 
@@ -157,14 +192,25 @@ const EditProfile = () => {
                 Alert.alert('Aviso', 'El cambio de contraseña requiere un proceso adicional de seguridad.');
             }
 
-            await updateDoc(doc(db, 'Usuarios', userId), updates);
+            const userRef = doc(db, 'Usuarios', userId);
+            console.log('📝 Actualizando documento:', userRef.path);
+            await updateDoc(userRef, updates);
+            console.log('✅ Perfil actualizado exitosamente');
 
             Alert.alert('Éxito', 'Perfil actualizado correctamente', [
                 { text: 'OK', onPress: () => router.back() }
             ]);
-        } catch (error) {
-            console.error('Error saving profile:', error);
-            Alert.alert('Error', 'No se pudo guardar los cambios');
+        } catch (error: any) {
+            console.error('❌ Error saving profile:', error);
+            console.error('Detalles del error:', {
+                message: error?.message,
+                code: error?.code,
+                stack: error?.stack
+            });
+            Alert.alert(
+                'Error', 
+                `No se pudo guardar los cambios.\n\n${error?.message || 'Error desconocido'}`
+            );
         } finally {
             setSaving(false);
         }

@@ -7,9 +7,9 @@ import { Feather, FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
@@ -91,10 +91,6 @@ const Profile = () => {
     { useNativeDriver: false }
   );
 
-  useEffect(() => {
-    loadUserData();
-  }, [usuarioId]);
-
   const loadUserData = async () => {
     try {
       setLoading(true);
@@ -146,6 +142,18 @@ const Profile = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadUserData();
+  }, [usuarioId]);
+
+  // Recargar datos cuando la pantalla recibe foco (al regresar de editProfile)
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [usuarioId])
+  );
 
   // 🔹 Funciones de interacción
   const handleLike = async (postId: string) => {

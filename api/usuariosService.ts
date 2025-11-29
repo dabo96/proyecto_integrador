@@ -159,61 +159,83 @@ export const escucharEstadoUsuario = (
   callback: (online: boolean, lastSeen: any) => void
 ): (() => void) => {
   const userRef = doc(db, "Usuarios", usuarioID);
-  // Umbral más largo para usuarios que tienen online=true (pueden estar en proceso de actualizar lastSeen)
-  const OFFLINE_THRESHOLD_STRICT = 120000; // 2 minutos sin actualización = offline (más tolerante)
-  const OFFLINE_THRESHOLD_LOOSE = 30000; // 30 segundos para usuarios con online=false
+  // Umbral más corto para respuesta más rápida
+  const OFFLINE_THRESHOLD_STRICT = 60000; // 1 minuto sin actualización = offline
+  const OFFLINE_THRESHOLD_LOOSE = 20000; // 20 segundos para usuarios con online=false
   
   console.log("👂 Iniciando listener de estado para usuario:", usuarioID);
   
-  return onSnapshot(
+  // Función para determinar el estado online basado en los datos
+  const determineOnlineStatus = (data: any): boolean => {
+    const online = data.online || false;
+    const lastSeen = data.lastSeen;
+    
+    // Si el campo online es true, confiar en él inmediatamente (respuesta más rápida)
+    if (online === true) {
+      // Solo verificar lastSeen si es muy antiguo (más de 1 minuto)
+      if (lastSeen) {
+        try {
+          const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
+          const now = Date.now();
+          const timeSinceLastSeen = now - lastSeenTime;
+          
+          // Si online=true pero lastSeen es muy antiguo, marcar como offline
+          if (timeSinceLastSeen > OFFLINE_THRESHOLD_STRICT) {
+            console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s)`);
+            return false;
+          }
+        } catch (error) {
+          console.error("Error procesando lastSeen:", error);
+        }
+      }
+      // Si online=true y lastSeen es reciente o no existe, confiar en online
+      return true;
+    }
+    
+    // Si online es false, verificar lastSeen para confirmar
+    if (lastSeen) {
+      try {
+        const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
+        const now = Date.now();
+        const timeSinceLastSeen = now - lastSeenTime;
+        
+        // Si lastSeen es muy reciente (menos de 20 segundos), considerar online
+        if (timeSinceLastSeen < OFFLINE_THRESHOLD_LOOSE) {
+          console.log(`✅ Usuario ${usuarioID} online (lastSeen reciente: ${Math.round(timeSinceLastSeen / 1000)}s)`);
+          return true;
+        }
+      } catch (error) {
+        console.error("Error procesando lastSeen:", error);
+      }
+    }
+    
+    // Por defecto, usar el valor del campo online
+    return online;
+  };
+  
+  // Configurar el listener de tiempo real
+  const unsubscribe = onSnapshot(
     userRef,
-    { includeMetadataChanges: true }, // Incluir cambios de metadata para mejor sincronización
     (snapshot) => {
+      // onSnapshot se ejecuta inmediatamente con el estado actual
+      // y luego cada vez que hay un cambio
+      
       if (snapshot.exists()) {
         const data = snapshot.data();
-        const online = data.online || false;
+        const isActuallyOnline = determineOnlineStatus(data);
         const lastSeen = data.lastSeen;
         
-        // Si online es true, confiar más en ese campo y ser más tolerante con lastSeen
-        let isActuallyOnline = online;
+        // Determinar si es la primera ejecución o un cambio real
+        const isInitialLoad = !snapshot.metadata.hasPendingWrites && snapshot.metadata.fromCache;
         
-        if (lastSeen) {
-          try {
-            const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
-            const now = Date.now();
-            const timeSinceLastSeen = now - lastSeenTime;
-            
-            // Usar umbral diferente según el estado de online
-            const threshold = online ? OFFLINE_THRESHOLD_STRICT : OFFLINE_THRESHOLD_LOOSE;
-            
-            if (timeSinceLastSeen > threshold) {
-              // Solo marcar como offline si el tiempo es muy largo
-              isActuallyOnline = false;
-              console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s, online=${online})`);
-            } else {
-              // Si online es true, confiar en ese campo incluso si lastSeen es un poco antiguo
-              isActuallyOnline = online;
-              if (online) {
-                console.log(`✅ Usuario ${usuarioID} online (última actualización hace ${Math.round(timeSinceLastSeen / 1000)}s)`);
-              } else {
-                console.log(`📴 Usuario ${usuarioID} offline (última actualización hace ${Math.round(timeSinceLastSeen / 1000)}s)`);
-              }
-            }
-          } catch (error) {
-            console.error("Error procesando lastSeen:", error);
-            // Si hay error, confiar completamente en el campo online
-            isActuallyOnline = online;
-          }
+        if (isActuallyOnline) {
+          console.log(`✅ Usuario ${usuarioID} EN LÍNEA ${isInitialLoad ? '(carga inicial)' : '(tiempo real)'}`);
         } else {
-          // Si no hay lastSeen, confiar completamente en el campo online
-          isActuallyOnline = online;
-          if (online) {
-            console.log(`🟢 Usuario ${usuarioID} online (sin lastSeen pero online=true)`);
-          } else {
-            console.log(`📴 Usuario ${usuarioID} offline (sin lastSeen y online=false)`);
-          }
+          console.log(`📴 Usuario ${usuarioID} DESCONECTADO ${isInitialLoad ? '(carga inicial)' : '(tiempo real)'}`);
         }
         
+        // Llamar al callback inmediatamente con el nuevo estado
+        // Esto se ejecuta tanto en la carga inicial como en cada cambio
         callback(isActuallyOnline, lastSeen);
       } else {
         console.log(`❌ Usuario ${usuarioID} no existe en Firestore`);
@@ -225,4 +247,6 @@ export const escucharEstadoUsuario = (
       callback(false, null);
     }
   );
+  
+  return unsubscribe;
 };

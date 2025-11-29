@@ -12,8 +12,8 @@ export const usePresence = () => {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const userIdRef = useRef<string | null>(null);
 
-  // Intervalo de heartbeat: actualiza el estado cada 10 segundos para detección más rápida
-  const HEARTBEAT_INTERVAL = 10000; // 10 segundos
+  // Intervalo de heartbeat: actualiza el estado cada 5 segundos para detección más rápida
+  const HEARTBEAT_INTERVAL = 5000; // 5 segundos
 
   useEffect(() => {
     let mounted = true;
