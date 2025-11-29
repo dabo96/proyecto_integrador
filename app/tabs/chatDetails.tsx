@@ -1,4 +1,4 @@
-import { getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
+import { deleteMessage, getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
 import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type Message = {
   id: string;
@@ -41,18 +41,18 @@ const PARTICIPANT_COLORS = [
 // Usa un hash más robusto para asegurar colores diferentes
 const getParticipantColor = (userId: string): string => {
   if (!userId) return PARTICIPANT_COLORS[0];
-  
+
   let hash = 0;
   for (let i = 0; i < userId.length; i++) {
     const char = userId.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash; // Convertir a entero de 32 bits
   }
-  
+
   // Asegurar que el hash sea positivo
   const positiveHash = Math.abs(hash);
   const index = positiveHash % PARTICIPANT_COLORS.length;
-  
+
   return PARTICIPANT_COLORS[index];
 };
 
@@ -82,6 +82,9 @@ const ChatDetails = () => {
   const [showGroupMenu, setShowGroupMenu] = useState(false);
   const [isUserOnline, setIsUserOnline] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [deletingMessage, setDeletingMessage] = useState(false);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -129,41 +132,41 @@ const ChatDetails = () => {
       try {
         setLoading(true);
         setError(null); // Limpiar errores previos
-        
+
         // Verificar si es un chat grupal
         const esGrupal = paramIsGroup === 'true' || paramChatId;
-        
+
         if (esGrupal && paramChatId) {
           // Chat grupal: usar el chatId proporcionado
           setIsGroup(true);
           const finalChatId = String(paramChatId);
           setChatId(finalChatId);
-          
+
           // Obtener información del chat grupal
           const chatDoc = await getDoc(doc(db, "Chats", finalChatId));
           if (chatDoc.exists()) {
             const chatData = chatDoc.data();
             setGroupName(chatData.groupName || "Chat grupal");
-            
+
             // Cargar información de todos los participantes
             const participantIds = chatData.participants || [];
-            
+
             // Filtrar IDs únicos para evitar duplicados
             const uniqueParticipantIds = [...new Set(participantIds)];
-            
+
             const participantesData = await Promise.all(
               uniqueParticipantIds.map((id) => obtenerUsuarioPorId(String(id)))
             );
             const participantesFiltrados = participantesData.filter(u => u !== null) as Usuario[];
-            
+
             // Asegurar que el usuario actual esté en la lista si no está
             const currentUserInList = participantesFiltrados.some(p => p.id === currentUser.id);
             if (!currentUserInList && currentUser) {
               participantesFiltrados.push(currentUser as Usuario);
             }
-            
+
             setParticipantes(participantesFiltrados);
-            
+
             // Crear mapa de colores único para cada participante
             const colorMap: { [userId: string]: string } = {};
             participantesFiltrados.forEach((participant, index) => {
@@ -171,7 +174,7 @@ const ChatDetails = () => {
               colorMap[participant.id] = PARTICIPANT_COLORS[index % PARTICIPANT_COLORS.length];
             });
             setParticipantColorMap(colorMap);
-            
+
             // Verificar que el usuario actual esté en los participantes
             const currentUserInParticipants = uniqueParticipantIds.includes(currentUser.id);
             if (!currentUserInParticipants) {
@@ -234,7 +237,7 @@ const ChatDetails = () => {
     if (isGroup || !userId) return;
 
     console.log("👂 Configurando listener de estado para chatDetails, usuario:", userId);
-    
+
     const unsubscribe = escucharEstadoUsuario(String(userId), (online, lastSeen) => {
       console.log(`📡 Estado actualizado en chatDetails para ${userId}:`, online ? "en línea" : "desactivado");
       setIsUserOnline(online);
@@ -254,7 +257,7 @@ const ChatDetails = () => {
     console.log("Estableciendo suscripción a mensajes para chat ID:", chatId);
     const unsubscribe = listenMessages(chatId, (msgs: Message[]) => {
       setMessages(msgs);
-      
+
       // Si es un chat grupal, asegurar que todos los remitentes tengan color asignado
       if (isGroup) {
         setParticipantColorMap(prevMap => {
@@ -262,7 +265,7 @@ const ChatDetails = () => {
           const newColorMap = { ...prevMap };
           let colorIndex = Object.keys(prevMap).length;
           let hasChanges = false;
-          
+
           senderIds.forEach(senderId => {
             if (!newColorMap[senderId] && senderId) {
               // Asignar color secuencialmente
@@ -271,12 +274,12 @@ const ChatDetails = () => {
               hasChanges = true;
             }
           });
-          
+
           return hasChanges ? newColorMap : prevMap;
         });
       }
     });
-    
+
     return () => unsubscribe();
   }, [chatId, isGroup]);
 
@@ -286,7 +289,7 @@ const ChatDetails = () => {
       console.log("📷 Iniciando selección de imagen de galería...");
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       console.log("📷 Estado de permisos de galería:", status);
-      
+
       if (status !== "granted") {
         Alert.alert(
           "Permiso denegado",
@@ -323,7 +326,7 @@ const ChatDetails = () => {
       console.log("📸 Iniciando captura de foto...");
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       console.log("📸 Estado de permisos de cámara:", status);
-      
+
       if (status !== "granted") {
         Alert.alert(
           "Permiso denegado",
@@ -499,10 +502,34 @@ const ChatDetails = () => {
     }
   };
 
+  // 🔹 Abrir modal de confirmación para eliminar mensaje
+  const handleOpenDeleteMessage = (message: Message) => {
+    setMessageToDelete(message);
+    setShowDeleteModal(true);
+  };
+
+  // 🔹 Eliminar mensaje para todos
+  const handleDeleteMessage = async () => {
+    if (!chatId || !messageToDelete) return;
+
+    try {
+      setDeletingMessage(true);
+      await deleteMessage(chatId, messageToDelete.id);
+      setShowDeleteModal(false);
+      setMessageToDelete(null);
+    } catch (error) {
+      console.error("Error eliminando mensaje:", error);
+      Alert.alert("Error", "No se pudo eliminar el mensaje");
+    } finally {
+      setDeletingMessage(false);
+    }
+  };
+
   // 🔹 Render burbujas de mensaje
   const MessageBubble = ({ message }: { message: Message }) => {
     const isMe = message.senderId === currentUser?.id;
-    
+    const [showMessageMenu, setShowMessageMenu] = useState(false);
+
     // Para chats grupales, obtener el nombre del remitente y su color
     // Buscar en participantes o usar el usuario actual si es el remitente
     let sender: Usuario | null = null;
@@ -515,10 +542,10 @@ const ChatDetails = () => {
     } else if (!isMe) {
       sender = usuario;
     }
-    
+
     const senderName = sender?.nombre || sender?.nombreCompleto || "Usuario";
     const senderPhoto = sender?.fotoPerfil;
-    
+
     // Obtener color del participante (usar mapa si está disponible, sino usar función hash)
     let senderColor = "#0491C6"; // Color por defecto
     if (isGroup && message.senderId) {
@@ -541,8 +568,8 @@ const ChatDetails = () => {
         {isGroup && (
           <View style={[styles.messageAvatarContainer, { backgroundColor: senderColor }]}>
             {senderPhoto ? (
-              <Image 
-                source={{ uri: senderPhoto }} 
+              <Image
+                source={{ uri: senderPhoto }}
                 style={styles.messageAvatarImage}
               />
             ) : (
@@ -555,8 +582,8 @@ const ChatDetails = () => {
         {!isGroup && !isMe && (
           <View style={[styles.messageAvatarContainer, { backgroundColor: senderColor }]}>
             {usuario?.fotoPerfil ? (
-              <Image 
-                source={{ uri: usuario.fotoPerfil }} 
+              <Image
+                source={{ uri: usuario.fotoPerfil }}
                 style={styles.messageAvatarImage}
               />
             ) : (
@@ -568,9 +595,9 @@ const ChatDetails = () => {
         )}
 
         <View style={[
-          styles.bubble, 
+          styles.bubble,
           isMe ? styles.myBubble : styles.theirBubble,
-          isGroup && !isMe && { 
+          isGroup && !isMe && {
             backgroundColor: senderColor + "15", // Color con transparencia para fondo
             borderLeftWidth: 3,
             borderLeftColor: senderColor,
@@ -581,14 +608,53 @@ const ChatDetails = () => {
             borderRightColor: senderColor,
           }
         ]}>
+          {/* Menú de tres puntos para mensajes propios */}
+          {isMe && !(message as any).deleted && (
+            <TouchableOpacity
+              style={styles.messageMenuButton}
+              onPress={() => setShowMessageMenu(!showMessageMenu)}
+            >
+              <Ionicons name="ellipsis-vertical" size={16} color={isMe ? "#fff" : "#666"} />
+            </TouchableOpacity>
+          )}
+
+          {/* Modal de menú del mensaje */}
+          <Modal
+            transparent
+            visible={showMessageMenu}
+            animationType="fade"
+            onRequestClose={() => setShowMessageMenu(false)}
+          >
+            <Pressable
+              style={styles.messageMenuOverlay}
+              onPress={() => setShowMessageMenu(false)}
+            >
+              <Pressable
+                style={styles.messageMenuBox}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <TouchableOpacity
+                  style={styles.messageMenuItem}
+                  onPress={() => {
+                    setShowMessageMenu(false);
+                    handleOpenDeleteMessage(message);
+                  }}
+                >
+                  <Ionicons name="trash" size={20} color="#ef4444" style={styles.messageMenuIcon} />
+                  <Text style={[styles.messageMenuText, { color: "#ef4444" }]}>Eliminar para todos</Text>
+                </TouchableOpacity>
+              </Pressable>
+            </Pressable>
+          </Modal>
+
           {isGroup && senderName && (
             <Text style={[styles.senderName, { color: senderColor, fontWeight: "600" }]}>
               {senderName}
             </Text>
           )}
-          
-          {/* Mostrar imagen si existe */}
-          {message.imageUrl && (
+
+          {/* Mostrar imagen si existe y no está eliminado */}
+          {message.imageUrl && !(message as any).deleted && (
             <TouchableOpacity
               style={styles.messageImageContainer}
               onPress={() => setPreviewImage(message.imageUrl!)}
@@ -602,8 +668,8 @@ const ChatDetails = () => {
             </TouchableOpacity>
           )}
 
-          {/* Mostrar archivo si existe */}
-          {message.fileUrl && (
+          {/* Mostrar archivo si existe y no está eliminado */}
+          {message.fileUrl && !(message as any).deleted && (
             <TouchableOpacity
               style={[
                 styles.messageFileContainer,
@@ -633,7 +699,11 @@ const ChatDetails = () => {
           {/* Mostrar texto si existe */}
           {message.text && message.text.trim() !== "" && (
             <Text
-              style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}
+              style={[
+                styles.messageText,
+                isMe ? styles.myMessageText : styles.theirMessageText,
+                (message as any).deleted && styles.deletedMessageText
+              ]}
             >
               {message.text}
             </Text>
@@ -697,7 +767,7 @@ const ChatDetails = () => {
         </TouchableOpacity>
 
         {isGroup ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.headerUserInfo}
             onPress={handleOpenEditGroupName}
             activeOpacity={0.7}
@@ -716,13 +786,13 @@ const ChatDetails = () => {
             </View>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.headerUserInfo}
             onPress={() => {
               console.log('Click en perfil - usuario:', usuario);
               console.log('userId del parámetro:', userId);
               console.log('usuario.id:', usuario?.id);
-              
+
               // Usar el userId del parámetro directamente, que es más confiable
               if (userId) {
                 router.push({
@@ -759,13 +829,13 @@ const ChatDetails = () => {
                 </Text>
               </View>
 
-                  
-              
+
+
             </View>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => {
             if (isGroup) {
@@ -788,7 +858,7 @@ const ChatDetails = () => {
             <View style={styles.emptyChatContainer}>
               <Text style={styles.emptyChatTitle}>¡Inicia una conversación!</Text>
               <Text style={styles.emptyChatSubtitle}>
-                {isGroup 
+                {isGroup
                   ? `Escribe un mensaje para comenzar a chatear en ${groupName || "este grupo"}`
                   : `Escribe un mensaje para comenzar a chatear con ${usuario?.nombre || "este usuario"}`}
               </Text>
@@ -832,8 +902,8 @@ const ChatDetails = () => {
           )}
 
           <View style={styles.inputRow}>
-            <TouchableOpacity 
-              style={styles.cameraButton} 
+            <TouchableOpacity
+              style={styles.cameraButton}
               onPress={handleImageOptions}
               onLongPress={handleImageOptionsLongPress}
             >
@@ -977,6 +1047,59 @@ const ChatDetails = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de confirmación para eliminar mensaje */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Eliminar mensaje</Text>
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={styles.modalLabel}>¿Estás seguro de que deseas eliminar este mensaje para todos?</Text>
+              <Text style={[styles.modalLabel, { fontSize: 12, marginTop: 8, color: "#999" }]}>
+                Esta acción no se puede deshacer.
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowDeleteModal(false);
+                  setMessageToDelete(null);
+                }}
+                disabled={deletingMessage}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalDeleteButton, deletingMessage && styles.modalSaveButtonDisabled]}
+                onPress={handleDeleteMessage}
+                disabled={deletingMessage}
+              >
+                {deletingMessage ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalSaveButtonText}>Eliminar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -998,10 +1121,10 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E0E0E0",
   },
   backButton: { padding: 5 },
-  headerUserInfo: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    flex: 1, 
+  headerUserInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
     marginLeft: 15,
     paddingVertical: 8,
     paddingHorizontal: 8,
@@ -1071,7 +1194,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   messageAvatarText: { fontSize: 12, fontWeight: "bold", color: "#fff" },
-  bubble: { maxWidth: "70%", padding: 12, borderRadius: 18, marginHorizontal: 5 },
+  bubble: { maxWidth: "85%", padding: 12, borderRadius: 18, marginHorizontal: 5 },
   myBubble: { backgroundColor: "#949494ff", borderBottomRightRadius: 5 },
   theirBubble: {
     backgroundColor: "white",
@@ -1344,4 +1467,55 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  messageMenuButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    padding: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    borderRadius: 12,
+  },
+  messageMenuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  messageMenuBox: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  messageMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+  },
+  messageMenuIcon: {
+    marginRight: 12,
+  },
+  messageMenuText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  modalDeleteButton: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deletedMessageText: {
+    fontStyle: "italic",
+    opacity: 0.6,
+  },
 });
+

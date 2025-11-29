@@ -63,7 +63,7 @@ export const uploadImageToStorage = async (uri: string, chatId: string): Promise
     const storageRef = ref(storage, nombreArchivo);
 
     console.log("🔹 Subiendo imagen a Firebase Storage:", nombreArchivo);
-    
+
     // Convertir la URI a blob
     const response = await fetch(uri);
     const blob = await response.blob();
@@ -72,7 +72,7 @@ export const uploadImageToStorage = async (uri: string, chatId: string): Promise
     await uploadBytes(storageRef, blob);
 
     console.log("✅ Imagen subida, obteniendo URL...");
-    
+
     // Obtener la URL pública
     const downloadURL = await getDownloadURL(storageRef);
     console.log("✅ Imagen subida correctamente:", downloadURL);
@@ -95,7 +95,7 @@ export const uploadFileToStorage = async (uri: string, fileName: string, mimeTyp
     const storageRef = ref(storage, nombreArchivo);
 
     console.log("🔹 Subiendo archivo a Firebase Storage:", nombreArchivo);
-    
+
     // Convertir la URI a blob
     const response = await fetch(uri);
     const blob = await response.blob();
@@ -104,7 +104,7 @@ export const uploadFileToStorage = async (uri: string, fileName: string, mimeTyp
     await uploadBytes(storageRef, blob);
 
     console.log("✅ Archivo subido, obteniendo URL...");
-    
+
     // Obtener la URL pública
     const downloadURL = await getDownloadURL(storageRef);
     console.log("✅ Archivo subido correctamente:", downloadURL);
@@ -180,11 +180,11 @@ export const sendMessage = async (
   // Obtener información del chat para determinar si es grupal
   const chatRef = doc(db, "Chats", chatId);
   const chatDoc = await getDoc(chatRef);
-  
+
   let isGroup = false;
   let participants: string[] = [];
   let deletedFor: string[] = [];
-  
+
   if (chatDoc.exists()) {
     const chatData = chatDoc.data();
     isGroup = chatData.isGroup || false;
@@ -322,6 +322,37 @@ export const deleteChat = async (chatId: string, userId: string) => {
     }
   } catch (error) {
     console.error("❌ Error eliminando chat:", error);
+    throw error;
+  }
+};
+
+// Eliminar un mensaje específico para todos los usuarios
+export const deleteMessage = async (chatId: string, messageId: string): Promise<void> => {
+  try {
+    console.log(`🗑️ Eliminando mensaje ${messageId} del chat ${chatId}`);
+
+    const messageRef = doc(db, "Chats", chatId, "mensajes", messageId);
+    const messageDoc = await getDoc(messageRef);
+
+    if (!messageDoc.exists()) {
+      console.error("❌ Mensaje no encontrado");
+      throw new Error("Mensaje no encontrado");
+    }
+
+    // Actualizar el mensaje para marcarlo como eliminado
+    await updateDoc(messageRef, {
+      text: "Este mensaje fue eliminado",
+      deleted: true,
+      deletedAt: serverTimestamp(),
+      imageUrl: null,
+      fileUrl: null,
+      fileName: null,
+      fileType: null,
+    });
+
+    console.log(`✅ Mensaje ${messageId} eliminado correctamente`);
+  } catch (error) {
+    console.error("❌ Error eliminando mensaje:", error);
     throw error;
   }
 };
