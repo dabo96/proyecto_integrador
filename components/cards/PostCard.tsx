@@ -74,6 +74,21 @@ const PostCard = ({
 }: Props) => {
     const router = useRouter();
     const [menuVisible, setMenuVisible] = useState(false);
+    
+    // Determinar si el usuario actual es el dueño de la publicación
+    // Priorizar post.isOwner si está definido explícitamente como true
+    // Si post.isOwner es undefined o false, usar la comparación de IDs como respaldo
+    const isPostOwner = post.isOwner === true || 
+                       (post.isOwner !== false && currentUserId && post.usuarioID && currentUserId === post.usuarioID);
+    
+    // Log para depuración - solo cuando se renderiza
+    if (post.isOwner === true) {
+      console.log('✅ PostCard - isOwner es TRUE:', {
+        postId: post.id,
+        postIsOwner: post.isOwner,
+        isPostOwner
+      });
+    }
 
     const handleUserPress = () => {
         if (!post.usuarioID) return;
@@ -279,26 +294,52 @@ const PostCard = ({
                     onPressOut={() => setMenuVisible(false)}
                 >
                     <View style={styles.modalBox}>
-                        {post.isOwner && (
-                            <TouchableOpacity
-                                style={styles.modalItem}
-                                onPress={() => {
-                                    setMenuVisible(false);
-                                    onDelete?.(post.id);
-                                }}
-                            >
-                                <Text style={styles.modalText}>Eliminar</Text>
-                            </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                            style={styles.modalItem}
-                            onPress={() => {
-                                setMenuVisible(false);
-                                onReport?.(post.id);
-                            }}
-                        >
-                            <Text style={styles.modalText}>Reportar</Text>
-                        </TouchableOpacity>
+                        {(() => {
+                            // Log detallado cuando se abre el modal
+                            console.log('🔍🔍🔍 MODAL ABIERTO 🔍🔍🔍');
+                            console.log('🔍 Modal - post.isOwner:', post.isOwner, '(tipo:', typeof post.isOwner, ')');
+                            console.log('🔍 Modal - isPostOwner calculado:', isPostOwner);
+                            console.log('🔍 Modal - currentUserId:', currentUserId);
+                            console.log('🔍 Modal - post.usuarioID:', post.usuarioID);
+                            
+                            // Si post.isOwner es explícitamente true, mostrar Eliminar
+                            // Priorizar post.isOwner sobre la comparación de IDs
+                            const shouldShowDelete = post.isOwner === true;
+                            
+                            console.log('🔍 Modal - shouldShowDelete (solo isOwner):', shouldShowDelete);
+                            console.log('🔍 Modal - post.isOwner estrictamente igual a true?:', post.isOwner === true);
+                            console.log('🔍 Modal - post.isOwner valor:', post.isOwner);
+                            
+                            if (shouldShowDelete) {
+                                console.log('✅✅✅ Mostrando opción ELIMINAR ✅✅✅');
+                                return (
+                                    <TouchableOpacity
+                                        style={styles.modalItem}
+                                        onPress={() => {
+                                            console.log('🗑️ Eliminando publicación:', post.id);
+                                            setMenuVisible(false);
+                                            onDelete?.(post.id);
+                                        }}
+                                    >
+                                        <Text style={styles.modalText}>Eliminar</Text>
+                                    </TouchableOpacity>
+                                );
+                            } else {
+                                console.log('❌❌❌ Mostrando opción REPORTAR ❌❌❌');
+                                return (
+                                    <TouchableOpacity
+                                        style={styles.modalItem}
+                                        onPress={() => {
+                                            console.log('🚨 Reportando publicación:', post.id);
+                                            setMenuVisible(false);
+                                            onReport?.(post.id);
+                                        }}
+                                    >
+                                        <Text style={styles.modalText}>Reportar</Text>
+                                    </TouchableOpacity>
+                                );
+                            }
+                        })()}
                     </View>
                 </TouchableOpacity>
             </Modal>

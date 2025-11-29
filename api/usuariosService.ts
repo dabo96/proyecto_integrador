@@ -159,92 +159,95 @@ export const escucharEstadoUsuario = (
   callback: (online: boolean, lastSeen: any) => void
 ): (() => void) => {
   const userRef = doc(db, "Usuarios", usuarioID);
-  // Umbral más corto para respuesta más rápida
-  const OFFLINE_THRESHOLD_STRICT = 60000; // 1 minuto sin actualización = offline
-  const OFFLINE_THRESHOLD_LOOSE = 20000; // 20 segundos para usuarios con online=false
   
   console.log("👂 Iniciando listener de estado para usuario:", usuarioID);
   
-  // Función para determinar el estado online basado en los datos
-  const determineOnlineStatus = (data: any): boolean => {
-    const online = data.online || false;
-    const lastSeen = data.lastSeen;
-    
-    // Si el campo online es true, confiar en él inmediatamente (respuesta más rápida)
-    if (online === true) {
-      // Solo verificar lastSeen si es muy antiguo (más de 1 minuto)
-      if (lastSeen) {
-        try {
-          const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
-          const now = Date.now();
-          const timeSinceLastSeen = now - lastSeenTime;
-          
-          // Si online=true pero lastSeen es muy antiguo, marcar como offline
-          if (timeSinceLastSeen > OFFLINE_THRESHOLD_STRICT) {
-            console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s)`);
-            return false;
-          }
-        } catch (error) {
-          console.error("Error procesando lastSeen:", error);
-        }
-      }
-      // Si online=true y lastSeen es reciente o no existe, confiar en online
-      return true;
-    }
-    
-    // Si online es false, verificar lastSeen para confirmar
-    if (lastSeen) {
-      try {
-        const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
-        const now = Date.now();
-        const timeSinceLastSeen = now - lastSeenTime;
-        
-        // Si lastSeen es muy reciente (menos de 20 segundos), considerar online
-        if (timeSinceLastSeen < OFFLINE_THRESHOLD_LOOSE) {
-          console.log(`✅ Usuario ${usuarioID} online (lastSeen reciente: ${Math.round(timeSinceLastSeen / 1000)}s)`);
-          return true;
-        }
-      } catch (error) {
-        console.error("Error procesando lastSeen:", error);
-      }
-    }
-    
-    // Por defecto, usar el valor del campo online
-    return online;
-  };
+  // Variable para rastrear el último estado conocido
+  let lastKnownOnline: boolean | null = null;
+  let isFirstCall = true;
   
   // Configurar el listener de tiempo real
   const unsubscribe = onSnapshot(
     userRef,
     (snapshot) => {
-      // onSnapshot se ejecuta inmediatamente con el estado actual
-      // y luego cada vez que hay un cambio
+      const isFromCache = snapshot.metadata.fromCache;
+      const hasPendingWrites = snapshot.metadata.hasPendingWrites;
       
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        const isActuallyOnline = determineOnlineStatus(data);
-        const lastSeen = data.lastSeen;
+      console.log(`📥 [LISTENER] Snapshot recibido para ${usuarioID}:`, {
+        exists: snapshot.exists(),
+        fromCache: isFromCache,
+        hasPendingWrites: hasPendingWrites,
+        isFirstCall
+      });
+      
+      if (!snapshot.exists()) {
+        console.log(`❌ Usuario ${usuarioID} no existe en Firestore`);
+        if (lastKnownOnline !== false) {
+          lastKnownOnline = false;
+          callback(false, null);
+        }
+        isFirstCall = false;
+        return;
+      }
+      
+      const data = snapshot.data();
+      const online = Boolean(data.online); // Convertir explícitamente a boolean
+      const lastSeen = data.lastSeen;
+      
+      console.log(`📊 [LISTENER] Datos del usuario ${usuarioID}:`, {
+        online,
+        lastKnownOnline,
+        lastSeen: lastSeen ? (lastSeen.toDate ? lastSeen.toDate().toISOString() : lastSeen) : null
+      });
+      
+      // En la primera llamada, siempre ejecutar el callback para establecer el estado inicial
+      // Después, solo llamar al callback si el estado cambió
+      const wasFirstCall = isFirstCall;
+      if (isFirstCall || lastKnownOnline !== online) {
+        lastKnownOnline = online;
+        isFirstCall = false;
         
-        // Determinar si es la primera ejecución o un cambio real
-        const isInitialLoad = !snapshot.metadata.hasPendingWrites && snapshot.metadata.fromCache;
-        
-        if (isActuallyOnline) {
-          console.log(`✅ Usuario ${usuarioID} EN LÍNEA ${isInitialLoad ? '(carga inicial)' : '(tiempo real)'}`);
+        if (online) {
+          console.log(`✅ Usuario ${usuarioID} EN LÍNEA (tiempo real) - ${wasFirstCall ? 'Estado inicial' : 'Cambio detectado'}`);
         } else {
-          console.log(`📴 Usuario ${usuarioID} DESCONECTADO ${isInitialLoad ? '(carga inicial)' : '(tiempo real)'}`);
+          console.log(`📴 Usuario ${usuarioID} DESCONECTADO (tiempo real) - ${wasFirstCall ? 'Estado inicial' : 'Cambio detectado'}`);
         }
         
         // Llamar al callback inmediatamente con el nuevo estado
-        // Esto se ejecuta tanto en la carga inicial como en cada cambio
-        callback(isActuallyOnline, lastSeen);
+        callback(online, lastSeen);
       } else {
-        console.log(`❌ Usuario ${usuarioID} no existe en Firestore`);
-        callback(false, null);
+        // Si el estado no cambió pero queremos verificar lastSeen para casos edge
+        // Solo hacerlo si online es true y lastSeen es muy antiguo
+        if (online && lastSeen) {
+          try {
+            const lastSeenTime = lastSeen.toDate ? lastSeen.toDate().getTime() : new Date(lastSeen).getTime();
+            const now = Date.now();
+            const timeSinceLastSeen = now - lastSeenTime;
+            
+            // Si online=true pero lastSeen es muy antiguo (más de 2 minutos), marcar como offline
+            if (timeSinceLastSeen > 120000) {
+              console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s)`);
+              if (lastKnownOnline !== false) {
+                lastKnownOnline = false;
+                callback(false, lastSeen);
+              }
+            }
+          } catch (error) {
+            console.error("Error procesando lastSeen:", error);
+          }
+        }
       }
     },
     (error) => {
       console.error("❌ Error escuchando estado del usuario:", error);
-      callback(false, null);
+      console.error("Detalles del error:", {
+        code: error.code,
+        message: error.message
+      });
+      if (lastKnownOnline !== false) {
+        lastKnownOnline = false;
+        callback(false, null);
+      }
     }
   );
   

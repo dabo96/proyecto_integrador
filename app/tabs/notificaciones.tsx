@@ -150,7 +150,33 @@ export default function Notificaciones() {
           ? data.fecha.toDate().getTime()
           : new Date(data.fecha || Date.now()).getTime();
         const postData = mapaMisPublicaciones.get(data.publicacionID) || {};
-        const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+        
+        // Obtener solo el primer nombre y primer apellido
+        let primerNombre = '';
+        let primerApellido = '';
+        
+        // Intentar obtener desde campos separados primero (nombres y apellidos)
+        if (u.nombres) {
+          primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
+        }
+        if (u.apellidos) {
+          primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
+        }
+        
+        // Si no hay campos separados, intentar desde nombreCompleto o nombre
+        if (!primerNombre || !primerApellido) {
+          const nombreFuente = u.nombreCompleto || u.nombre || '';
+          const partesNombre = nombreFuente.trim().split(' ').filter(p => p.length > 0);
+          if (!primerNombre && partesNombre.length > 0) {
+            primerNombre = partesNombre[0];
+          }
+          if (!primerApellido && partesNombre.length > 1) {
+            primerApellido = partesNombre[1]; // Primer apellido
+          }
+        }
+        
+        const nombre = `${primerNombre} ${primerApellido}`.trim();
+        
         notificaciones.push({
           id: `com_${d.id}`,
           tipo: 'comentario',
@@ -180,7 +206,33 @@ export default function Notificaciones() {
           ? data.fecha.toDate().getTime()
           : new Date(data.fecha || Date.now()).getTime();
         const postData = mapaMisPublicaciones.get(data.publicacionID) || {};
-        const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+        
+        // Obtener solo el primer nombre y primer apellido
+        let primerNombre = '';
+        let primerApellido = '';
+        
+        // Intentar obtener desde campos separados primero
+        if (u.nombres) {
+          primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
+        }
+        if (u.apellidos) {
+          primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
+        }
+        
+        // Si no hay campos separados, intentar desde nombreCompleto o nombre
+        if (!primerNombre || !primerApellido) {
+          const nombreFuente = u.nombreCompleto || u.nombre || '';
+          const partesNombre = nombreFuente.trim().split(' ');
+          if (!primerNombre && partesNombre.length > 0) {
+            primerNombre = partesNombre[0];
+          }
+          if (!primerApellido && partesNombre.length > 1) {
+            primerApellido = partesNombre[1];
+          }
+        }
+        
+        const nombre = `${primerNombre} ${primerApellido}`.trim();
+        
         notificaciones.push({
           id: `like_${d.id}`,
           tipo: 'like',

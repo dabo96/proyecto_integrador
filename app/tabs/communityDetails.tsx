@@ -80,6 +80,8 @@ const CommunityDetails = () => {
   const [selectedPostId, setSelectedPostId] = useState<string>('');
   const [reportMotivo, setReportMotivo] = useState('');
   const [reportDetalle, setReportDetalle] = useState('');
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showLeaveSuccessModal, setShowLeaveSuccessModal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -472,48 +474,129 @@ const CommunityDetails = () => {
     }
   };
 
-  const manejarSalida = async () => {
-    if (!community || !usuarioID || gestionando) return;
+  const manejarSalida = () => {
+    console.log('🚪🚪🚪 manejarSalida INICIADO 🚪🚪🚪');
+    console.log('🚪 manejarSalida llamado', { 
+      hasCommunity: !!community, 
+      hasUsuarioID: !!usuarioID, 
+      gestionando,
+      esCreador: community?.creadorID === usuarioID,
+      communityId: community?.id,
+      communityName: community?.nombre
+    });
+
+    // Verificar condiciones y mostrar mensajes apropiados
+    if (!community) {
+      console.error('❌ No hay comunidad cargada - RETORNANDO');
+      Alert.alert('Error', 'No se pudo cargar la información de la comunidad. Intenta nuevamente.');
+      return;
+    }
+    console.log('✅ Comunidad verificada');
+
+    if (!usuarioID) {
+      console.error('❌ No hay usuarioID - RETORNANDO');
+      Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
+      return;
+    }
+    console.log('✅ UsuarioID verificado');
+
+    if (gestionando) {
+      console.log('⚠️ Ya se está procesando una operación - RETORNANDO');
+      Alert.alert('Espera', 'Ya se está procesando una operación. Por favor espera.');
+      return;
+    }
+    console.log('✅ No hay operación en curso');
 
     if (community.creadorID === usuarioID) {
+      console.log('⚠️ Usuario es creador - RETORNANDO');
       Alert.alert('Administrador', 'Como creador debes eliminar la comunidad desde la pantalla anterior.');
       return;
     }
+    console.log('✅ Usuario no es creador');
 
-    Alert.alert(
-      'Salir de la comunidad',
-      `¿Deseas salir de ${community.nombre}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Salir',
-          style: 'destructive',
-          onPress: async () => {
-            setGestionando(true);
-            try {
-              const comunidadRef = doc(db, 'comunidades', community.id);
-              await updateDoc(comunidadRef, {
-                miembros: arrayRemove(usuarioID),
-              });
-
-              await eliminarMembresiaUsuario(usuarioID, community.id);
-              Alert.alert('Saliste de la comunidad', `Ya no perteneces a ${community.nombre}.`);
-              await cargarDatos();
-            } catch (error) {
-              console.error('Error al salir de la comunidad:', error);
-              Alert.alert('Error', 'No se pudo completar la operación.');
-            } finally {
-              setGestionando(false);
-            }
-          },
-        },
-      ]
-    );
+    // Mostrar confirmación usando modal (funciona mejor en web)
+    console.log('📢 Mostrando modal de confirmación...');
+    setShowLeaveModal(true);
+    console.log('✅ Modal de confirmación activado');
   };
 
   const eliminarMembresiaUsuario = async (userId: string, comunidadId: string) => {
-    await deleteDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidadId)).catch(() => { });
-    await deleteDoc(doc(db, 'usuarios', userId, 'comunidades', comunidadId)).catch(() => { });
+    try {
+      // Intentar eliminar de ambas posibles rutas (mayúsculas y minúsculas)
+      const path1 = doc(db, 'Usuarios', userId, 'comunidades', comunidadId);
+      const path2 = doc(db, 'usuarios', userId, 'comunidades', comunidadId);
+      
+      await Promise.all([
+        deleteDoc(path1).catch((err) => {
+          console.log('⚠️ No se encontró membresía en Usuarios (mayúscula):', err.message);
+        }),
+        deleteDoc(path2).catch((err) => {
+          console.log('⚠️ No se encontró membresía en usuarios (minúscula):', err.message);
+        })
+      ]);
+      
+      console.log('✅ Membresía eliminada correctamente');
+    } catch (error) {
+      console.error('❌ Error eliminando membresía:', error);
+      throw error;
+    }
+  };
+
+  const confirmarSalida = async () => {
+    if (!community || !usuarioID) return;
+    
+    console.log('🎯🎯🎯 confirmarSalida EJECUTADO 🎯🎯🎯');
+    console.log('✅✅✅ Usuario confirmó la salida ✅✅✅');
+    
+    setShowLeaveModal(false);
+    setGestionando(true);
+    
+    try {
+      console.log('🔒 Estableciendo gestionando = true');
+      console.log('✅ gestionando establecido');
+      
+      console.log('📤 Removiendo usuario de la comunidad...');
+      console.log('📋 Datos:', { communityId: community.id, usuarioID });
+      const comunidadRef = doc(db, 'comunidades', community.id);
+      
+      console.log('📝 Ejecutando updateDoc...');
+      await updateDoc(comunidadRef, {
+        miembros: arrayRemove(usuarioID),
+      });
+      console.log('✅ Usuario removido del array de miembros');
+
+      console.log('🗑️ Eliminando membresía del usuario...');
+      await eliminarMembresiaUsuario(usuarioID, community.id);
+      console.log('✅ Membresía eliminada');
+
+      console.log('🔄 Recargando datos...');
+      // Recargar datos inmediatamente
+      await cargarDatos();
+      console.log('✅ Datos recargados');
+      
+      console.log('📢 Mostrando modal de éxito...');
+      setShowLeaveSuccessModal(true);
+      console.log('✅ Modal de éxito activado');
+    } catch (error: any) {
+      console.error('❌❌❌ Error al salir de la comunidad ❌❌❌');
+      console.error('Error completo:', error);
+      console.error('Tipo de error:', typeof error);
+      console.error('Error es instancia de Error:', error instanceof Error);
+      console.error('Detalles del error:', {
+        code: error?.code,
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack
+      });
+      Alert.alert(
+        'Error', 
+        `No se pudo completar la operación.\n\n${error?.message || 'Error desconocido'}`
+      );
+    } finally {
+      console.log('🔓 Liberando flag gestionando');
+      setGestionando(false);
+      console.log('✅ gestionando liberado');
+    }
   };
 
   const handleCreatePost = () => {
@@ -557,9 +640,19 @@ const CommunityDetails = () => {
           />
           <ModButton
             title={puedeInteractuar ? (esMiembro ? 'Salir' : 'Unirme') : 'Unirme'}
-            onPress={esMiembro ? manejarSalida : manejarUnion}
+            onPress={() => {
+              console.log('🔘 Botón presionado:', { esMiembro, puedeInteractuar, hasCommunity: !!community, hasUsuarioID: !!usuarioID });
+              if (esMiembro) {
+                console.log('➡️ Llamando manejarSalida...');
+                manejarSalida();
+              } else {
+                console.log('➡️ Llamando manejarUnion...');
+                manejarUnion();
+              }
+            }}
             backgroundColor={esMiembro ? '#dc2626' : '#16a34a'}
             style={styles.headerButton}
+            disabled={gestionando}
           />
         </View>
       </LinearGradient>
@@ -608,6 +701,81 @@ const CommunityDetails = () => {
           ))
         )}
       </ScrollView>
+
+      {/* Modal de confirmación para salir de la comunidad */}
+      <Modal
+        visible={showLeaveModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLeaveModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Salir de la comunidad</Text>
+            <Text style={styles.modalDescription}>
+              ¿Deseas salir de {community?.nombre}?
+            </Text>
+            <View style={styles.modalActions}>
+              <ModButton
+                title="Cancelar"
+                onPress={() => {
+                  console.log('❌ Usuario canceló la salida');
+                  setShowLeaveModal(false);
+                }}
+                backgroundColor="#9ca3af"
+                style={styles.modalActionButton}
+              />
+              <ModButton
+                title="Salir"
+                onPress={confirmarSalida}
+                backgroundColor="#dc2626"
+                style={styles.modalActionButton}
+                disabled={gestionando}
+              />
+            </View>
+            {gestionando && (
+              <View style={{ marginTop: 16, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#dc2626" />
+                <Text style={{ marginTop: 8, color: '#6b7280', fontSize: 12 }}>
+                  Procesando...
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de éxito al salir */}
+      <Modal
+        visible={showLeaveSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowLeaveSuccessModal(false);
+          router.back();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Saliste de la comunidad</Text>
+            <Text style={styles.modalDescription}>
+              Ya no perteneces a {community?.nombre}.
+            </Text>
+            <View style={styles.modalActions}>
+              <ModButton
+                title="OK"
+                onPress={() => {
+                  console.log('✅ Usuario salió de la comunidad - Proceso completado');
+                  setShowLeaveSuccessModal(false);
+                  router.back();
+                }}
+                backgroundColor="#16a34a"
+                style={styles.modalActionButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showReportModal}

@@ -53,6 +53,9 @@ const Profile = () => {
   const [modalType, setModalType] = useState<'seguidos' | 'seguidores'>('seguidos');
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [deletingPost, setDeletingPost] = useState(false);
 
   // Animaciones
   const headerHeight = scrollY.interpolate({
@@ -297,29 +300,72 @@ const Profile = () => {
     }
   };
 
-  const handleDelete = async (postId: string) => {
-    Alert.alert(
-      'Eliminar publicación',
-      '¿Estás seguro de que deseas eliminar esta publicación?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, 'publicaciones', postId));
-              // Eliminar interacciones asociadas podría ser necesario también
-              setUserPosts(prev => prev.filter(p => p.id !== postId));
-              Alert.alert('Éxito', 'Publicación eliminada');
-            } catch (error) {
-              console.error('Error eliminando publicación:', error);
-              Alert.alert('Error', 'No se pudo eliminar la publicación');
-            }
-          }
-        }
-      ]
-    );
+  const handleDelete = (postId: string) => {
+    console.log('🗑️ handleDelete llamado para postId:', postId);
+    setPostToDelete(postId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!postToDelete) return;
+    
+    console.log('✅ Confirmando eliminación de publicación:', postToDelete);
+    setDeletingPost(true);
+    
+    try {
+      console.log('📤 Eliminando publicación de Firestore...');
+      await deleteDoc(doc(db, 'publicaciones', postToDelete));
+      console.log('✅ Publicación eliminada de Firestore');
+      
+      // Eliminar interacciones asociadas (likes y comentarios)
+      console.log('🗑️ Eliminando interacciones asociadas...');
+      try {
+        const likesQuery = query(
+          collection(db, 'interacciones'),
+          where('publicacionID', '==', postToDelete)
+        );
+        const likesSnapshot = await getDocs(likesQuery);
+        const deletePromises = likesSnapshot.docs.map(docSnapshot => deleteDoc(docSnapshot.ref));
+        await Promise.all(deletePromises);
+        console.log('✅ Interacciones eliminadas');
+      } catch (interactionsError) {
+        console.error('⚠️ Error eliminando interacciones (continuando):', interactionsError);
+      }
+      
+      // Actualizar el estado local
+      console.log('🔄 Actualizando estado local...');
+      setUserPosts(prev => prev.filter(p => p.id !== postToDelete));
+      setLikedPosts(prev => {
+        const newLiked = { ...prev };
+        delete newLiked[postToDelete];
+        return newLiked;
+      });
+      setComentarios(prev => {
+        const newComentarios = { ...prev };
+        delete newComentarios[postToDelete];
+        return newComentarios;
+      });
+      
+      console.log('✅ Publicación eliminada exitosamente');
+      setShowDeleteModal(false);
+      setPostToDelete(null);
+      
+      // Mostrar mensaje de éxito
+      Alert.alert('Éxito', 'Publicación eliminada correctamente');
+    } catch (error: any) {
+      console.error('❌ Error eliminando publicación:', error);
+      console.error('Detalles del error:', {
+        code: error?.code,
+        message: error?.message,
+        stack: error?.stack
+      });
+      Alert.alert(
+        'Error', 
+        `No se pudo eliminar la publicación.\n\n${error?.message || 'Error desconocido'}`
+      );
+    } finally {
+      setDeletingPost(false);
+    }
   };
 
   const actualizarConteos = async (postId: string) => {
@@ -803,29 +849,52 @@ const Profile = () => {
             </TouchableOpacity>
           </View>
         ) : (
-          userPosts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={{
-                id: post.id,
-                usuarioID: post.usuarioID,
-                contenido: post.texto,
-                fechaCreacion: post.fechaCreacion,
-                imagen: post.imagenUrl,
-                autor: {
-                  nombres: userProfile.nombre,
-                  apellidos: userProfile.apellido,
-                  fotoPerfil: userProfile.fotoPerfil
-                },
-                likes: post.likes,
-                comentarios: post.comentarios,
-                isOwner: true // Es el perfil del usuario actual
-              }}
-              liked={likedPosts[post.id] || false}
-              onLike={handleLike}
-              onComment={handleComment}
-              onDelete={handleDelete}
-              currentUserId={currentUserID}
+          userPosts.map((post) => {
+            // Obtener el usuarioID actual de AsyncStorage si no está disponible
+            const getCurrentUserId = async () => {
+              if (!currentUserID) {
+                const stored = await AsyncStorage.getItem('usuarioID');
+                return stored || '';
+              }
+              return currentUserID;
+            };
+            
+            // Verificar que el post pertenece al usuario actual
+            // En el perfil propio, siempre debería ser true, pero verificamos por seguridad
+            const storedUsuarioID = currentUserID; // Usar el valor actual
+            const isOwner = post.usuarioID === storedUsuarioID || storedUsuarioID === userProfile?.id;
+            
+            console.log('📋 Post info:', { 
+              postId: post.id, 
+              postUsuarioID: post.usuarioID, 
+              currentUserID: storedUsuarioID,
+              userProfileId: userProfile?.id,
+              isOwner 
+            });
+            
+            return (
+              <PostCard
+                key={post.id}
+                post={{
+                  id: post.id,
+                  usuarioID: post.usuarioID,
+                  contenido: post.texto,
+                  fechaCreacion: post.fechaCreacion,
+                  imagen: post.imagenUrl,
+                  autor: {
+                    nombres: userProfile.nombre,
+                    apellidos: userProfile.apellido,
+                    fotoPerfil: userProfile.fotoPerfil
+                  },
+                  likes: post.likes,
+                  comentarios: post.comentarios,
+                  isOwner: true // SIEMPRE true en perfil propio - valor literal
+                }}
+                liked={likedPosts[post.id] || false}
+                onLike={handleLike}
+                onComment={handleComment}
+                onDelete={handleDelete}
+                currentUserId={currentUserID || userProfile?.id || ''}
               formatTime={(timestamp) => {
                 if (!timestamp) return 'Hace un momento';
                 const now = new Date();
@@ -851,7 +920,8 @@ const Profile = () => {
                 setComentarios(newComentarios);
               }}
             />
-          ))
+            );
+          })
         )}
 
         <View style={styles.bottomSpace} />
@@ -984,6 +1054,53 @@ const Profile = () => {
                 style={styles.usersModalList}
               />
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de confirmación para eliminar publicación */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!deletingPost) {
+            setShowDeleteModal(false);
+            setPostToDelete(null);
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Eliminar publicación</Text>
+            <Text style={styles.modalMessage}>
+              ¿Estás seguro de que deseas eliminar esta publicación? Esta acción no se puede deshacer.
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  if (!deletingPost) {
+                    setShowDeleteModal(false);
+                    setPostToDelete(null);
+                  }
+                }}
+                disabled={deletingPost}
+              >
+                <Text style={styles.cancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.confirmButton, deletingPost && styles.modalButtonDisabled]}
+                onPress={confirmDelete}
+                disabled={deletingPost}
+              >
+                {deletingPost ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.confirmText}>Eliminar</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1249,6 +1366,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: { backgroundColor: '#ccc' },
   confirmButton: { backgroundColor: '#ff4d4d' },
+  modalButtonDisabled: { opacity: 0.6 },
   cancelText: { color: '#333', fontSize: 16 },
   confirmText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   loadingContainer: {

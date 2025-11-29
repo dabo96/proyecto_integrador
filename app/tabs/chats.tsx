@@ -225,13 +225,18 @@ useEffect(() => {
   // Escuchar estado de cada usuario
   userIdsToListen.forEach(userId => {
     const unsubscribe = escucharEstadoUsuario(userId, (online, lastSeen) => {
-      console.log(`📡 Estado actualizado para ${userId}:`, online ? "en línea" : "desactivado");
+      console.log(`📡 [CHATS] Estado actualizado para ${userId}:`, online ? "en línea" : "desactivado");
       setOnlineStatus(prev => {
+        // Solo actualizar si el valor realmente cambió
+        if (prev[userId] === online) {
+          console.log(`⚠️ [CHATS] Estado no cambió para ${userId}, ya era ${online}`);
+          return prev; // Retornar el mismo objeto si no hay cambio
+        }
         const newStatus = {
           ...prev,
           [userId]: online
         };
-        console.log("📊 Estado completo actualizado:", newStatus);
+        console.log(`✅ [CHATS] Estado completo actualizado para ${userId}:`, newStatus);
         return newStatus;
       });
     });

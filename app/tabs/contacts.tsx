@@ -31,11 +31,20 @@ const Contacts = () => {
       if (userId) {
         userIds.push(userId);
         const unsubscribe = escucharEstadoUsuario(userId, (online) => {
-          console.log(`📡 Estado actualizado para contacto ${userId}:`, online ? "en línea" : "desactivado");
-          setOnlineStatus(prev => ({
-            ...prev,
-            [userId]: online
-          }));
+          console.log(`📡 [CONTACTS] Estado actualizado para contacto ${userId}:`, online ? "en línea" : "desactivado");
+          setOnlineStatus(prev => {
+            // Solo actualizar si el valor realmente cambió
+            if (prev[userId] === online) {
+              console.log(`⚠️ [CONTACTS] Estado no cambió para ${userId}, ya era ${online}`);
+              return prev;
+            }
+            const newStatus = {
+              ...prev,
+              [userId]: online
+            };
+            console.log(`✅ [CONTACTS] Estado actualizado para ${userId}:`, newStatus);
+            return newStatus;
+          });
         });
         unsubscribes.push(unsubscribe);
       }
