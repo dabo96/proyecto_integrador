@@ -1327,7 +1327,11 @@ export default function MainPageScreen() {
                                 />
                                 <View style={styles.searchResultInfo}>
                                     <Text style={styles.searchResultName}>
-                                        {usuario.nombres} {usuario.apellidos}
+                                        {(() => {
+                                          const primerNombre = usuario.nombres?.split(' ')[0] || '';
+                                          const primerApellido = usuario.apellidos?.split(' ')[0] || '';
+                                          return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                                        })()}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -1418,7 +1422,13 @@ export default function MainPageScreen() {
                                                 size={40}
                                                 style={styles.likeUserImage}
                                             />
-                                            <Text style={styles.likeUserName}>{user.nombres} {user.apellidos}</Text>
+                                            <Text style={styles.likeUserName}>
+                                              {(() => {
+                                                const primerNombre = user.nombres?.split(' ')[0] || '';
+                                                const primerApellido = user.apellidos?.split(' ')[0] || '';
+                                                return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                                              })()}
+                                            </Text>
                                         </View>
                                     ))
                                 ) : (

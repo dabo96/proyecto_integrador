@@ -122,7 +122,13 @@ export default function Busqueda() {
                                 borderWidth={0}
                             />
                             <View style={styles.textContainer}>
-                                <Text style={styles.title}>{item.nombres} {item.apellidos}</Text>
+                                <Text style={styles.title}>
+                                  {(() => {
+                                    const primerNombre = item.nombres?.split(' ')[0] || '';
+                                    const primerApellido = item.apellidos?.split(' ')[0] || '';
+                                    return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                                  })()}
+                                </Text>
                                 <Text style={styles.subtitle}>Ver perfil</Text>
                             </View>
                             <Ionicons name="chevron-forward" size={20} color="#ccc" />

@@ -11,7 +11,9 @@ import {
     Alert,
     Image,
     KeyboardAvoidingView,
+    Modal,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -25,6 +27,7 @@ const EditProfile = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     // Form State
     const [nombre, setNombre] = useState('');
@@ -197,9 +200,15 @@ const EditProfile = () => {
             await updateDoc(userRef, updates);
             console.log('✅ Perfil actualizado exitosamente');
 
-            Alert.alert('Éxito', 'Perfil actualizado correctamente', [
-                { text: 'OK', onPress: () => router.back() }
-            ]);
+            // Mostrar modal de éxito y cerrar automáticamente
+            setShowSuccessModal(true);
+            
+            // Cerrar automáticamente después de 1.5 segundos y regresar al perfil
+            setTimeout(() => {
+                console.log('⏰ Cerrando automáticamente después del timeout...');
+                setShowSuccessModal(false);
+                router.push('/tabs/profile');
+            }, 1500);
         } catch (error: any) {
             console.error('❌ Error saving profile:', error);
             console.error('Detalles del error:', {
@@ -299,6 +308,35 @@ const EditProfile = () => {
                     )}
                 </TouchableOpacity>
             </View>
+
+            {/* Modal de éxito */}
+            <Modal
+                visible={showSuccessModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => {
+                    setShowSuccessModal(false);
+                    router.push('/tabs/profile');
+                }}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Cambio de nombre exitoso</Text>
+                        <Text style={styles.modalMessage}>
+                            Tu perfil ha sido actualizado correctamente.
+                        </Text>
+                        <Pressable
+                            style={styles.modalButton}
+                            onPress={() => {
+                                setShowSuccessModal(false);
+                                router.push('/tabs/profile');
+                            }}
+                        >
+                            <Text style={styles.modalButtonText}>OK</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -392,6 +430,46 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     saveButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 24,
+        width: '85%',
+        maxWidth: 400,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    modalMessage: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    modalButton: {
+        backgroundColor: '#2F4AA6',
+        paddingVertical: 12,
+        paddingHorizontal: 32,
+        borderRadius: 8,
+        width: '100%',
+        alignItems: 'center',
+    },
+    modalButtonText: {
         color: 'white',
         fontSize: 16,
         fontWeight: 'bold',

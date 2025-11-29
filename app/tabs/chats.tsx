@@ -1,6 +1,7 @@
 import { deleteChat, listenUserChats } from "@/api/messageService";
 import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { showAlert } from "@/utils/alert";
+import { formatShortName } from "@/utils/nameFormatter";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
@@ -135,11 +136,11 @@ const ChatCreem = () => {
             (id: string) => id !== currentUser.id
           );
 
-          // Obtener nombres de los participantes
+          // Obtener nombres de los participantes (solo primer nombre y primer apellido)
           const participantNames = otherParticipants
             .map((id: string) => {
               const user = cacheRef.current[id];
-              return user?.nombre || "Usuario";
+              return formatShortName(user);
             })
             .slice(0, 3); // Mostrar máximo 3 nombres
 
@@ -177,7 +178,7 @@ const ChatCreem = () => {
           return {
             id: chat.id,
             otherUserId, // 👈 ID del otro usuario
-            name: otherUser.nombre || "Desconocido",
+            name: formatShortName(otherUser),
             message: chat.lastMessage || "",
             time:
               chat.updatedAt?.toDate?.().toLocaleTimeString([], {

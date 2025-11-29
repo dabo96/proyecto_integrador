@@ -1,6 +1,7 @@
 import { deleteMessage, getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
 import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
+import { formatShortName } from "@/utils/nameFormatter";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -542,8 +543,25 @@ const ChatDetails = () => {
     } else if (!isMe) {
       sender = usuario;
     }
-
-    const senderName = sender?.nombre || sender?.nombreCompleto || "Usuario";
+    
+    // Formatear nombre para mostrar solo primer nombre y primer apellido
+    const formatShortName = (user: any): string => {
+      if (!user) return 'Usuario';
+      let primerNombre = '';
+      let primerApellido = '';
+      if (user.nombres) primerNombre = user.nombres.split(' ')[0];
+      if (user.apellidos) primerApellido = user.apellidos.split(' ')[0];
+      if (!primerNombre && user.nombre) primerNombre = user.nombre.split(' ')[0];
+      if (!primerApellido && user.apellido) primerApellido = user.apellido.split(' ')[0];
+      if (!primerNombre || !primerApellido) {
+      const nombreFuente = user.nombreCompleto || user.nombre || '';
+      const partes = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
+        if (!primerNombre && partes.length > 0) primerNombre = partes[0];
+        if (!primerApellido && partes.length > 1) primerApellido = partes[1];
+      }
+      return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre.trim() || 'Usuario';
+    };
+    const senderName = formatShortName(sender);
     const senderPhoto = sender?.fotoPerfil;
 
     // Obtener color del participante (usar mapa si está disponible, sino usar función hash)
@@ -815,7 +833,7 @@ const ChatDetails = () => {
               </Text>
             </View>
             <View>
-              <Text style={styles.headerNameBlack}>{usuario?.nombre || "Usuario"}</Text>
+              <Text style={styles.headerNameBlack}>{formatShortName(usuario)}</Text>
               <View style={styles.headerStatusRow}>
                 <View style={[
                   styles.statusDotHeader,
@@ -860,7 +878,7 @@ const ChatDetails = () => {
               <Text style={styles.emptyChatSubtitle}>
                 {isGroup
                   ? `Escribe un mensaje para comenzar a chatear en ${groupName || "este grupo"}`
-                  : `Escribe un mensaje para comenzar a chatear con ${usuario?.nombre || "este usuario"}`}
+                  : `Escribe un mensaje para comenzar a chatear con ${formatShortName(usuario)}`}
               </Text>
             </View>
           ) : (

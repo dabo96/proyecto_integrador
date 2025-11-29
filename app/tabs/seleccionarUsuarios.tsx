@@ -188,7 +188,15 @@ const SeleccionarUsuarios = () => {
                 </View>
                 <View style={styles.usuarioInfo}>
                     <View style={styles.usuarioNombreRow}>
-                        <Text style={styles.usuarioNombre}>{item.nombreCompleto || item.nombre}</Text>
+                        <Text style={styles.usuarioNombre}>
+                          {(() => {
+                            const nombreFuente = item.nombreCompleto || item.nombre || '';
+                            const partes = nombreFuente.trim().split(' ').filter(p => p.length > 0);
+                            const primerNombre = partes[0] || '';
+                            const primerApellido = partes.length > 1 ? partes[1] : '';
+                            return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                          })()}
+                        </Text>
                     </View>
                     <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
                     <Text style={styles.usuarioCarrera}>{item.carrera}</Text>

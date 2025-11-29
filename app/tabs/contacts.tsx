@@ -139,7 +139,16 @@ const Contacts = () => {
         </View>
         <View style={styles.contactInfo}>
           <View style={styles.contactNameRow}>
-            <Text style={styles.contactName}>{contact.nombre}</Text>
+            <Text style={styles.contactName}>
+              {(() => {
+                // Formatear nombre para mostrar solo primer nombre y primer apellido
+                const nombreCompleto = contact.nombre || '';
+                const partes = nombreCompleto.trim().split(' ').filter(p => p.length > 0);
+                const primerNombre = partes[0] || '';
+                const primerApellido = partes.length > 1 ? partes[1] : '';
+                return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+              })()}
+            </Text>
             {userId && (
               <View style={styles.statusContainer}>
                 <View style={[

@@ -755,9 +755,14 @@ const Profile = () => {
             </Pressable>
           </View>
 
-          <Animated.Text style={[styles.name, { fontSize: nameSize }]}>
-            {`${userProfile.nombre || 'Usuario'} ${userProfile.apellido || ''}`}
-          </Animated.Text>
+          <Animated.View style={{ alignItems: 'center' }}>
+            <Animated.Text style={[styles.name, { fontSize: nameSize }]}>
+              {userProfile.nombre || 'Usuario'}
+            </Animated.Text>
+            <Animated.Text style={[styles.name, { fontSize: nameSize }]}>
+              {userProfile.apellido || ''}
+            </Animated.Text>
+          </Animated.View>
 
           <Animated.Text style={[styles.carreraText, { opacity: buttonsOpacity }]}>
             {userProfile.carrera || 'Sin carrera'}

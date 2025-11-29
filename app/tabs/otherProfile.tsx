@@ -3,6 +3,7 @@ import { escucharEstadoUsuario, obtenerUsuarioPorId } from '@/api/usuariosServic
 import PostCard from '@/components/cards/PostCard';
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
+import { formatShortName } from '@/utils/nameFormatter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -555,7 +556,12 @@ export default function OtherProfileScreen() {
                             />
                             <View style={styles.nameContainer}>
                                 <Text style={styles.name}>
-                                    {userProfile.nombre} {userProfile.apellido}
+                                    {formatShortName({
+                                      nombre: userProfile.nombre,
+                                      apellido: userProfile.apellido,
+                                      nombres: userProfile.nombre,
+                                      apellidos: userProfile.apellido
+                                    })}
                                 </Text>
                                 <View style={styles.statusContainer}>
                                     <View style={[
