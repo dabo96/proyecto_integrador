@@ -71,6 +71,14 @@ export const validarYSubirImagen = async (
     const validacion = await validarContenidoImagen(tempUrl);
 
     if (!validacion.valida) {
+      console.warn('🚫 IMAGEN RECHAZADA POR FILTRO - Foto de perfil:', {
+        usuarioID,
+        imageUri,
+        tempUrl,
+        motivo: validacion.motivo ?? "Contenido no permitido",
+        nivelRiesgo: validacion.nivelRiesgo,
+        timestamp: new Date().toISOString()
+      });
       await deleteImageByUrl(tempUrl);
       return {
         success: false,
@@ -83,6 +91,12 @@ export const validarYSubirImagen = async (
 
     // 4. BORRAR TEMP
     await deleteImageByUrl(tempUrl);
+
+    console.log('✅ IMAGEN APROBADA Y SUBIDA - Foto de perfil:', {
+      usuarioID,
+      finalUrl,
+      timestamp: new Date().toISOString()
+    });
 
     return { success: true, url: finalUrl };
   } catch (error: any) {
@@ -108,6 +122,13 @@ export const validarYSubirImagenPublicacion = async (
     const validacion = await validarContenidoImagen(imageUrl);
 
     if (!validacion.valida) {
+      console.warn('🚫 IMAGEN RECHAZADA POR FILTRO - Publicación:', {
+        imageUri,
+        imageUrl,
+        motivo: validacion.motivo || 'El contenido no cumple con nuestras políticas',
+        nivelRiesgo: validacion.nivelRiesgo,
+        timestamp: new Date().toISOString()
+      });
       // TODO: Eliminar la imagen de Storage si es rechazada
       // await deleteImageByUrl(imageUrl);
       return {
@@ -115,6 +136,11 @@ export const validarYSubirImagenPublicacion = async (
         error: validacion.motivo || 'El contenido no cumple con nuestras políticas',
       };
     }
+
+    console.log('✅ IMAGEN APROBADA Y SUBIDA - Publicación:', {
+      imageUrl,
+      timestamp: new Date().toISOString()
+    });
 
     return {
       success: true,
