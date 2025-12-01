@@ -88,6 +88,13 @@ const CommunityDetails = () => {
   const [showLeaveSuccessModal, setShowLeaveSuccessModal] = useState(false);
   const [uploadingCoverImage, setUploadingCoverImage] = useState(false);
 
+  // Estados para edición de nombre y descripción
+  const [editandoNombre, setEditandoNombre] = useState(false);
+  const [editandoDescripcion, setEditandoDescripcion] = useState(false);
+  const [nombreTemp, setNombreTemp] = useState('');
+  const [descripcionTemp, setDescripcionTemp] = useState('');
+
+
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
@@ -799,6 +806,47 @@ const CommunityDetails = () => {
     );
   };
 
+  const guardarNombre = async () => {
+    if (!community || !nombreTemp.trim()) {
+      Alert.alert('Error', 'El nombre no puede estar vacío');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'comunidades', community.id), {
+        nombre: nombreTemp.trim()
+      });
+
+      setCommunity({ ...community, nombre: nombreTemp.trim() });
+      setEditandoNombre(false);
+      Alert.alert('Éxito', 'Nombre actualizado correctamente');
+    } catch (error) {
+      console.error('Error actualizando nombre:', error);
+      Alert.alert('Error', 'No se pudo actualizar el nombre');
+    }
+  };
+
+  const guardarDescripcion = async () => {
+    if (!community || !descripcionTemp.trim()) {
+      Alert.alert('Error', 'La descripción no puede estar vacía');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'comunidades', community.id), {
+        descripcion: descripcionTemp.trim()
+      });
+
+      setCommunity({ ...community, descripcion: descripcionTemp.trim() });
+      setEditandoDescripcion(false);
+      Alert.alert('Éxito', 'Descripción actualizada correctamente');
+    } catch (error) {
+      console.error('Error actualizando descripción:', error);
+      Alert.alert('Error', 'No se pudo actualizar la descripción');
+    }
+  };
+
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -854,8 +902,77 @@ const CommunityDetails = () => {
 
       {/* Header con información */}
       <View style={styles.headerContent}>
-        <Text style={styles.communityName}>{community.nombre}</Text>
-        <Text style={styles.communityDescription}>{community.descripcion}</Text>
+        {/* Nombre de la comunidad */}
+        {editandoNombre ? (
+          <View style={styles.editContainer}>
+            <TextInput
+              style={styles.editInput}
+              value={nombreTemp}
+              onChangeText={setNombreTemp}
+              placeholder="Nombre de la comunidad"
+              maxLength={50}
+            />
+            <View style={styles.editButtons}>
+              <TouchableOpacity onPress={() => setEditandoNombre(false)}>
+                <Ionicons name="close-circle" size={28} color="#dc2626" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={guardarNombre}>
+                <Ionicons name="checkmark-circle" size={28} color="#16a34a" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.nameRow}>
+            <Text style={styles.communityName}>{community.nombre}</Text>
+            {esCreador && (
+              <TouchableOpacity
+                onPress={() => {
+                  setNombreTemp(community.nombre);
+                  setEditandoNombre(true);
+                }}
+              >
+                <Ionicons name="pencil" size={20} color="#2F4AA6" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Descripción de la comunidad */}
+        {editandoDescripcion ? (
+          <View style={styles.editContainer}>
+            <TextInput
+              style={[styles.editInput, styles.editTextArea]}
+              value={descripcionTemp}
+              onChangeText={setDescripcionTemp}
+              placeholder="Descripción de la comunidad"
+              maxLength={200}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={styles.editButtons}>
+              <TouchableOpacity onPress={() => setEditandoDescripcion(false)}>
+                <Ionicons name="close-circle" size={28} color="#dc2626" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={guardarDescripcion}>
+                <Ionicons name="checkmark-circle" size={28} color="#16a34a" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.descriptionRow}>
+            <Text style={styles.communityDescription}>{community.descripcion}</Text>
+            {esCreador && (
+              <TouchableOpacity
+                onPress={() => {
+                  setDescripcionTemp(community.descripcion);
+                  setEditandoDescripcion(true);
+                }}
+              >
+                <Ionicons name="pencil" size={18} color="#2F4AA6" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         <View style={styles.headerButtons}>
           <ModButton
             title="Crear publicación"
@@ -1253,6 +1370,42 @@ const styles = StyleSheet.create({
   modalActionButton: {
     flex: 1,
     borderRadius: 12,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  descriptionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 16,
+  },
+  editContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  editInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    fontFamily: 'Montserrat_400Regular',
+  },
+  editTextArea: {
+    minHeight: 70,
+    textAlignVertical: 'top',
+  },
+  editButtons: {
+    flexDirection: 'row',
+    gap: 8,
   },
 });
 
