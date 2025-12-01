@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface Comunidad {
@@ -90,9 +90,17 @@ const CommunityDetails = () => {
 
   // Estados para edición de nombre y descripción
   const [editandoNombre, setEditandoNombre] = useState(false);
-  const [editandoDescripcion, setEditandoDescripcion] = useState(false);
+  const [showEditDescripcionModal, setShowEditDescripcionModal] = useState(false);
   const [nombreTemp, setNombreTemp] = useState('');
   const [descripcionTemp, setDescripcionTemp] = useState('');
+
+  // Inicializar el valor cuando se abre el modal
+  useEffect(() => {
+    if (showEditDescripcionModal && community) {
+      const descripcionInicial = String(community.descripcion || '').trim();
+      setDescripcionTemp(descripcionInicial);
+    }
+  }, [showEditDescripcionModal, community?.id]);
 
 
   useFocusEffect(
@@ -812,6 +820,13 @@ const CommunityDetails = () => {
       return;
     }
 
+    // Validar que el usuario es el creador
+    if (!usuarioID || community.creadorID !== usuarioID) {
+      Alert.alert('Error', 'Solo el creador de la comunidad puede editar el nombre');
+      setEditandoNombre(false);
+      return;
+    }
+
     try {
       await updateDoc(doc(db, 'comunidades', community.id), {
         nombre: nombreTemp.trim()
@@ -832,13 +847,20 @@ const CommunityDetails = () => {
       return;
     }
 
+    // Validar que el usuario es el creador
+    if (!usuarioID || community.creadorID !== usuarioID) {
+      Alert.alert('Error', 'Solo el creador de la comunidad puede editar la descripción');
+      setShowEditDescripcionModal(false);
+      return;
+    }
+
     try {
       await updateDoc(doc(db, 'comunidades', community.id), {
         descripcion: descripcionTemp.trim()
       });
 
       setCommunity({ ...community, descripcion: descripcionTemp.trim() });
-      setEditandoDescripcion(false);
+      setShowEditDescripcionModal(false);
       Alert.alert('Éxito', 'Descripción actualizada correctamente');
     } catch (error) {
       console.error('Error actualizando descripción:', error);
@@ -938,41 +960,19 @@ const CommunityDetails = () => {
         )}
 
         {/* Descripción de la comunidad */}
-        {editandoDescripcion ? (
-          <View style={styles.editContainer}>
-            <TextInput
-              style={[styles.editInput, styles.editTextArea]}
-              value={descripcionTemp}
-              onChangeText={setDescripcionTemp}
-              placeholder="Descripción de la comunidad"
-              maxLength={200}
-              multiline
-              numberOfLines={3}
-            />
-            <View style={styles.editButtons}>
-              <TouchableOpacity onPress={() => setEditandoDescripcion(false)}>
-                <Ionicons name="close-circle" size={28} color="#dc2626" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={guardarDescripcion}>
-                <Ionicons name="checkmark-circle" size={28} color="#16a34a" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.descriptionRow}>
-            <Text style={styles.communityDescription}>{community.descripcion}</Text>
-            {esCreador && (
-              <TouchableOpacity
-                onPress={() => {
-                  setDescripcionTemp(community.descripcion);
-                  setEditandoDescripcion(true);
-                }}
-              >
-                <Ionicons name="pencil" size={18} color="#2F4AA6" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        <View style={styles.descriptionRow}>
+          <Text style={styles.communityDescription}>{community.descripcion}</Text>
+          {esCreador && (
+            <TouchableOpacity
+              onPress={() => {
+                setDescripcionTemp(community.descripcion || '');
+                setShowEditDescripcionModal(true);
+              }}
+            >
+              <Ionicons name="pencil" size={18} color="#2F4AA6" />
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={styles.headerButtons}>
           <ModButton
             title="Crear publicación"
@@ -1005,7 +1005,11 @@ const CommunityDetails = () => {
         </View>
       )}
 
-      <ScrollView style={styles.postsContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.postsContainer} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {posts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>Sin publicaciones</Text>
@@ -1108,6 +1112,57 @@ const CommunityDetails = () => {
                   setShowLeaveSuccessModal(false);
                   router.back();
                 }}
+                backgroundColor="#16a34a"
+                style={styles.modalActionButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para editar descripción */}
+      <Modal
+        visible={showEditDescripcionModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditDescripcionModal(false)}
+        accessibilityViewIsModal={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer} accessibilityViewIsModal={true}>
+            <Text style={styles.modalTitle}>Editar descripción</Text>
+            <Text style={styles.modalDescription}>
+              Modifica la descripción de la comunidad.
+            </Text>
+
+            <Text style={styles.modalLabel}>Descripción</Text>
+            <TextInput
+              style={styles.modalTextArea}
+              placeholder="Descripción de la comunidad"
+              placeholderTextColor="#9ca3af"
+              value={descripcionTemp || ''}
+              onChangeText={setDescripcionTemp}
+              maxLength={200}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              autoFocus
+              editable={true}
+            />
+
+            <View style={styles.modalActions}>
+              <ModButton
+                title="Cancelar"
+                onPress={() => {
+                  setShowEditDescripcionModal(false);
+                  setDescripcionTemp(community.descripcion || '');
+                }}
+                backgroundColor="#9ca3af"
+                style={styles.modalActionButton}
+              />
+              <ModButton
+                title="Guardar"
+                onPress={guardarDescripcion}
                 backgroundColor="#16a34a"
                 style={styles.modalActionButton}
               />
@@ -1362,6 +1417,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#111827',
   },
+  modalTextArea: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 120,
+    maxHeight: 200,
+    fontSize: 14,
+    color: '#111827',
+    textAlignVertical: 'top',
+    backgroundColor: '#fff',
+    width: '100%',
+  },
   modalActions: {
     flexDirection: 'row',
     gap: 12,
@@ -1389,6 +1457,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
+  editContainerDescripcion: {
+    flexDirection: 'column',
+    gap: 8,
+    marginBottom: 12,
+    width: '100%',
+  },
   editInput: {
     flex: 1,
     borderWidth: 1,
@@ -1397,11 +1471,22 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 16,
     backgroundColor: '#fff',
+    color: '#111827',
     fontFamily: 'Montserrat_400Regular',
   },
   editTextArea: {
-    minHeight: 70,
+    width: '100%',
+    minHeight: 80,
+    maxHeight: 150,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    color: '#111827',
     textAlignVertical: 'top',
+    fontFamily: 'Montserrat_400Regular',
   },
   editButtons: {
     flexDirection: 'row',
