@@ -891,125 +891,127 @@ const CommunityDetails = () => {
 
   return (
     <View style={styles.container}>
-      {/* Foto de portada */}
-      <View style={styles.coverImageContainer}>
-        {(community.fotoPortada && community.fotoPortada.trim() !== '') || (community.imagen && community.imagen.trim() !== '') ? (
-          <Image
-            source={{ uri: community.fotoPortada || community.imagen }}
-            style={styles.coverImage}
-            resizeMode="cover"
-            onError={(error) => {
-              console.error('Error cargando foto de portada:', error);
-            }}
-          />
-        ) : (
-          <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.coverImageGradient} />
-        )}
-        {uploadingCoverImage && (
-          <View style={styles.coverImageOverlay}>
-            <ActivityIndicator size="large" color="#fff" />
-          </View>
-        )}
-        {esCreador && !uploadingCoverImage && (
-          <TouchableOpacity
-            style={styles.coverImageEditButton}
-            onPress={mostrarOpcionesFotoPortada}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="camera" size={20} color="#fff" />
-            <Text style={styles.coverImageEditText}>Cambiar portada</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Header con información */}
-      <View style={styles.headerContent}>
-        {/* Nombre de la comunidad */}
-        {editandoNombre ? (
-          <View style={styles.editContainer}>
-            <TextInput
-              style={styles.editInput}
-              value={nombreTemp}
-              onChangeText={setNombreTemp}
-              placeholder="Nombre de la comunidad"
-              maxLength={50}
-            />
-            <View style={styles.editButtons}>
-              <TouchableOpacity onPress={() => setEditandoNombre(false)}>
-                <Ionicons name="close-circle" size={28} color="#dc2626" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={guardarNombre}>
-                <Ionicons name="checkmark-circle" size={28} color="#16a34a" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.nameRow}>
-            <Text style={styles.communityName}>{community.nombre}</Text>
-            {esCreador && (
-              <TouchableOpacity
-                onPress={() => {
-                  setNombreTemp(community.nombre);
-                  setEditandoNombre(true);
-                }}
-              >
-                <Ionicons name="pencil" size={20} color="#2F4AA6" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Descripción de la comunidad */}
-        <View style={styles.descriptionRow}>
-          <Text style={styles.communityDescription}>{community.descripcion}</Text>
-          {esCreador && (
-            <TouchableOpacity
-              onPress={() => {
-                setDescripcionTemp(community.descripcion || '');
-                setShowEditDescripcionModal(true);
-              }}
-            >
-              <Ionicons name="pencil" size={18} color="#2F4AA6" />
-            </TouchableOpacity>
-          )}
-        </View>
-        <View style={styles.headerButtons}>
-          <ModButton
-            title="Crear publicación"
-            onPress={handleCreatePost}
-            backgroundColor="#1d4ed8"
-            style={styles.headerButton}
-          />
-          <ModButton
-            title={puedeInteractuar ? (community.creadorID === usuarioID ? 'Eliminar' : (esMiembro ? 'Salir' : 'Unirme')) : 'Unirme'}
-            onPress={() => {
-              if (community.creadorID === usuarioID) {
-                handleDeleteCommunity();
-              } else if (esMiembro) {
-                manejarSalida();
-              } else {
-                manejarUnion();
-              }
-            }}
-            backgroundColor={community.creadorID === usuarioID ? '#dc2626' : (esMiembro ? '#dc2626' : '#16a34a')}
-            style={styles.headerButton}
-          />
-        </View>
-      </View>
-
-      {!puedeInteractuar && (
-        <View style={styles.noticeContainer}>
-          <Text style={styles.noticeText}>
-            Únete a la comunidad para comentar y reaccionar en las publicaciones.
-          </Text>
-        </View>
-      )}
-
       <ScrollView 
-        style={styles.postsContainer} 
+        style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Foto de portada */}
+        <View style={styles.coverImageContainer}>
+          {(community.fotoPortada && community.fotoPortada.trim() !== '') || (community.imagen && community.imagen.trim() !== '') ? (
+            <Image
+              source={{ uri: community.fotoPortada || community.imagen }}
+              style={styles.coverImage}
+              resizeMode="cover"
+              onError={(error) => {
+                console.error('Error cargando foto de portada:', error);
+              }}
+            />
+          ) : (
+            <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.coverImageGradient} />
+          )}
+          {uploadingCoverImage && (
+            <View style={styles.coverImageOverlay}>
+              <ActivityIndicator size="large" color="#fff" />
+            </View>
+          )}
+          {esCreador && !uploadingCoverImage && (
+            <TouchableOpacity
+              style={styles.coverImageEditButton}
+              onPress={mostrarOpcionesFotoPortada}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="camera" size={20} color="#fff" />
+              <Text style={styles.coverImageEditText}>Cambiar portada</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Header con información */}
+        <View style={styles.headerContent}>
+          {/* Nombre de la comunidad */}
+          {editandoNombre ? (
+            <View style={styles.editContainer}>
+              <TextInput
+                style={styles.editInput}
+                value={nombreTemp}
+                onChangeText={setNombreTemp}
+                placeholder="Nombre de la comunidad"
+                maxLength={50}
+              />
+              <View style={styles.editButtons}>
+                <TouchableOpacity onPress={() => setEditandoNombre(false)}>
+                  <Ionicons name="close-circle" size={28} color="#dc2626" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={guardarNombre}>
+                  <Ionicons name="checkmark-circle" size={28} color="#16a34a" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.nameRow}>
+              <Text style={styles.communityName}>{community.nombre}</Text>
+              {esCreador && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setNombreTemp(community.nombre);
+                    setEditandoNombre(true);
+                  }}
+                >
+                  <Ionicons name="pencil" size={20} color="#2F4AA6" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Descripción de la comunidad */}
+          <View style={styles.descriptionRow}>
+            <Text style={styles.communityDescription}>{community.descripcion}</Text>
+            {esCreador && (
+              <TouchableOpacity
+                onPress={() => {
+                  setDescripcionTemp(community.descripcion || '');
+                  setShowEditDescripcionModal(true);
+                }}
+              >
+                <Ionicons name="pencil" size={18} color="#2F4AA6" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.headerButtons}>
+            <ModButton
+              title="Crear publicación"
+              onPress={handleCreatePost}
+              backgroundColor="#1d4ed8"
+              style={styles.headerButton}
+            />
+            <ModButton
+              title={puedeInteractuar ? (community.creadorID === usuarioID ? 'Eliminar' : (esMiembro ? 'Salir' : 'Unirme')) : 'Unirme'}
+              onPress={() => {
+                if (community.creadorID === usuarioID) {
+                  handleDeleteCommunity();
+                } else if (esMiembro) {
+                  manejarSalida();
+                } else {
+                  manejarUnion();
+                }
+              }}
+              backgroundColor={community.creadorID === usuarioID ? '#dc2626' : (esMiembro ? '#dc2626' : '#16a34a')}
+              style={styles.headerButton}
+            />
+          </View>
+        </View>
+
+        {!puedeInteractuar && (
+          <View style={styles.noticeContainer}>
+            <Text style={styles.noticeText}>
+              Únete a la comunidad para comentar y reaccionar en las publicaciones.
+            </Text>
+          </View>
+        )}
+
+        {/* Publicaciones */}
+        <View style={styles.postsContainer}>
         {posts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>Sin publicaciones</Text>
@@ -1044,6 +1046,7 @@ const CommunityDetails = () => {
             />
           ))
         )}
+        </View>
       </ScrollView>
 
       {/* Modal de confirmación para salir de la comunidad */}
@@ -1239,7 +1242,7 @@ const styles = StyleSheet.create({
   },
   coverImageContainer: {
     width: '100%',
-    height: 300,
+    height: 180,
     position: 'relative',
     backgroundColor: '#2F4AA6',
     overflow: 'hidden',
@@ -1286,18 +1289,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   headerContent: {
-    paddingVertical: 30,
+    paddingVertical: 20,
     paddingHorizontal: 20,
     backgroundColor: '#fff',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    marginTop: -40,
-    paddingTop: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginTop: -20,
+    paddingTop: 30,
   },
   header: {
     paddingVertical: 40,
@@ -1307,21 +1305,22 @@ const styles = StyleSheet.create({
   },
   communityName: {
     color: '#111827',
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: 'center',
   },
   communityDescription: {
     color: '#4b5563',
-    fontSize: 16,
-    marginBottom: 20,
+    fontSize: 14,
+    marginBottom: 12,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   headerButtons: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 4,
   },
   headerButton: {
     flex: 1,
@@ -1338,9 +1337,13 @@ const styles = StyleSheet.create({
     color: '#92400e',
     fontSize: 14,
   },
-  postsContainer: {
+  scrollContainer: {
     flex: 1,
-    marginTop: 20,
+    backgroundColor: '#f9fafb',
+  },
+  postsContainer: {
+    marginTop: 10,
+    paddingBottom: 20,
   },
   emptyState: {
     alignItems: 'center',

@@ -16,6 +16,7 @@ interface Comunidad {
   creadorID: string;
   fechaCreacion: any;
   miembros: string[];
+  postsCount?: number;
 }
 
 export default function ComunidadScreen(): JSX.Element {
@@ -33,6 +34,30 @@ export default function ComunidadScreen(): JSX.Element {
   const obtenerImagenComunidad = (nombreComunidad: string): string => {
     const comunidad = comunidades.find(c => c.nombre === nombreComunidad);
     return comunidad?.imagen || "https://picsum.photos/40/40";
+  };
+
+  // Función para contar publicaciones de una comunidad
+  const contarPublicaciones = async (comunidadId: string): Promise<number> => {
+    try {
+      const publicacionesRef = collection(db, 'publicaciones');
+      // Contar todas las publicaciones de la comunidad (con o sin estado)
+      const publicacionesQuery = query(
+        publicacionesRef,
+        where('comunidadID', '==', comunidadId)
+      );
+      const publicacionesSnapshot = await getDocs(publicacionesQuery);
+      
+      // Filtrar solo las que tienen estado 'activo' o no tienen estado (para compatibilidad)
+      const publicacionesActivas = publicacionesSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        return !data.estado || data.estado === 'activo';
+      });
+      
+      return publicacionesActivas.length;
+    } catch (error) {
+      console.error('Error contando publicaciones para comunidad', comunidadId, ':', error);
+      return 0;
+    }
   };
 
   // Función para cargar las comunidades del usuario
@@ -57,21 +82,36 @@ export default function ComunidadScreen(): JSX.Element {
       const comunidadesPerteneceArray: Comunidad[] = [];
       const todasComunidadesArray: Comunidad[] = [];
 
-      comunidadesSnapshot.forEach((docSnapshot) => {
-        const data = docSnapshot.data();
+      // Contar publicaciones para todas las comunidades en paralelo
+      const comunidadesConPosts = await Promise.all(
+        comunidadesSnapshot.docs.map(async (docSnapshot) => {
+          const data = docSnapshot.data();
+          const comunidadId = docSnapshot.id;
+          const postsCount = await contarPublicaciones(comunidadId);
 
+          return {
+            docSnapshot,
+            data,
+            comunidadId,
+            postsCount
+          };
+        })
+      );
+
+      comunidadesConPosts.forEach(({ docSnapshot, data, comunidadId, postsCount }) => {
         // Verificar si el usuario es miembro de esta comunidad
         const miembros = data.miembros || [];
         const creadorID = data.creadorID || '';
 
         const comunidadData = {
-          id: docSnapshot.id,
+          id: comunidadId,
           nombre: data.nombre,
           descripcion: data.descripcion,
           imagen: data.imagenUrl || 'https://picsum.photos/40/40',
           creadorID: data.creadorID,
           fechaCreacion: data.fechaCreacion,
-          miembros: data.miembros || []
+          miembros: data.miembros || [],
+          postsCount: postsCount
         };
 
         // Agregar a todas las comunidades
@@ -396,7 +436,7 @@ export default function ComunidadScreen(): JSX.Element {
             const communityData = {
               id: item.id,
               nombre: item.nombre,
-              posts: 0,
+              posts: item.postsCount || 0,
               imagen: item.imagen
             };
             return (
@@ -458,7 +498,7 @@ export default function ComunidadScreen(): JSX.Element {
             const communityData = {
               id: item.id,
               nombre: item.nombre,
-              posts: 0,
+              posts: item.postsCount || 0,
               imagen: item.imagen
             };
             return (
@@ -506,7 +546,7 @@ export default function ComunidadScreen(): JSX.Element {
             const communityData = {
               id: item.id,
               nombre: item.nombre,
-              posts: 0,
+              posts: item.postsCount || 0,
               imagen: item.imagen
             };
 
