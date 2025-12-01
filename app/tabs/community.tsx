@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import React, { JSX, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface Comunidad {
   id: string;
@@ -25,6 +25,8 @@ export default function ComunidadScreen(): JSX.Element {
   const [usuarioID, setUsuarioID] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [gestionando, setGestionando] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [comunidadAEliminar, setComunidadAEliminar] = useState<Comunidad | null>(null);
   const router = useRouter();
 
   // Función para obtener imagen de comunidad
@@ -77,9 +79,9 @@ export default function ComunidadScreen(): JSX.Element {
 
         // Verificar si el usuario es el creador
         const esCreador = String(creadorID).trim() === String(storedUsuarioID).trim();
-        
+
         // Verificar si el usuario es miembro (pero no creador)
-        const esMiembro = miembros.some((miembro: string) => 
+        const esMiembro = miembros.some((miembro: string) =>
           String(miembro).trim() === String(storedUsuarioID).trim()
         );
 
@@ -96,7 +98,7 @@ export default function ComunidadScreen(): JSX.Element {
       const comunidadesDisponibles = todasComunidadesArray.filter(
         comunidad => {
           const esCreador = String(comunidad.creadorID).trim() === String(storedUsuarioID).trim();
-          const esMiembro = comunidad.miembros.some((miembro: string) => 
+          const esMiembro = comunidad.miembros.some((miembro: string) =>
             String(miembro).trim() === String(storedUsuarioID).trim()
           );
           return !esCreador && !esMiembro;
@@ -329,26 +331,24 @@ export default function ComunidadScreen(): JSX.Element {
   };
 
   const handleDeleteCommunity = (comunidad: Comunidad) => {
-    // console.log('🗑️ handleDeleteCommunity llamado para:', comunidad.nombre);
-    Alert.alert(
-      'Eliminar comunidad',
-      `¿Seguro que deseas eliminar ${comunidad.nombre}? Esta acción no se puede deshacer.`,
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-          onPress: () => {/* console.log('❌ Usuario canceló la eliminación') */ }
-        },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            // console.log('✅ Usuario confirmó la eliminación');
-            performDeleteCommunity(comunidad);
-          },
-        },
-      ]
-    );
+    console.log('🗑️ handleDeleteCommunity llamado para:', comunidad.nombre);
+    setComunidadAEliminar(comunidad);
+    setShowDeleteModal(true);
+  };
+
+  const confirmarEliminacion = () => {
+    if (comunidadAEliminar) {
+      console.log('✅ Usuario confirmó la eliminación');
+      setShowDeleteModal(false);
+      performDeleteCommunity(comunidadAEliminar);
+      setComunidadAEliminar(null);
+    }
+  };
+
+  const cancelarEliminacion = () => {
+    console.log('❌ Usuario canceló la eliminación');
+    setShowDeleteModal(false);
+    setComunidadAEliminar(null);
   };
 
   const renderContent = () => {
@@ -430,7 +430,6 @@ export default function ComunidadScreen(): JSX.Element {
                       }}
                       backgroundColor="#dc2626"
                       style={styles.actionButton}
-                      disabled={gestionando}
                     />
                   </View>
                 )}
@@ -500,7 +499,7 @@ export default function ComunidadScreen(): JSX.Element {
               posts: 0,
               imagen: item.imagen
             };
-            
+
             return (
               <View key={item.id} style={styles.communityWrapper}>
                 <CommunityCard
@@ -547,6 +546,45 @@ export default function ComunidadScreen(): JSX.Element {
           contentContainerStyle={styles.scrollContent}
         />
       </View>
+
+      {/* Modal de confirmación para eliminar comunidad */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Eliminar comunidad</Text>
+            <Text style={styles.modalDescription}>
+              ¿Seguro que deseas eliminar {comunidadAEliminar?.nombre}? Esta acción no se puede deshacer.
+            </Text>
+            <View style={styles.modalActions}>
+              <ModButton
+                title="Cancelar"
+                onPress={cancelarEliminacion}
+                backgroundColor="#9ca3af"
+                style={styles.modalActionButton}
+              />
+              <ModButton
+                title="Eliminar"
+                onPress={confirmarEliminacion}
+                backgroundColor="#dc2626"
+                style={styles.modalActionButton}
+              />
+            </View>
+            {gestionando && (
+              <View style={{ marginTop: 16, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#dc2626" />
+                <Text style={{ marginTop: 8, color: '#6b7280', fontSize: 12 }}>
+                  Eliminando...
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -695,5 +733,47 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
     fontFamily: 'Montserrat_400Regular',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+    color: '#1f2937',
+    fontFamily: 'Montserrat_400Regular',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+    fontFamily: 'Montserrat_400Regular',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  modalActionButton: {
+    flex: 1,
   },
 });

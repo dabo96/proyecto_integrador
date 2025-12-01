@@ -91,7 +91,7 @@ const CommunityDetails = () => {
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
-      
+
       // Escuchar cambios en la comunidad en tiempo real (para actualizar foto de portada)
       if (!communityId || typeof communityId !== 'string') return;
 
@@ -876,7 +876,6 @@ const CommunityDetails = () => {
             }}
             backgroundColor={community.creadorID === usuarioID ? '#dc2626' : (esMiembro ? '#dc2626' : '#16a34a')}
             style={styles.headerButton}
-            disabled={gestionando}
           />
         </View>
       </View>
@@ -954,7 +953,6 @@ const CommunityDetails = () => {
                 onPress={confirmarSalida}
                 backgroundColor="#dc2626"
                 style={styles.modalActionButton}
-                disabled={gestionando}
               />
             </View>
             {gestionando && (
