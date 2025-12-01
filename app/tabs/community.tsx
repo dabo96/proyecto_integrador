@@ -36,30 +36,30 @@ export default function ComunidadScreen(): JSX.Element {
   const cargarComunidades = async () => {
     try {
       setLoading(true);
-      
+
       // Obtener usuarioID del usuario actual
       const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
       if (!storedUsuarioID) {
         setLoading(false);
         return;
       }
-      
+
       setUsuarioID(storedUsuarioID);
-      
+
       // Buscar todas las comunidades donde el usuario es miembro
       const comunidadesRef = collection(db, 'comunidades');
       const comunidadesSnapshot = await getDocs(comunidadesRef);
-      
+
       const comunidadesArray: Comunidad[] = [];
       const todasComunidadesArray: Comunidad[] = [];
-      
+
       comunidadesSnapshot.forEach((docSnapshot) => {
         const data = docSnapshot.data();
-        
+
         // Verificar si el usuario es miembro de esta comunidad
         const miembros = data.miembros || [];
         const creadorID = data.creadorID || '';
-        
+
         // Agregar a todas las comunidades
         todasComunidadesArray.push({
           id: docSnapshot.id,
@@ -70,7 +70,7 @@ export default function ComunidadScreen(): JSX.Element {
           fechaCreacion: data.fechaCreacion,
           miembros: data.miembros || []
         });
-        
+
         // Solo agregar a "comunidades" si el usuario es miembro
         if (miembros.includes(storedUsuarioID)) {
           comunidadesArray.push({
@@ -84,18 +84,18 @@ export default function ComunidadScreen(): JSX.Element {
           });
         }
       });
-      
+
       // Filtrar todas las comunidades para excluir las que el usuario creó
       const comunidadesDisponibles = todasComunidadesArray.filter(
         comunidad => comunidad.creadorID !== storedUsuarioID && !comunidadesArray.find(c => c.id === comunidad.id)
       );
-      
+
       // console.log('Comunidades cargadas (del usuario):', comunidadesArray);
       // console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
-      
+
       setComunidades(comunidadesArray);
       setTodasComunidades(comunidadesDisponibles);
-      
+
     } catch (error) {
       // console.error('Error cargando comunidades:', error);
     } finally {
@@ -119,7 +119,7 @@ export default function ComunidadScreen(): JSX.Element {
 
       await setDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidad.id), payload);
       // Compatibilidad con colecciones antiguas en minúscula
-      await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => {});
+      await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => { });
     } catch (error) {
       // console.warn('No se pudo registrar la membresía del usuario:', error);
     }
@@ -128,11 +128,11 @@ export default function ComunidadScreen(): JSX.Element {
   const eliminarMembresiaUsuario = async (userId: string, comunidadId: string) => {
     try {
       await deleteDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidadId));
-    } catch {}
+    } catch { }
 
     try {
       await deleteDoc(doc(db, 'usuarios', userId, 'comunidades', comunidadId));
-    } catch {}
+    } catch { }
   };
 
   const handleJoinCommunity = async (comunidad: Comunidad) => {
@@ -226,10 +226,10 @@ export default function ComunidadScreen(): JSX.Element {
       'Salir de la comunidad',
       `¿Deseas salir de ${comunidad.nombre}?`,
       [
-        { 
-          text: 'Cancelar', 
+        {
+          text: 'Cancelar',
           style: 'cancel',
-          onPress: () => {/* console.log('❌ Usuario canceló la salida') */}
+          onPress: () => {/* console.log('❌ Usuario canceló la salida') */ }
         },
         {
           text: 'Salir',
@@ -264,42 +264,44 @@ export default function ComunidadScreen(): JSX.Element {
     // console.log('🗑️ Eliminando comunidad:', comunidad.nombre);
     setGestionando(true);
     try {
-      // 1. Obtener todas las publicaciones de la comunidad
-      const publicacionesRef = collection(db, 'publicaciones');
-      const publicacionesSnapshot = await getDocs(
-        query(publicacionesRef, where('comunidadID', '==', comunidad.id))
-      );
-      // console.log(`📄 Encontradas ${publicacionesSnapshot.docs.length} publicaciones`);
-
-      // 2. Eliminar todas las interacciones (likes y comentarios) de cada publicación
-      const interaccionesRef = collection(db, 'interacciones');
-      let totalInteracciones = 0;
-      for (const publicacionDoc of publicacionesSnapshot.docs) {
-        const interaccionesSnapshot = await getDocs(
-          query(interaccionesRef, where('publicacionID', '==', publicacionDoc.id))
+      // 1. Eliminar interacciones y publicaciones (Best effort)
+      try {
+        const publicacionesRef = collection(db, 'publicaciones');
+        const publicacionesSnapshot = await getDocs(
+          query(publicacionesRef, where('comunidadID', '==', comunidad.id))
         );
-        totalInteracciones += interaccionesSnapshot.docs.length;
+
+        const interaccionesRef = collection(db, 'interacciones');
+
+        // Eliminar interacciones de cada publicación
+        for (const publicacionDoc of publicacionesSnapshot.docs) {
+          const interaccionesSnapshot = await getDocs(
+            query(interaccionesRef, where('publicacionID', '==', publicacionDoc.id))
+          );
+          await Promise.all(
+            interaccionesSnapshot.docs.map((interaccionDoc) => deleteDoc(interaccionDoc.ref))
+          );
+        }
+
+        // Eliminar publicaciones
         await Promise.all(
-          interaccionesSnapshot.docs.map((interaccionDoc) => deleteDoc(interaccionDoc.ref))
+          publicacionesSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref))
         );
+      } catch (e) {
+        // console.warn('Error limpiando publicaciones:', e);
       }
-      // console.log(`💬 Eliminadas ${totalInteracciones} interacciones`);
 
-      // 3. Eliminar todas las publicaciones de la comunidad
-      await Promise.all(
-        publicacionesSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref))
-      );
-      // console.log('✅ Publicaciones eliminadas');
+      // 2. Eliminar membresías de todos los usuarios (Best effort)
+      try {
+        await Promise.all(
+          (comunidad.miembros || []).map((miembroId) => eliminarMembresiaUsuario(miembroId, comunidad.id))
+        );
+      } catch (e) {
+        // console.warn('Error limpiando membresías:', e);
+      }
 
-      // 4. Eliminar membresías de todos los usuarios
-      await Promise.all(
-        (comunidad.miembros || []).map((miembroId) => eliminarMembresiaUsuario(miembroId, comunidad.id))
-      );
-      // console.log(`✅ Membresías eliminadas de ${comunidad.miembros?.length || 0} usuarios`);
-
-      // 5. Eliminar la comunidad
+      // 3. Eliminar la comunidad (Critical)
       await deleteDoc(doc(db, 'comunidades', comunidad.id));
-      // console.log('✅ Comunidad eliminada');
 
       Alert.alert('Comunidad eliminada', `${comunidad.nombre} fue eliminada correctamente.`);
       await cargarComunidades();
@@ -317,10 +319,10 @@ export default function ComunidadScreen(): JSX.Element {
       'Eliminar comunidad',
       `¿Seguro que deseas eliminar ${comunidad.nombre}? Esta acción no se puede deshacer.`,
       [
-        { 
-          text: 'Cancelar', 
+        {
+          text: 'Cancelar',
           style: 'cancel',
-          onPress: () => {/* console.log('❌ Usuario canceló la eliminación') */}
+          onPress: () => {/* console.log('❌ Usuario canceló la eliminación') */ }
         },
         {
           text: 'Eliminar',
@@ -333,7 +335,7 @@ export default function ComunidadScreen(): JSX.Element {
       ]
     );
   };
-  
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -352,7 +354,7 @@ export default function ComunidadScreen(): JSX.Element {
             colors={['#2F4AA6', '#0491C6']}
             style={styles.addButton}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.addButtonInner}
               onPress={() => router.push('/tabs/newCommunity')}
             >
@@ -361,7 +363,7 @@ export default function ComunidadScreen(): JSX.Element {
           </LinearGradient>
         </View>
       </View>,
-      
+
       <View key="community-section" style={styles.section}>
         <Text style={styles.sectionTitle}>Tus comunidades</Text>
         {comunidades.length > 0 ? (
@@ -466,33 +468,33 @@ export default function ComunidadScreen(): JSX.Element {
 
   return (
     <View style={styles.container}>
-        {/* Header */}
-        <LinearGradient
-          colors={['#2F4AA6', '#0491C6']}
-          style={styles.mainHeader}
+      {/* Header */}
+      <LinearGradient
+        colors={['#2F4AA6', '#0491C6']}
+        style={styles.mainHeader}
+      />
+      <View style={styles.container}>
+        <FlatList
+          data={[]}
+          keyExtractor={(_, index) => `empty-${index}`}
+          renderItem={() => null}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={<View>{renderContent()}</View>}
+          contentContainerStyle={styles.scrollContent}
         />
-        <View style={styles.container}>
-          <FlatList
-            data={[]}
-            keyExtractor={(_, index) => `empty-${index}`}
-            renderItem={() => null}
-            showsVerticalScrollIndicator={false}
-            ListHeaderComponent={<View>{renderContent()}</View>}
-            contentContainerStyle={styles.scrollContent}
-          />
-        </View>
-    </View> 
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mainHeader: { 
+  mainHeader: {
     paddingVertical: 16,
     paddingHorizontal: 10,
     alignItems: 'center',
   },
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     backgroundColor: "#fff",
   },
   scrollContent: {
@@ -505,22 +507,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontFamily: 'Montserrat_400Regular',
   },
-  title: { 
-    fontSize: 22, 
-    fontWeight: "bold", 
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
     color: "#000000ff",
     fontFamily: 'Montserrat_400Regular',
   },
-  viewAll: { 
+  viewAll: {
     color: "#2F80ED",
     fontSize: 14
   },
   section: {
     marginBottom: 24,
   },
-  sectionTitle: { 
-    fontSize: 16, 
-    fontWeight: "bold", 
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
     marginBottom: 12,
     color: "#000",
     fontFamily: 'Montserrat_400Regular',

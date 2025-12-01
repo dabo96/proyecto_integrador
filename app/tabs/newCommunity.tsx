@@ -130,6 +130,7 @@ export default function NewCommunityScreen() {
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         imagenUrl: imagenUrlFinal,
+        fotoPortada: imagenUrlFinal, // Usar la misma imagen como portada por defecto
         creadorID: usuarioID,
         fechaCreacion: new Date(),
         miembros: [usuarioID], // El creador es automáticamente miembro

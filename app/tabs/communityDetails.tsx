@@ -1,19 +1,23 @@
 import ModButton from '@/components/ModButton';
 import PostCard from '@/components/cards/PostCard';
 import { db } from '@/services/firebase';
+import { validarYSubirImagen } from '@/services/imageModerationClient';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface Comunidad {
   id: string;
   nombre: string;
   descripcion: string;
   imagen: string;
+  fotoPortada?: string;
   creadorID: string;
   miembros: string[];
 }
@@ -82,10 +86,32 @@ const CommunityDetails = () => {
   const [reportDetalle, setReportDetalle] = useState('');
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showLeaveSuccessModal, setShowLeaveSuccessModal] = useState(false);
+  const [uploadingCoverImage, setUploadingCoverImage] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
+      
+      // Escuchar cambios en la comunidad en tiempo real (para actualizar foto de portada)
+      if (!communityId || typeof communityId !== 'string') return;
+
+      const comunidadRef = doc(db, 'comunidades', communityId);
+      const unsubscribe = onSnapshot(comunidadRef, (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          setCommunity((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              fotoPortada: data.fotoPortada || data.coverImage || data.imagenUrl || null,
+            };
+          });
+        }
+      }, (error) => {
+        console.error('Error escuchando cambios en la comunidad:', error);
+      });
+
+      return () => unsubscribe();
     }, [communityId])
   );
 
@@ -108,6 +134,7 @@ const CommunityDetails = () => {
           nombre: data.nombre,
           descripcion: data.descripcion,
           imagen: data.imagenUrl || 'https://picsum.photos/200/200',
+          fotoPortada: data.fotoPortada || data.coverImage || data.imagenUrl || null,
           creadorID: data.creadorID,
           miembros: data.miembros || [],
         };
@@ -673,6 +700,105 @@ const CommunityDetails = () => {
     });
   };
 
+  // Función para cambiar la foto de portada
+  const cambiarFotoPortada = async (source: 'camera' | 'library') => {
+    if (!community || !usuarioID || community.creadorID !== usuarioID) {
+      Alert.alert('Error', 'Solo el creador de la comunidad puede cambiar la foto de portada.');
+      return;
+    }
+
+    try {
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara para tomar fotos.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [16, 9],
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permiso denegado', 'Se necesita acceso a la galería para seleccionar imágenes.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [16, 9],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets[0]) {
+        setUploadingCoverImage(true);
+        const imageUri = result.assets[0].uri;
+
+        try {
+          // Validar y subir imagen
+          const validacionResult = await validarYSubirImagen(
+            imageUri,
+            usuarioID
+          );
+
+          if (!validacionResult.success) {
+            setUploadingCoverImage(false);
+            Alert.alert(
+              'Error',
+              validacionResult.error || 'Contenido inapropiado detectado.'
+            );
+            return;
+          }
+
+          const downloadURL = validacionResult.url!;
+
+          // Actualizar la comunidad en Firestore
+          const comunidadRef = doc(db, 'comunidades', community.id);
+          await updateDoc(comunidadRef, {
+            fotoPortada: downloadURL,
+          });
+
+          // Actualizar el estado local
+          setCommunity({
+            ...community,
+            fotoPortada: downloadURL,
+          });
+
+          setUploadingCoverImage(false);
+          Alert.alert('Éxito', 'Foto de portada actualizada correctamente.');
+        } catch (error) {
+          console.error('Error subiendo imagen:', error);
+          setUploadingCoverImage(false);
+          Alert.alert('Error', 'No se pudo subir la imagen. Intenta nuevamente.');
+        }
+      }
+    } catch (error) {
+      console.error('Error seleccionando imagen:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen.');
+    }
+  };
+
+  const mostrarOpcionesFotoPortada = () => {
+    if (!community || !usuarioID || community.creadorID !== usuarioID) {
+      return;
+    }
+
+    Alert.alert(
+      'Cambiar foto de portada',
+      'Selecciona una opción',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Tomar foto', onPress: () => cambiarFotoPortada('camera') },
+        { text: 'Elegir de galería', onPress: () => cambiarFotoPortada('library') },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -691,10 +817,43 @@ const CommunityDetails = () => {
   }
 
   const puedeInteractuar = esMiembro || community.creadorID === usuarioID;
+  const esCreador = Boolean(usuarioID && community.creadorID && String(community.creadorID) === String(usuarioID));
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.header}>
+      {/* Foto de portada */}
+      <View style={styles.coverImageContainer}>
+        {(community.fotoPortada && community.fotoPortada.trim() !== '') || (community.imagen && community.imagen.trim() !== '') ? (
+          <Image
+            source={{ uri: community.fotoPortada || community.imagen }}
+            style={styles.coverImage}
+            resizeMode="cover"
+            onError={(error) => {
+              console.error('Error cargando foto de portada:', error);
+            }}
+          />
+        ) : (
+          <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.coverImageGradient} />
+        )}
+        {uploadingCoverImage && (
+          <View style={styles.coverImageOverlay}>
+            <ActivityIndicator size="large" color="#fff" />
+          </View>
+        )}
+        {esCreador && !uploadingCoverImage && (
+          <TouchableOpacity
+            style={styles.coverImageEditButton}
+            onPress={mostrarOpcionesFotoPortada}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="camera" size={20} color="#fff" />
+            <Text style={styles.coverImageEditText}>Cambiar portada</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Header con información */}
+      <View style={styles.headerContent}>
         <Text style={styles.communityName}>{community.nombre}</Text>
         <Text style={styles.communityDescription}>{community.descripcion}</Text>
         <View style={styles.headerButtons}>
@@ -720,7 +879,7 @@ const CommunityDetails = () => {
             disabled={gestionando}
           />
         </View>
-      </LinearGradient>
+      </View>
 
       {!puedeInteractuar && (
         <View style={styles.noticeContainer}>
@@ -908,6 +1067,68 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f9fafb',
   },
+  coverImageContainer: {
+    width: '100%',
+    height: 300,
+    position: 'relative',
+    backgroundColor: '#2F4AA6',
+    overflow: 'hidden',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverImageGradient: {
+    width: '100%',
+    height: '100%',
+  },
+  coverImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverImageEditButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  coverImageEditText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  headerContent: {
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    marginTop: -40,
+    paddingTop: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   header: {
     paddingVertical: 40,
     paddingHorizontal: 20,
@@ -915,15 +1136,18 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
   },
   communityName: {
-    color: '#fff',
+    color: '#111827',
     fontSize: 26,
     fontWeight: '700',
     marginBottom: 6,
+    textAlign: 'center',
   },
   communityDescription: {
-    color: '#f1f5f9',
+    color: '#4b5563',
     fontSize: 16,
     marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   headerButtons: {
     flexDirection: 'row',
