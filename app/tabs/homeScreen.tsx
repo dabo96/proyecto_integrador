@@ -335,7 +335,7 @@ export default function MainPageScreen() {
                         console.log('Publicación de comunidad excluida del feed:', docSnapshot.id);
                         continue;
                     }
-                    
+
                     const publicacion = await procesarPublicacion(docSnapshot);
                     if (publicacion) {
                         nuevasPublicaciones.push(publicacion);
@@ -560,7 +560,7 @@ export default function MainPageScreen() {
             if (usuarioDoc.exists()) {
                 const usuarioData = usuarioDoc.data();
                 setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
-                
+
                 // Obtener nombre completo y extraer solo primer nombre y primer apellido
                 const nombreCompleto = usuarioData.nombreCompleto || usuarioData.nombre || storedUsuarioNombre || 'Usuario';
                 const partesNombre = nombreCompleto.trim().split(' ');
@@ -605,7 +605,7 @@ export default function MainPageScreen() {
                 const usuarioData = docSnapshot.data();
                 setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
                 console.log('📸 Foto de perfil actualizada:', usuarioData.fotoPerfil);
-                
+
                 // Actualizar nombre (solo primer nombre y primer apellido)
                 const nombreCompleto = usuarioData.nombreCompleto || usuarioData.nombre || 'Usuario';
                 const partesNombre = nombreCompleto.trim().split(' ');
@@ -1328,9 +1328,9 @@ export default function MainPageScreen() {
                                 <View style={styles.searchResultInfo}>
                                     <Text style={styles.searchResultName}>
                                         {(() => {
-                                          const primerNombre = usuario.nombres?.split(' ')[0] || '';
-                                          const primerApellido = usuario.apellidos?.split(' ')[0] || '';
-                                          return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                                            const primerNombre = usuario.nombres?.split(' ')[0] || '';
+                                            const primerApellido = usuario.apellidos?.split(' ')[0] || '';
+                                            return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
                                         })()}
                                     </Text>
                                 </View>
@@ -1423,11 +1423,11 @@ export default function MainPageScreen() {
                                                 style={styles.likeUserImage}
                                             />
                                             <Text style={styles.likeUserName}>
-                                              {(() => {
-                                                const primerNombre = user.nombres?.split(' ')[0] || '';
-                                                const primerApellido = user.apellidos?.split(' ')[0] || '';
-                                                return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
-                                              })()}
+                                                {(() => {
+                                                    const primerNombre = user.nombres?.split(' ')[0] || '';
+                                                    const primerApellido = user.apellidos?.split(' ')[0] || '';
+                                                    return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                                                })()}
                                             </Text>
                                         </View>
                                     ))
@@ -1536,8 +1536,8 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 10,
         backgroundColor: "#fff",
-        width: '70%',
-        marginLeft: 75,
+        width: '80%',
+        alignSelf: 'center',
         marginTop: 20,
     },
     icon: {
@@ -1684,6 +1684,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
+        overflow: 'hidden',
     },
     modalHeader: {
         flexDirection: 'row',
@@ -1809,7 +1810,7 @@ const styles = StyleSheet.create({
     likeUserName: {
         fontSize: 16,
         color: '#333',
-        fontFamily: 'Montserrat_500Medium',
+        fontFamily: 'Montserrat_600SemiBold',
     },
     noLikesText: {
         textAlign: 'center',

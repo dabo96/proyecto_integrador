@@ -105,7 +105,33 @@ export default function Notificaciones() {
             const data = d.data() as any;
             const u = await getUsuario(data.usuarioID);
             if (!u) continue;
-            const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+
+            // Obtener solo el primer nombre y primer apellido
+            let primerNombre = '';
+            let primerApellido = '';
+
+            // Intentar obtener desde campos separados primero (nombres y apellidos)
+            if (u.nombres) {
+              primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
+            }
+            if (u.apellidos) {
+              primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
+            }
+
+            // Si no hay campos separados, intentar desde nombreCompleto o nombre
+            if (!primerNombre || !primerApellido) {
+              const nombreFuente = u.nombreCompleto || u.nombre || '';
+              const partesNombre = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
+              if (!primerNombre && partesNombre.length > 0) {
+                primerNombre = partesNombre[0];
+              }
+              if (!primerApellido && partesNombre.length > 1) {
+                primerApellido = partesNombre[1]; // Primer apellido
+              }
+            }
+
+            const nombre = `${primerNombre} ${primerApellido}`.trim();
+
             const ts = data.fechaCreacion?.toDate
               ? data.fechaCreacion.toDate().getTime()
               : new Date(data.fechaCreacion || Date.now()).getTime();
@@ -150,11 +176,11 @@ export default function Notificaciones() {
           ? data.fecha.toDate().getTime()
           : new Date(data.fecha || Date.now()).getTime();
         const postData = mapaMisPublicaciones.get(data.publicacionID) || {};
-        
+
         // Obtener solo el primer nombre y primer apellido
         let primerNombre = '';
         let primerApellido = '';
-        
+
         // Intentar obtener desde campos separados primero (nombres y apellidos)
         if (u.nombres) {
           primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
@@ -162,11 +188,11 @@ export default function Notificaciones() {
         if (u.apellidos) {
           primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
         }
-        
+
         // Si no hay campos separados, intentar desde nombreCompleto o nombre
         if (!primerNombre || !primerApellido) {
           const nombreFuente = u.nombreCompleto || u.nombre || '';
-          const partesNombre = nombreFuente.trim().split(' ').filter(p => p.length > 0);
+          const partesNombre = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
           if (!primerNombre && partesNombre.length > 0) {
             primerNombre = partesNombre[0];
           }
@@ -174,9 +200,9 @@ export default function Notificaciones() {
             primerApellido = partesNombre[1]; // Primer apellido
           }
         }
-        
+
         const nombre = `${primerNombre} ${primerApellido}`.trim();
-        
+
         notificaciones.push({
           id: `com_${d.id}`,
           tipo: 'comentario',
@@ -206,11 +232,11 @@ export default function Notificaciones() {
           ? data.fecha.toDate().getTime()
           : new Date(data.fecha || Date.now()).getTime();
         const postData = mapaMisPublicaciones.get(data.publicacionID) || {};
-        
+
         // Obtener solo el primer nombre y primer apellido
         let primerNombre = '';
         let primerApellido = '';
-        
+
         // Intentar obtener desde campos separados primero
         if (u.nombres) {
           primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
@@ -218,7 +244,7 @@ export default function Notificaciones() {
         if (u.apellidos) {
           primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
         }
-        
+
         // Si no hay campos separados, intentar desde nombreCompleto o nombre
         if (!primerNombre || !primerApellido) {
           const nombreFuente = u.nombreCompleto || u.nombre || '';
@@ -230,9 +256,9 @@ export default function Notificaciones() {
             primerApellido = partesNombre[1];
           }
         }
-        
+
         const nombre = `${primerNombre} ${primerApellido}`.trim();
-        
+
         notificaciones.push({
           id: `like_${d.id}`,
           tipo: 'like',
@@ -264,7 +290,33 @@ export default function Notificaciones() {
             const ts = contactoData.fechaSeguimiento?.toDate
               ? contactoData.fechaSeguimiento.toDate().getTime()
               : new Date(contactoData.fechaSeguimiento || Date.now()).getTime();
-            const nombre = `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+
+            // Obtener solo el primer nombre y primer apellido
+            let primerNombre = '';
+            let primerApellido = '';
+
+            // Intentar obtener desde campos separados primero (nombres y apellidos)
+            if (u.nombres) {
+              primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
+            }
+            if (u.apellidos) {
+              primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
+            }
+
+            // Si no hay campos separados, intentar desde nombreCompleto o nombre
+            if (!primerNombre || !primerApellido) {
+              const nombreFuente = u.nombreCompleto || u.nombre || '';
+              const partesNombre = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
+              if (!primerNombre && partesNombre.length > 0) {
+                primerNombre = partesNombre[0];
+              }
+              if (!primerApellido && partesNombre.length > 1) {
+                primerApellido = partesNombre[1]; // Primer apellido
+              }
+            }
+
+            const nombre = `${primerNombre} ${primerApellido}`.trim();
+
             notificaciones.push({
               id: `seguidor_${contactoDoc.id}`,
               tipo: 'seguidor',
@@ -285,23 +337,23 @@ export default function Notificaciones() {
     try {
       const solicitudesRef = collection(db, 'Usuarios', userId, 'solicitudes');
       const solicitudesSnapshot = await getDocs(solicitudesRef);
-      
+
       for (const solicitudDoc of solicitudesSnapshot.docs) {
         const solicitudData = solicitudDoc.data();
         const solicitanteID = solicitudData.solicitanteID;
-        
+
         if (solicitanteID) {
           const u = await getUsuario(solicitanteID);
           if (!u) continue;
-          
+
           const ts = solicitudData.createdAt?.toDate
             ? solicitudData.createdAt.toDate().getTime()
             : new Date(solicitudData.createdAt || Date.now()).getTime();
-          
+
           // Obtener solo el primer nombre y primer apellido
           let primerNombre = '';
           let primerApellido = '';
-          
+
           // Intentar obtener desde campos separados primero (nombres y apellidos)
           if (u.nombres) {
             primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
@@ -309,11 +361,11 @@ export default function Notificaciones() {
           if (u.apellidos) {
             primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
           }
-          
+
           // Si no hay campos separados, intentar desde nombreCompleto o nombre
           if (!primerNombre || !primerApellido) {
             const nombreFuente = solicitudData.nombre || u.nombreCompleto || u.nombre || '';
-            const partesNombre = nombreFuente.trim().split(' ').filter(p => p.length > 0);
+            const partesNombre = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
             if (!primerNombre && partesNombre.length > 0) {
               primerNombre = partesNombre[0];
             }
@@ -321,9 +373,9 @@ export default function Notificaciones() {
               primerApellido = partesNombre[1]; // Primer apellido
             }
           }
-          
+
           const nombre = `${primerNombre} ${primerApellido}`.trim();
-          
+
           notificaciones.push({
             id: `solicitud_${solicitudDoc.id}`,
             tipo: 'solicitud_seguimiento',
@@ -409,14 +461,14 @@ export default function Notificaciones() {
 
   const handleAceptarSolicitud = async (solicitudID: string, usuarioID: string, notificacionId: string) => {
     if (!currentUserID || !solicitudID) return;
-    
+
     try {
       await aceptarSolicitud(currentUserID, solicitudID);
-      
+
       // Remover la notificación de solicitud y agregar una de seguidor
       setLista(prev => {
         const nuevaLista = prev.filter(n => n.id !== notificacionId);
-        
+
         // Agregar notificación de nuevo seguidor
         const nuevaNotificacion: Notificacion = {
           id: `seguidor_${Date.now()}`,
@@ -427,13 +479,13 @@ export default function Notificaciones() {
           timestamp: Date.now(),
           yaSeguido: false,
         };
-        
+
         nuevaLista.unshift(nuevaNotificacion);
         return nuevaLista;
       });
-      
+
       Alert.alert('Solicitud aceptada', 'Ahora este usuario te sigue.');
-      
+
       // Recargar notificaciones para actualizar contadores
       await cargar();
     } catch (error) {
@@ -444,13 +496,13 @@ export default function Notificaciones() {
 
   const handleRechazarSolicitud = async (solicitudID: string, notificacionId: string) => {
     if (!currentUserID || !solicitudID) return;
-    
+
     try {
       await rechazarSolicitud(currentUserID, solicitudID);
-      
+
       // Remover la notificación
       setLista(prev => prev.filter(n => n.id !== notificacionId));
-      
+
       Alert.alert('Solicitud rechazada', 'La solicitud ha sido rechazada.');
     } catch (error) {
       console.error('Error rechazando solicitud:', error);
@@ -474,12 +526,12 @@ export default function Notificaciones() {
       const data = postDoc.data();
       console.log('📄 Datos de la publicación:', { id: postDoc.id, usuarioID: data.usuarioID, texto: data.texto?.substring(0, 50) });
       const usuario = await obtenerUsuarioPorId(data.usuarioID);
-      
+
       if (!usuario) {
         console.error('❌ No se encontró el usuario:', data.usuarioID);
         return null;
       }
-      
+
       console.log('👤 Usuario encontrado:', usuario.nombre);
 
       const nombreFuente = usuario.nombreCompleto || usuario.nombre || '';
@@ -528,20 +580,20 @@ export default function Notificaciones() {
         autor: {
           nombres: nombresAutor,
           apellidos: apellidosAutor,
-          fotoPerfil: usuario.fotoPerfil,
+          fotoPerfil: usuario.fotoPerfil || undefined,
         },
         likes: likesCount,
         comentarios: comentariosCount,
         isOwner: data.usuarioID === currentUserID,
       };
-      
+
       console.log('✅ Publicación procesada exitosamente:', {
         id: postDoc.id,
         autor: `${nombresAutor} ${apellidosAutor}`,
         likes: likesCount,
         comentarios: comentariosCount
       });
-      
+
       return publicacion;
     } catch (error) {
       console.error('❌ Error obteniendo publicación:', error);
@@ -566,7 +618,7 @@ export default function Notificaciones() {
       for (const comentarioDoc of comentariosSnapshot.docs) {
         const data = comentarioDoc.data();
         const usuario = await obtenerUsuarioPorId(data.usuarioID);
-        
+
         if (usuario) {
           const nombreFuente = usuario.nombreCompleto || usuario.nombre || '';
           const partesNombre = nombreFuente.trim().split(' ');
@@ -581,7 +633,7 @@ export default function Notificaciones() {
             autor: {
               nombres: nombresAutor,
               apellidos: apellidosAutor,
-              fotoPerfil: usuario.fotoPerfil,
+              fotoPerfil: usuario.fotoPerfil || undefined,
             },
           });
         }
@@ -614,7 +666,7 @@ export default function Notificaciones() {
           await deleteDoc(doc(db, 'interacciones', likeDoc.id));
         }
         setLikedPosts(prev => ({ ...prev, [postId]: false }));
-        
+
         // Actualizar contador
         if (selectedPost) {
           setSelectedPost({ ...selectedPost, likes: Math.max(0, selectedPost.likes - 1) });
@@ -628,7 +680,7 @@ export default function Notificaciones() {
           fecha: serverTimestamp(),
         });
         setLikedPosts(prev => ({ ...prev, [postId]: true }));
-        
+
         // Actualizar contador
         if (selectedPost) {
           setSelectedPost({ ...selectedPost, likes: selectedPost.likes + 1 });
@@ -654,10 +706,10 @@ export default function Notificaciones() {
 
       setCommentText('');
       setShowCommentInput(null);
-      
+
       // Recargar comentarios
       await cargarComentarios(postId);
-      
+
       // Actualizar contador
       if (selectedPost) {
         setSelectedPost({ ...selectedPost, comentarios: selectedPost.comentarios + 1 });
@@ -722,9 +774,9 @@ export default function Notificaciones() {
   const Item = ({ n }: { n: Notificacion }) => {
     // Si tiene publicacionID, el clic principal abre el modal, no navega al perfil
     const hasPublication = n.publicacionID && (n.tipo === 'like' || n.tipo === 'comentario' || n.tipo === 'publicacion');
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.rowItem}
         onPress={() => handleNotificationPress(n)}
         activeOpacity={0.7}
@@ -740,17 +792,17 @@ export default function Notificaciones() {
               }
             }}
             activeOpacity={0.7}
-      >
-        <View style={styles.avatarContainer}>
-          {n.avatar ? (
-            <Image source={{ uri: n.avatar }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
-          )}
-        </View>
+          >
+            <View style={styles.avatarContainer}>
+              {n.avatar ? (
+                <Image source={{ uri: n.avatar }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
+              )}
+            </View>
           </TouchableOpacity>
 
-        <View style={styles.rowInfo}>
+          <View style={styles.rowInfo}>
             <TouchableOpacity
               onPress={(e) => {
                 e.stopPropagation(); // Evitar que se propague al TouchableOpacity padre
@@ -762,65 +814,65 @@ export default function Notificaciones() {
               }}
               activeOpacity={0.7}
             >
-          <Text style={styles.rowTitle}>{n.name}</Text>
+              <Text style={styles.rowTitle}>{n.name}</Text>
             </TouchableOpacity>
-          <Text style={styles.rowTime}>
-            {getNotificationText(n)} • {relTime(n.timestamp)}
-          </Text>
-          {n.publicacionTexto && n.tipo !== 'publicacion' && (
-            <Text style={styles.postPreview} numberOfLines={1}>
-              En: {n.publicacionTexto}
+            <Text style={styles.rowTime}>
+              {getNotificationText(n)} • {relTime(n.timestamp)}
             </Text>
-          )}
-        </View>
+            {n.publicacionTexto && n.tipo !== 'publicacion' && (
+              <Text style={styles.postPreview} numberOfLines={1}>
+                En: {n.publicacionTexto}
+              </Text>
+            )}
+          </View>
         </View>
 
-      {/* ✅ Miniatura restaurada */}
-      {n.imagenUrl ? (
-        <Image source={{ uri: n.imagenUrl }} style={styles.thumbnail} />
-      ) : null}
+        {/* ✅ Miniatura restaurada */}
+        {n.imagenUrl ? (
+          <Image source={{ uri: n.imagenUrl }} style={styles.thumbnail} />
+        ) : null}
 
-      {/* ✅ Botón seguir con degradado */}
-      {n.tipo === 'seguidor' && (
-        n.yaSeguido ? (
-          <View style={[styles.followButton, styles.followingButton]}>
-            <Text style={[styles.followButtonText, styles.followingButtonText]}>Siguiendo</Text>
-          </View>
-        ) : n.solicitudPendiente ? (
-          <View style={[styles.followButton, styles.pendingButton]}>
-            <Text style={[styles.followButtonText, styles.pendingButtonText]}>Solicitud enviada</Text>
-          </View>
-        ) : (
-          <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.gradientButton}>
+        {/* ✅ Botón seguir con degradado */}
+        {n.tipo === 'seguidor' && (
+          n.yaSeguido ? (
+            <View style={[styles.followButton, styles.followingButton]}>
+              <Text style={[styles.followButtonText, styles.followingButtonText]}>Siguiendo</Text>
+            </View>
+          ) : n.solicitudPendiente ? (
+            <View style={[styles.followButton, styles.pendingButton]}>
+              <Text style={[styles.followButtonText, styles.pendingButtonText]}>Solicitud enviada</Text>
+            </View>
+          ) : (
+            <LinearGradient colors={['#2F4AA6', '#0491C6']} style={styles.gradientButton}>
+              <TouchableOpacity
+                style={styles.followButton}
+                onPress={() => handleSeguir(n.usuarioID, n.id)}
+              >
+                <Text style={styles.followButtonText}>Seguir</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          )
+        )}
+
+        {/* ✅ Botones de aceptar/rechazar para solicitudes de seguimiento */}
+        {n.tipo === 'solicitud_seguimiento' && n.solicitudID && (
+          <View style={styles.requestButtonsContainer}>
             <TouchableOpacity
-              style={styles.followButton}
-              onPress={() => handleSeguir(n.usuarioID, n.id)}
+              style={[styles.requestButton, styles.acceptButton]}
+              onPress={() => handleAceptarSolicitud(n.solicitudID!, n.usuarioID, n.id)}
             >
-              <Text style={styles.followButtonText}>Seguir</Text>
+              <Text style={styles.requestButtonText}>Aceptar</Text>
             </TouchableOpacity>
-          </LinearGradient>
-        )
-      )}
-
-      {/* ✅ Botones de aceptar/rechazar para solicitudes de seguimiento */}
-      {n.tipo === 'solicitud_seguimiento' && n.solicitudID && (
-        <View style={styles.requestButtonsContainer}>
-          <TouchableOpacity
-            style={[styles.requestButton, styles.acceptButton]}
-            onPress={() => handleAceptarSolicitud(n.solicitudID!, n.usuarioID, n.id)}
-          >
-            <Text style={styles.requestButtonText}>Aceptar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.requestButton, styles.rejectButton]}
-            onPress={() => handleRechazarSolicitud(n.solicitudID!, n.id)}
-          >
-            <Text style={[styles.requestButtonText, styles.rejectButtonText]}>Rechazar</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+            <TouchableOpacity
+              style={[styles.requestButton, styles.rejectButton]}
+              onPress={() => handleRechazarSolicitud(n.solicitudID!, n.id)}
+            >
+              <Text style={[styles.requestButtonText, styles.rejectButtonText]}>Rechazar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </TouchableOpacity>
-  );
+    );
   };
 
   return (

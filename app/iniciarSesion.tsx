@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function SignInScreen() {
     const router = useRouter();
@@ -16,6 +16,9 @@ export default function SignInScreen() {
     const [loading, setLoading] = useState(false);
     const [errorCorreo, setErrorCorreo] = useState('');
     const [errorContrasena, setErrorContrasena] = useState('');
+    const [showBanModal, setShowBanModal] = useState(false);
+    const [banMessage, setBanMessage] = useState('');
+    const [banDate, setBanDate] = useState('');
 
     const handleSignIn = async () => {
         // Limpiar errores previos
@@ -90,6 +93,29 @@ export default function SignInScreen() {
             const passwordStored = userFound?.contrasena || userFound?.contraseña;
 
             if (passwordStored === contrasena.trim()) {
+                // 🔹 VERIFICAR BANEO
+                if (userFound.bannedUntil) {
+                    const bannedUntil = userFound.bannedUntil.toDate ? userFound.bannedUntil.toDate() : new Date(userFound.bannedUntil);
+                    const now = new Date();
+
+                    if (bannedUntil > now) {
+                        setLoading(false);
+                        const banReason = userFound.banReason || 'Infracción de contenido';
+                        const dateString = bannedUntil.toLocaleDateString();
+
+                        console.log('🚫 Usuario baneado detectado:', {
+                            userId: userFound.id,
+                            bannedUntil: dateString,
+                            banReason
+                        });
+
+                        setBanMessage(banReason);
+                        setBanDate(dateString);
+                        setShowBanModal(true);
+                        return;
+                    }
+                }
+
                 // Guardar el usuarioID en AsyncStorage
                 await AsyncStorage.setItem('usuarioID', userFound.id);
                 const nombreCompleto = userFound.nombreCompleto || userFound.nombres || userFound.nombre || 'Usuario';
@@ -184,6 +210,38 @@ export default function SignInScreen() {
                 <Text style={[styles.texto, { marginTop: 20 }]}>¿No tienes una cuenta?</Text>
                 <Link title='Registrate' color="white" onPress={() => { router.push('./registro') }} />
             </View>
+
+            {/* Modal de Cuenta Suspendida */}
+            <Modal
+                visible={showBanModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowBanModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={{ alignItems: 'center', marginBottom: 15 }}>
+                            <Text style={{ fontSize: 50 }}>🚫</Text>
+                        </View>
+                        <Text style={styles.modalTitle}>Cuenta Suspendida</Text>
+                        <Text style={styles.modalMessage}>
+                            Tu cuenta está suspendida hasta el <Text style={{ fontWeight: 'bold' }}>{banDate}</Text>.
+                        </Text>
+                        <Text style={[styles.modalMessage, { marginTop: 10 }]}>
+                            <Text style={{ fontWeight: 'bold' }}>Motivo:</Text> {banMessage}
+                        </Text>
+                        <Text style={[styles.modalMessage, { marginTop: 10, fontSize: 14 }]}>
+                            No puedes iniciar sesión hasta que expire la suspensión.
+                        </Text>
+                        <Pressable
+                            style={styles.modalButton}
+                            onPress={() => setShowBanModal(false)}
+                        >
+                            <Text style={styles.modalButtonText}>Entendido</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
         </LinearGradient>
     );
 }
@@ -235,5 +293,47 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         fontFamily: 'Montserrat_400Regular',
         width: 300,
+    },
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        width: '85%',
+        maxWidth: 400,
+        padding: 25,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        marginBottom: 15,
+        color: '#333',
+        fontFamily: 'Montserrat_700Bold',
+    },
+    modalMessage: {
+        fontSize: 16,
+        textAlign: 'center',
+        color: '#555',
+        fontFamily: 'Montserrat_400Regular',
+    },
+    modalButton: {
+        marginTop: 25,
+        backgroundColor: '#2F4AA6',
+        paddingVertical: 12,
+        paddingHorizontal: 30,
+        borderRadius: 10,
+        width: '100%',
+    },
+    modalButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        fontFamily: 'Montserrat_600SemiBold',
     },
 });

@@ -427,7 +427,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 8,
         alignItems: "center",
-        width: 300,
+        width: "90%",
+        maxWidth: 400,
     },
 
     buttonPressed: {
@@ -455,8 +456,10 @@ const styles = StyleSheet.create({
         fontFamily: 'Montserrat_400Regular',
         fontSize: 16,
         textAlign: 'left',
-        alignSelf: 'flex-start',
-        paddingHorizontal: 50,
+        alignSelf: 'center',
+        width: "90%",
+        maxWidth: 400,
+        paddingHorizontal: 0,
     },
     textPressed: {
         color: '#000',
@@ -466,7 +469,8 @@ const styles = StyleSheet.create({
         height: 40,
         paddingHorizontal: 10,
         borderWidth: 1,
-        width: 300,
+        width: "90%",
+        maxWidth: 400,
         backgroundColor: 'white',
         borderRadius: 5,
         borderColor: '#fff',
@@ -474,7 +478,8 @@ const styles = StyleSheet.create({
     pickerContainer: {
         height: 40,
         borderWidth: 1,
-        width: 300,
+        width: "90%",
+        maxWidth: 400,
         backgroundColor: 'white',
         borderRadius: 5,
         borderColor: '#fff',
@@ -482,7 +487,7 @@ const styles = StyleSheet.create({
     },
     picker: {
         height: 40,
-        width: 300,
+        width: "100%",
         color: '#000',
     },
     inputError: {
@@ -493,8 +498,9 @@ const styles = StyleSheet.create({
         color: '#ff4444',
         fontSize: 12,
         marginTop: 5,
-        marginLeft: 10,
-        alignSelf: 'flex-start',
+        width: "90%",
+        maxWidth: 400,
+        alignSelf: 'center',
         fontFamily: 'Montserrat_400Regular',
     }
 });

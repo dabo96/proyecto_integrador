@@ -593,7 +593,7 @@ const ChatDetails = () => {
     } else if (!isMe) {
       sender = usuario;
     }
-    
+
     // Formatear nombre para mostrar solo primer nombre y primer apellido
     const formatShortName = (user: any): string => {
       if (!user) return 'Usuario';
@@ -604,8 +604,8 @@ const ChatDetails = () => {
       if (!primerNombre && user.nombre) primerNombre = user.nombre.split(' ')[0];
       if (!primerApellido && user.apellido) primerApellido = user.apellido.split(' ')[0];
       if (!primerNombre || !primerApellido) {
-      const nombreFuente = user.nombreCompleto || user.nombre || '';
-      const partes = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
+        const nombreFuente = user.nombreCompleto || user.nombre || '';
+        const partes = nombreFuente.trim().split(' ').filter((p: string) => p.length > 0);
         if (!primerNombre && partes.length > 0) primerNombre = partes[0];
         if (!primerApellido && partes.length > 1) primerApellido = partes[1];
       }
@@ -832,7 +832,7 @@ const ChatDetails = () => {
 
       {/* Header usuario */}
       <View style={styles.headerWhite}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.push('./chats')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
 
@@ -912,10 +912,10 @@ const ChatDetails = () => {
           }}
           disabled={deletingChat}
         >
-          <Ionicons 
-            name="ellipsis-vertical" 
-            size={20} 
-            color={deletingChat ? "#d1d5db" : "#333"} 
+          <Ionicons
+            name="ellipsis-vertical"
+            size={20}
+            color={deletingChat ? "#d1d5db" : "#333"}
           />
         </TouchableOpacity>
       </View>
@@ -1033,9 +1033,9 @@ const ChatDetails = () => {
                 <Text style={styles.groupMenuText}>Editar nombre del grupo</Text>
               </TouchableOpacity>
             )}
-            
+
             {isGroup && <View style={styles.menuDivider} />}
-            
+
             <TouchableOpacity
               style={styles.groupMenuItem}
               onPress={handleOpenDeleteChat}
@@ -1342,10 +1342,10 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   messageAvatarText: { fontSize: 12, fontWeight: "bold", color: "#fff" },
-  bubble: { 
-    maxWidth: "85%", 
-    padding: 12, 
-    borderRadius: 18, 
+  bubble: {
+    maxWidth: "85%",
+    padding: 12,
+    borderRadius: 18,
     marginHorizontal: 5,
     position: "relative",
   },
@@ -1439,6 +1439,7 @@ const styles = StyleSheet.create({
     width: 250,
     height: 250,
     borderRadius: 12,
+    maxWidth: '100%',
   },
   messageFileContainer: {
     flexDirection: "row",

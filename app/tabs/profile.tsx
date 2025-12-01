@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -60,7 +60,7 @@ const Profile = () => {
   // Animaciones
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 350],
-    outputRange: [520, 140],
+    outputRange: [580, 140],
     extrapolate: 'clamp',
   });
   const profileImageSize = scrollY.interpolate({
@@ -85,7 +85,7 @@ const Profile = () => {
   });
   const paddingBottom = scrollY.interpolate({
     inputRange: [0, 350],
-    outputRange: [20, 10],
+    outputRange: [40, 10],
     extrapolate: 'clamp',
   });
 
@@ -308,15 +308,15 @@ const Profile = () => {
 
   const confirmDelete = async () => {
     if (!postToDelete) return;
-    
+
     console.log('✅ Confirmando eliminación de publicación:', postToDelete);
     setDeletingPost(true);
-    
+
     try {
       console.log('📤 Eliminando publicación de Firestore...');
       await deleteDoc(doc(db, 'publicaciones', postToDelete));
       console.log('✅ Publicación eliminada de Firestore');
-      
+
       // Eliminar interacciones asociadas (likes y comentarios)
       console.log('🗑️ Eliminando interacciones asociadas...');
       try {
@@ -331,7 +331,7 @@ const Profile = () => {
       } catch (interactionsError) {
         console.error('⚠️ Error eliminando interacciones (continuando):', interactionsError);
       }
-      
+
       // Actualizar el estado local
       console.log('🔄 Actualizando estado local...');
       setUserPosts(prev => prev.filter(p => p.id !== postToDelete));
@@ -345,11 +345,11 @@ const Profile = () => {
         delete newComentarios[postToDelete];
         return newComentarios;
       });
-      
+
       console.log('✅ Publicación eliminada exitosamente');
       setShowDeleteModal(false);
       setPostToDelete(null);
-      
+
       // Mostrar mensaje de éxito
       Alert.alert('Éxito', 'Publicación eliminada correctamente');
     } catch (error: any) {
@@ -360,7 +360,7 @@ const Profile = () => {
         stack: error?.stack
       });
       Alert.alert(
-        'Error', 
+        'Error',
         `No se pudo eliminar la publicación.\n\n${error?.message || 'Error desconocido'}`
       );
     } finally {
@@ -402,14 +402,14 @@ const Profile = () => {
       setLoadingUsers(true);
       const seguidosIDs = await obtenerListaSeguidos(usuarioID);
       console.log('📊 IDs de seguidos obtenidos:', seguidosIDs.length, seguidosIDs);
-      
+
       // Usar un Set para evitar duplicados
       const usuariosUnicos = new Map<string, any>();
-      
+
       for (const seguidoID of seguidosIDs) {
         // Evitar procesar el mismo ID dos veces
         if (usuariosUnicos.has(seguidoID)) continue;
-        
+
         const usuario = await obtenerUsuarioPorId(seguidoID);
         if (usuario) {
           usuariosUnicos.set(seguidoID, {
@@ -578,6 +578,48 @@ const Profile = () => {
     }
   };
 
+  // 🔹 Modales de Baneo
+  const [showBanWarningModal, setShowBanWarningModal] = useState(false);
+  const [showBanConfirmationModal, setShowBanConfirmationModal] = useState(false);
+  const [banReason, setBanReason] = useState<string>('');
+
+  // 🔹 Función para banear y cerrar sesión
+  const handleBanAndLogout = async () => {
+    try {
+      setShowBanConfirmationModal(false);
+      setShowLoggingOutModal(true); // Reutilizamos el modal de "Cerrando sesión..."
+
+      const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
+      if (storedUsuarioID) {
+        // Calcular fecha de desbaneo (30 días desde ahora)
+        const bannedUntil = new Date();
+        bannedUntil.setDate(bannedUntil.getDate() + 30);
+
+        // Actualizar usuario en Firestore
+        const userRef = doc(db, 'Usuarios', storedUsuarioID);
+        await updateDoc(userRef, {
+          bannedUntil: bannedUntil,
+          banReason: banReason || 'Infracción de contenido (imagen inapropiada)'
+        });
+      }
+
+      // Simular un pequeño retardo
+      setTimeout(async () => {
+        await AsyncStorage.removeItem('usuarioID');
+        await AsyncStorage.removeItem('usuarioNombre');
+        setShowLoggingOutModal(false);
+        router.replace('/iniciarSesion');
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error durante el proceso de baneo:', error);
+      setShowLoggingOutModal(false);
+      // Forzar cierre de sesión local de todos modos
+      await AsyncStorage.removeItem('usuarioID');
+      router.replace('/iniciarSesion');
+    }
+  };
+
   const pickImage = async (source: 'camera' | 'library') => {
     try {
       let result;
@@ -619,10 +661,9 @@ const Profile = () => {
 
           if (!validacionResult.success) {
             setUploadingImage(false);
-            Alert.alert(
-              'Contenido no permitido',
-              validacionResult.error || 'La imagen no cumple con nuestras políticas de contenido.'
-            );
+            // 🚫 IMAGEN RECHAZADA -> INICIAR FLUJO DE BANEO
+            setBanReason(validacionResult.error || 'Contenido inapropiado detectado.');
+            setShowBanWarningModal(true);
             return;
           }
 
@@ -777,7 +818,7 @@ const Profile = () => {
               },
             ]}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.statBox}
               onPress={handleOpenSeguidores}
               activeOpacity={0.7}
@@ -785,7 +826,7 @@ const Profile = () => {
               <Text style={styles.statNumber}>{seguidores}</Text>
               <Text style={styles.statLabel}>Seguidores</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.statBox}
               onPress={handleOpenSeguidos}
               activeOpacity={0.7}
@@ -863,20 +904,20 @@ const Profile = () => {
               }
               return currentUserID;
             };
-            
+
             // Verificar que el post pertenece al usuario actual
             // En el perfil propio, siempre debería ser true, pero verificamos por seguridad
             const storedUsuarioID = currentUserID; // Usar el valor actual
             const isOwner = post.usuarioID === storedUsuarioID || storedUsuarioID === userProfile?.id;
-            
-            console.log('📋 Post info:', { 
-              postId: post.id, 
-              postUsuarioID: post.usuarioID, 
+
+            console.log('📋 Post info:', {
+              postId: post.id,
+              postUsuarioID: post.usuarioID,
               currentUserID: storedUsuarioID,
               userProfileId: userProfile?.id,
-              isOwner 
+              isOwner
             });
-            
+
             return (
               <PostCard
                 key={post.id}
@@ -900,31 +941,31 @@ const Profile = () => {
                 onComment={handleComment}
                 onDelete={handleDelete}
                 currentUserId={currentUserID || userProfile?.id || ''}
-              formatTime={(timestamp) => {
-                if (!timestamp) return 'Hace un momento';
-                const now = new Date();
-                const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                const diffInSeconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
-                if (diffInSeconds < 60) return 'Hace un momento';
-                if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
-                if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
-                if (diffInSeconds < 2592000) return `Hace ${Math.floor(diffInSeconds / 86400)} días`;
-                return postDate.toLocaleDateString();
-              }}
-              comentarios={comentarios[post.id]}
-              loadingComments={loadingComments === post.id}
-              showCommentInput={showCommentInput === post.id}
-              commentText={commentText}
-              onCommentTextChange={setCommentText}
-              onSendComment={handleSendComment}
-              onCloseComment={() => {
-                setShowCommentInput(null);
-                setCommentText('');
-                const newComentarios = { ...comentarios };
-                delete newComentarios[post.id];
-                setComentarios(newComentarios);
-              }}
-            />
+                formatTime={(timestamp) => {
+                  if (!timestamp) return 'Hace un momento';
+                  const now = new Date();
+                  const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                  const diffInSeconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
+                  if (diffInSeconds < 60) return 'Hace un momento';
+                  if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
+                  if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
+                  if (diffInSeconds < 2592000) return `Hace ${Math.floor(diffInSeconds / 86400)} días`;
+                  return postDate.toLocaleDateString();
+                }}
+                comentarios={comentarios[post.id]}
+                loadingComments={loadingComments === post.id}
+                showCommentInput={showCommentInput === post.id}
+                commentText={commentText}
+                onCommentTextChange={setCommentText}
+                onSendComment={handleSendComment}
+                onCloseComment={() => {
+                  setShowCommentInput(null);
+                  setCommentText('');
+                  const newComentarios = { ...comentarios };
+                  delete newComentarios[post.id];
+                  setComentarios(newComentarios);
+                }}
+              />
             );
           })
         )}
@@ -1014,8 +1055,8 @@ const Profile = () => {
             ) : usersList.length === 0 ? (
               <View style={styles.usersModalEmptyContainer}>
                 <Text style={styles.usersModalEmptyText}>
-                  {modalType === 'seguidos' 
-                    ? 'No sigues a nadie' 
+                  {modalType === 'seguidos'
+                    ? 'No sigues a nadie'
                     : 'No tienes seguidores'}
                 </Text>
               </View>
@@ -1059,6 +1100,74 @@ const Profile = () => {
                 style={styles.usersModalList}
               />
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🔹 Modal 1: Advertencia de Imagen Rechazada */}
+      <Modal
+        visible={showBanWarningModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { }} // No permitir cerrar con back button
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ alignItems: 'center', marginBottom: 15 }}>
+              <MaterialIcons name="error-outline" size={50} color="#ff4444" />
+            </View>
+            <Text style={styles.modalTitle}>Imagen No Admitida</Text>
+            <Text style={styles.modalMessage}>
+              La imagen que intentaste subir no ha sido admitida por nuestro sistema de moderación.
+            </Text>
+            <Text style={[styles.modalMessage, { fontWeight: 'bold', marginTop: 10 }]}>
+              Motivo: {banReason}
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.confirmButton, { backgroundColor: '#2F4AA6', width: '100%' }]}
+                onPress={() => {
+                  setShowBanWarningModal(false);
+                  setTimeout(() => setShowBanConfirmationModal(true), 300);
+                }}
+              >
+                <Text style={styles.confirmText}>Entendido</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🔹 Modal 2: Confirmación de Baneo */}
+      <Modal
+        visible={showBanConfirmationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { }} // No permitir cerrar
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ alignItems: 'center', marginBottom: 15 }}>
+              <MaterialIcons name="block" size={50} color="#ff4444" />
+            </View>
+            <Text style={styles.modalTitle}>Cuenta Suspendida</Text>
+            <Text style={styles.modalMessage}>
+              Debido a la infracción de nuestras políticas de contenido, tu cuenta ha sido suspendida temporalmente.
+            </Text>
+            <Text style={[styles.modalMessage, { marginTop: 10 }]}>
+              <Text style={{ fontWeight: 'bold' }}>Duración:</Text> 1 mes
+            </Text>
+            <Text style={[styles.modalMessage, { marginTop: 5 }]}>
+              Se cerrará tu sesión automáticamente y no podrás ingresar hasta que expire la suspensión.
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.confirmButton, { backgroundColor: '#ff4444', width: '100%' }]}
+                onPress={handleBanAndLogout}
+              >
+                <Text style={styles.confirmText}>Aceptar y Cerrar Sesión</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1222,7 +1331,7 @@ const styles = StyleSheet.create({
   profileActionText: { color: '#333', fontSize: 16, fontWeight: '500', flex: 1 },
   starsText: { fontSize: 14 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingTop: 520, paddingBottom: 10 },
+  scrollContent: { paddingTop: 580, paddingBottom: 10 },
   postCard: {
     backgroundColor: 'white',
     marginHorizontal: 15,
@@ -1327,6 +1436,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
+    fontFamily: 'Montserrat_600SemiBold',
   },
   usersModalUserCarrera: {
     fontSize: 14,
