@@ -97,7 +97,13 @@ const SeleccionarUsuarios = () => {
         setUsuariosSeleccionados(nuevosSeleccionados);
     };
 
-    const crearChatGrupal = async () => {
+
+    const seleccionarUsuario = (usuario: Usuario) => {
+        // Siempre permitir seleccionar/deseleccionar usuarios
+        toggleSeleccionUsuario(usuario.id);
+    };
+
+    const crearChat = async () => {
         if (usuariosSeleccionados.size === 0) {
             Alert.alert('Error', 'Selecciona al menos un usuario para crear un chat');
             return;
@@ -112,45 +118,41 @@ const SeleccionarUsuarios = () => {
                 return;
             }
 
-            // Incluir al usuario actual en los participantes
-            const participantIds = [usuarioActual.id, ...Array.from(usuariosSeleccionados)];
-            
-            // Crear el chat grupal
-            const chatId = await getOrCreateGroupChat(participantIds);
-            
-            // Navegar al chat grupal
-            router.push({
-                pathname: './chatDetails',
-                params: {
-                    chatId: chatId,
-                    isGroup: 'true',
+            // Si solo hay un usuario seleccionado, crear chat individual
+            if (usuariosSeleccionados.size === 1) {
+                const usuarioId = Array.from(usuariosSeleccionados)[0];
+                const usuario = usuarios.find(u => u.id === usuarioId);
+                
+                if (usuario) {
+                    router.push({
+                        pathname: './chatDetails',
+                        params: {
+                            userId: usuario.id,
+                            name: usuario.nombreCompleto || usuario.nombre,
+                            codigo: usuario.codigoUniversitario || usuario.codigo,
+                            carrera: usuario.carrera,
+                            correo: usuario.correo,
+                        }
+                    });
                 }
-            });
+            } else {
+                // Si hay múltiples usuarios, crear chat grupal
+                const participantIds = [usuarioActual.id, ...Array.from(usuariosSeleccionados)];
+                const chatId = await getOrCreateGroupChat(participantIds);
+                
+                router.push({
+                    pathname: './chatDetails',
+                    params: {
+                        chatId: chatId,
+                        isGroup: 'true',
+                    }
+                });
+            }
         } catch (error) {
-            console.error('Error al crear chat grupal:', error);
-            Alert.alert('Error', 'No se pudo crear el chat grupal');
+            console.error('Error al crear chat:', error);
+            Alert.alert('Error', 'No se pudo crear el chat');
         } finally {
             setCreandoChat(false);
-        }
-    };
-
-    const seleccionarUsuarioIndividual = (usuario: Usuario) => {
-        // Si hay usuarios seleccionados, agregar a la selección
-        // Si no hay selección, crear chat individual directamente
-        if (usuariosSeleccionados.size > 0) {
-            toggleSeleccionUsuario(usuario.id);
-        } else {
-            // Navegar a los detalles del chat con toda la información del usuario
-            router.push({
-                pathname: './chatDetails',
-                params: {
-                    userId: usuario.id,
-                    name: usuario.nombreCompleto || usuario.nombre,
-                    codigo: usuario.codigoUniversitario || usuario.codigo,
-                    carrera: usuario.carrera,
-                    correo: usuario.correo,
-                }
-            });
         }
     };
 
@@ -164,7 +166,7 @@ const SeleccionarUsuarios = () => {
                     styles.usuarioItem,
                     estaSeleccionado && styles.usuarioItemSeleccionado
                 ]}
-                onPress={() => seleccionarUsuarioIndividual(item)}
+                onPress={() => seleccionarUsuario(item)}
             >
                 <View style={styles.avatarWrapper}>
                     <View style={styles.avatarContainer}>
@@ -223,16 +225,18 @@ const SeleccionarUsuarios = () => {
                 <Text style={styles.titulo}>
                     {usuariosSeleccionados.size > 0 
                         ? `Seleccionados: ${usuariosSeleccionados.size}` 
-                        : 'Nuevo Chat'}
+                        : usuariosSeleccionados.size === 0
+                        ? 'Nuevo Chat'
+                        : 'Crear Chat Grupal'}
                 </Text>
                 {usuariosSeleccionados.size > 0 && (
                     <TouchableOpacity 
-                        onPress={crearChatGrupal} 
+                        onPress={crearChat} 
                         style={styles.crearButton}
                         disabled={creandoChat}
                     >
                         <Text style={styles.crearButtonText}>
-                            {creandoChat ? '...' : 'Crear'}
+                            {creandoChat ? 'Creando...' : usuariosSeleccionados.size === 1 ? 'Crear Chat' : 'Crear Grupo'}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -250,6 +254,14 @@ const SeleccionarUsuarios = () => {
                 />
                 <Text style={styles.searchIcon}>🔍</Text>
             </View>
+
+            {usuariosSeleccionados.size === 0 && (
+                <View style={styles.infoContainer}>
+                    <Text style={styles.infoText}>
+                        💡 Selecciona un usuario para chat individual o múltiples usuarios para crear un chat grupal
+                    </Text>
+                </View>
+            )}
 
             {loading ? (
                 <View style={styles.centerContainer}>
@@ -450,5 +462,20 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    infoContainer: {
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginHorizontal: 16,
+        marginBottom: 8,
+        borderRadius: 8,
+        borderLeftWidth: 4,
+        borderLeftColor: '#0491C6',
+    },
+    infoText: {
+        fontSize: 14,
+        color: '#1976D2',
+        lineHeight: 20,
     },
 });

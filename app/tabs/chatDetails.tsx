@@ -89,6 +89,7 @@ const ChatDetails = () => {
   const [deletingMessage, setDeletingMessage] = useState(false);
   const [deletingChat, setDeletingChat] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -1036,6 +1037,21 @@ const ChatDetails = () => {
 
             {isGroup && <View style={styles.menuDivider} />}
 
+            {isGroup && (
+              <TouchableOpacity
+                style={styles.groupMenuItem}
+                onPress={() => {
+                  setShowGroupMenu(false);
+                  setShowParticipantsModal(true);
+                }}
+              >
+                <Ionicons name="people" size={20} color="#333" style={styles.groupMenuIcon} />
+                <Text style={styles.groupMenuText}>Ver participantes</Text>
+              </TouchableOpacity>
+            )}
+
+            {isGroup && <View style={styles.menuDivider} />}
+
             <TouchableOpacity
               style={styles.groupMenuItem}
               onPress={handleOpenDeleteChat}
@@ -1059,6 +1075,86 @@ const ChatDetails = () => {
             </TouchableOpacity>
           </View>
         </Pressable>
+      </Modal>
+
+      {/* Modal de participantes del grupo */}
+      <Modal
+        visible={showParticipantsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowParticipantsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Participantes del grupo</Text>
+              <TouchableOpacity
+                onPress={() => setShowParticipantsModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={[styles.modalLabel, { marginBottom: 16 }]}>
+                {participantes.length} {participantes.length === 1 ? 'participante' : 'participantes'}
+              </Text>
+              <ScrollView style={styles.participantsList}>
+                {participantes.map((participant) => {
+                  const isCurrentUser = participant.id === currentUser?.id;
+                  const participantColor = participantColorMap[participant.id] || getParticipantColor(participant.id);
+                  
+                  return (
+                    <View key={participant.id} style={styles.participantItem}>
+                      <View style={styles.participantAvatarContainer}>
+                        {participant.fotoPerfil ? (
+                          <Image
+                            source={{ uri: participant.fotoPerfil }}
+                            style={styles.participantAvatar}
+                          />
+                        ) : (
+                          <View style={[styles.participantAvatarPlaceholder, { backgroundColor: participantColor }]}>
+                            <Text style={styles.participantAvatarText}>
+                              {(participant.nombreCompleto || participant.nombre || 'U')
+                                .charAt(0)
+                                .toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.participantInfo}>
+                        <Text style={styles.participantName}>
+                          {formatShortName(participant)}
+                          {isCurrentUser && (
+                            <Text style={styles.currentUserLabel}> (Tú)</Text>
+                          )}
+                        </Text>
+                        {participant.codigoUniversitario || participant.codigo ? (
+                          <Text style={styles.participantCode}>
+                            {participant.codigoUniversitario || participant.codigo}
+                          </Text>
+                        ) : null}
+                        {participant.carrera ? (
+                          <Text style={styles.participantCarrera}>{participant.carrera}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowParticipantsModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal de previsualización de imagen */}
@@ -1688,6 +1784,61 @@ const styles = StyleSheet.create({
   deletedMessageText: {
     fontStyle: "italic",
     opacity: 0.6,
+  },
+  participantsList: {
+    maxHeight: 400,
+  },
+  participantItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  participantAvatarContainer: {
+    marginRight: 12,
+  },
+  participantAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  participantAvatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  participantAvatarText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  participantInfo: {
+    flex: 1,
+  },
+  participantName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+    marginBottom: 4,
+  },
+  currentUserLabel: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#666",
+    fontStyle: "italic",
+  },
+  participantCode: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 2,
+  },
+  participantCarrera: {
+    fontSize: 12,
+    color: "#999",
   },
 });
 

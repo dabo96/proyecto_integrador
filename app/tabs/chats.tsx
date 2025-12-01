@@ -20,6 +20,7 @@ type Chat = {
   unread: number;
   isGroup: boolean;      // Indica si es un chat grupal
   participants?: string[]; // IDs de todos los participantes
+  updatedAtTimestamp?: number; // Timestamp para ordenamiento
 };
 
 const ChatCreem = () => {
@@ -120,6 +121,11 @@ const ChatCreem = () => {
       // Mapeamos los chats con la info de los usuarios
       const formattedChats = filteredChats.map(chat => {
         const isGroup = chat.isGroup || (chat.participants?.length || 0) > 2;
+        
+        // Obtener timestamp para ordenamiento
+        const updatedAtTimestamp = chat.updatedAt?.toDate 
+          ? chat.updatedAt.toDate().getTime() 
+          : (chat.updatedAt ? new Date(chat.updatedAt).getTime() : 0);
 
         if (isGroup) {
           // Chat grupal: mostrar nombre del grupo o lista de participantes
@@ -161,6 +167,7 @@ const ChatCreem = () => {
             unread: chat.unreadCount?.[currentUser.id] || 0,
             isGroup: true,
             participants: chat.participants || [],
+            updatedAtTimestamp, // Timestamp para ordenamiento
           };
         } else {
           // Chat individual
@@ -194,14 +201,20 @@ const ChatCreem = () => {
             unread: chat.unreadCount?.[currentUser.id] || 0,
             isGroup: false,
             participants: chat.participants || [],
+            updatedAtTimestamp, // Timestamp para ordenamiento
           };
         }
       });
 
-
+      // Ordenar chats por fecha (más recientes primero)
+      const sortedChats = formattedChats.sort((a, b) => {
+        const timestampA = a.updatedAtTimestamp || 0;
+        const timestampB = b.updatedAtTimestamp || 0;
+        return timestampB - timestampA; // Orden descendente (más reciente primero)
+      });
 
       //console.log("💬 Chats formateados:", chats);
-      setChats(formattedChats);
+      setChats(sortedChats);
     });
 
 
@@ -294,7 +307,10 @@ useEffect(() => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Chats</Text>
-        <TouchableOpacity onPress={() => router.push("./seleccionarUsuarios")}>
+        <TouchableOpacity 
+          onPress={() => router.push("./seleccionarUsuarios")}
+          style={styles.addButton}
+        >
           <Plus size={28} color="black" />
         </TouchableOpacity>
       </View>
@@ -308,7 +324,7 @@ useEffect(() => {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyTitle}>No tienes chats aún</Text>
           <Text style={styles.emptySubtitle}>
-            Presiona el botón "+" para iniciar un nuevo chat
+            Presiona el botón "+" para iniciar un nuevo chat individual o crear un chat grupal
           </Text>
         </View>
       ) : (
@@ -540,6 +556,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
+  },
+  addButton: {
+    padding: 4,
   },
   chatItemContainer: {
     flexDirection: "row",

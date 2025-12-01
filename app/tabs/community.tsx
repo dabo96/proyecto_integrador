@@ -255,7 +255,8 @@ export default function ComunidadScreen(): JSX.Element {
       return;
     }
 
-    if (comunidad.creadorID !== currentUser) {
+    // Verificación de seguridad: solo el creador puede eliminar la comunidad
+    if (!comunidad.creadorID || !currentUser || String(comunidad.creadorID).trim() !== String(currentUser).trim()) {
       Alert.alert('Error', 'Solo el creador puede eliminar la comunidad.');
       return;
     }
@@ -401,7 +402,8 @@ export default function ComunidadScreen(): JSX.Element {
                     />
                   </LinearGradient>
                 </View>
-                {item.creadorID === usuarioID && (
+                {/* Solo mostrar el botón Eliminar si el usuario actual es el creador de la comunidad */}
+                {usuarioID && item.creadorID && String(item.creadorID).trim() === String(usuarioID).trim() && (
                   <View style={styles.actionRow}>
                     <ModButton
                       title="Eliminar"
