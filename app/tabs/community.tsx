@@ -20,6 +20,7 @@ interface Comunidad {
 
 export default function ComunidadScreen(): JSX.Element {
   const [comunidades, setComunidades] = useState<Comunidad[]>([]);
+  const [comunidadesPertenece, setComunidadesPertenece] = useState<Comunidad[]>([]);
   const [todasComunidades, setTodasComunidades] = useState<Comunidad[]>([]);
   const [usuarioID, setUsuarioID] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,7 @@ export default function ComunidadScreen(): JSX.Element {
       const comunidadesSnapshot = await getDocs(comunidadesRef);
 
       const comunidadesArray: Comunidad[] = [];
+      const comunidadesPerteneceArray: Comunidad[] = [];
       const todasComunidadesArray: Comunidad[] = [];
 
       comunidadesSnapshot.forEach((docSnapshot) => {
@@ -60,8 +62,7 @@ export default function ComunidadScreen(): JSX.Element {
         const miembros = data.miembros || [];
         const creadorID = data.creadorID || '';
 
-        // Agregar a todas las comunidades
-        todasComunidadesArray.push({
+        const comunidadData = {
           id: docSnapshot.id,
           nombre: data.nombre,
           descripcion: data.descripcion,
@@ -69,31 +70,45 @@ export default function ComunidadScreen(): JSX.Element {
           creadorID: data.creadorID,
           fechaCreacion: data.fechaCreacion,
           miembros: data.miembros || []
-        });
+        };
 
-        // Solo agregar a "comunidades" si el usuario es miembro
-        if (miembros.includes(storedUsuarioID)) {
-          comunidadesArray.push({
-            id: docSnapshot.id,
-            nombre: data.nombre,
-            descripcion: data.descripcion,
-            imagen: data.imagenUrl || 'https://picsum.photos/40/40',
-            creadorID: data.creadorID,
-            fechaCreacion: data.fechaCreacion,
-            miembros: data.miembros || []
-          });
+        // Agregar a todas las comunidades
+        todasComunidadesArray.push(comunidadData);
+
+        // Verificar si el usuario es el creador
+        const esCreador = String(creadorID).trim() === String(storedUsuarioID).trim();
+        
+        // Verificar si el usuario es miembro (pero no creador)
+        const esMiembro = miembros.some((miembro: string) => 
+          String(miembro).trim() === String(storedUsuarioID).trim()
+        );
+
+        if (esCreador) {
+          // Comunidades creadas por el usuario
+          comunidadesArray.push(comunidadData);
+        } else if (esMiembro) {
+          // Comunidades a las que pertenece pero no creó
+          comunidadesPerteneceArray.push(comunidadData);
         }
       });
 
-      // Filtrar todas las comunidades para excluir las que el usuario creó
+      // Filtrar comunidades disponibles: excluir las que creó y las que ya es miembro
       const comunidadesDisponibles = todasComunidadesArray.filter(
-        comunidad => comunidad.creadorID !== storedUsuarioID && !comunidadesArray.find(c => c.id === comunidad.id)
+        comunidad => {
+          const esCreador = String(comunidad.creadorID).trim() === String(storedUsuarioID).trim();
+          const esMiembro = comunidad.miembros.some((miembro: string) => 
+            String(miembro).trim() === String(storedUsuarioID).trim()
+          );
+          return !esCreador && !esMiembro;
+        }
       );
 
       // console.log('Comunidades cargadas (del usuario):', comunidadesArray);
+      // console.log('Comunidades a las que pertenece:', comunidadesPerteneceArray);
       // console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
 
       setComunidades(comunidadesArray);
+      setComunidadesPertenece(comunidadesPerteneceArray);
       setTodasComunidades(comunidadesDisponibles);
 
     } catch (error) {
@@ -427,6 +442,54 @@ export default function ComunidadScreen(): JSX.Element {
         )}
       </View>,
 
+      <View key="belongs-section" style={styles.section}>
+        <Text style={styles.sectionTitle}>Comunidades a las que perteneces</Text>
+        {comunidadesPertenece.length > 0 ? (
+          comunidadesPertenece.map((item) => {
+            const communityData = {
+              id: item.id,
+              nombre: item.nombre,
+              posts: 0,
+              imagen: item.imagen
+            };
+            return (
+              <View key={item.id} style={styles.communityWrapper}>
+                <View style={styles.communityRow}>
+                  <CommunityCard
+                    comunidad={communityData}
+                    onPress={() =>
+                      router.push({
+                        pathname: './communityDetails',
+                        params: { communityId: item.id },
+                      })
+                    }
+                  />
+                  <LinearGradient
+                    colors={['#2F4AA6', '#0491C6']}
+                    style={styles.verButtonGradient}
+                  >
+                    <ModButton
+                      title="Ver"
+                      onPress={() =>
+                        router.push({
+                          pathname: './communityDetails',
+                          params: { communityId: item.id },
+                        })
+                      }
+                      backgroundColor="transparent"
+                      textColor="#FFFFFF"
+                      style={styles.verButton}
+                    />
+                  </LinearGradient>
+                </View>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.emptyMessage}>Aún no perteneces a ninguna comunidad.</Text>
+        )}
+      </View>,
+
       <View key="posts-section" style={styles.section}>
         <Text style={styles.sectionTitle}>Comunidades disponibles</Text>
         {todasComunidades.length > 0 ? (
@@ -437,6 +500,7 @@ export default function ComunidadScreen(): JSX.Element {
               posts: 0,
               imagen: item.imagen
             };
+            
             return (
               <View key={item.id} style={styles.communityWrapper}>
                 <CommunityCard
@@ -578,10 +642,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+    width: '100%',
   },
   verButtonGradient: {
     borderRadius: 16,
     marginLeft: 8,
+    flexShrink: 0,
   },
   verButton: {
     paddingVertical: 8,
@@ -593,10 +659,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   actionButton: {
-    flex: 1,
+    width: '50%',
     borderRadius: 16,
+    alignSelf: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -608,6 +677,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+    fontFamily: 'Montserrat_400Regular',
+  },
+  memberBadge: {
+    backgroundColor: '#e0f2fe',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+    width: '50%',
+    alignSelf: 'center',
+  },
+  memberBadgeText: {
+    fontSize: 13,
+    color: '#0369a1',
+    textAlign: 'center',
+    fontWeight: '500',
     fontFamily: 'Montserrat_400Regular',
   },
 });
