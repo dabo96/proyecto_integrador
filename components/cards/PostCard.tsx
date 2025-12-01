@@ -83,11 +83,11 @@ const PostCard = ({
     
     // Log para depuración - solo cuando se renderiza
     if (post.isOwner === true) {
-      console.log('✅ PostCard - isOwner es TRUE:', {
-        postId: post.id,
-        postIsOwner: post.isOwner,
-        isPostOwner
-      });
+      // console.log('✅ PostCard - isOwner es TRUE:', {
+      //   postId: post.id,
+      //   postIsOwner: post.isOwner,
+      //   isPostOwner
+      // });
     }
 
     const handleUserPress = () => {
@@ -296,27 +296,27 @@ const PostCard = ({
                     <View style={styles.modalBox}>
                         {(() => {
                             // Log detallado cuando se abre el modal
-                            console.log('🔍🔍🔍 MODAL ABIERTO 🔍🔍🔍');
-                            console.log('🔍 Modal - post.isOwner:', post.isOwner, '(tipo:', typeof post.isOwner, ')');
-                            console.log('🔍 Modal - isPostOwner calculado:', isPostOwner);
-                            console.log('🔍 Modal - currentUserId:', currentUserId);
-                            console.log('🔍 Modal - post.usuarioID:', post.usuarioID);
+                            // console.log('🔍🔍🔍 MODAL ABIERTO 🔍🔍🔍');
+                            // console.log('🔍 Modal - post.isOwner:', post.isOwner, '(tipo:', typeof post.isOwner, ')');
+                            // console.log('🔍 Modal - isPostOwner calculado:', isPostOwner);
+                            // console.log('🔍 Modal - currentUserId:', currentUserId);
+                            // console.log('🔍 Modal - post.usuarioID:', post.usuarioID);
                             
                             // Si post.isOwner es explícitamente true, mostrar Eliminar
                             // Priorizar post.isOwner sobre la comparación de IDs
                             const shouldShowDelete = post.isOwner === true;
                             
-                            console.log('🔍 Modal - shouldShowDelete (solo isOwner):', shouldShowDelete);
-                            console.log('🔍 Modal - post.isOwner estrictamente igual a true?:', post.isOwner === true);
-                            console.log('🔍 Modal - post.isOwner valor:', post.isOwner);
+                            // console.log('🔍 Modal - shouldShowDelete (solo isOwner):', shouldShowDelete);
+                            // console.log('🔍 Modal - post.isOwner estrictamente igual a true?:', post.isOwner === true);
+                            // console.log('🔍 Modal - post.isOwner valor:', post.isOwner);
                             
                             if (shouldShowDelete) {
-                                console.log('✅✅✅ Mostrando opción ELIMINAR ✅✅✅');
+                                // console.log('✅✅✅ Mostrando opción ELIMINAR ✅✅✅');
                                 return (
                                     <TouchableOpacity
                                         style={styles.modalItem}
                                         onPress={() => {
-                                            console.log('🗑️ Eliminando publicación:', post.id);
+                                            // console.log('🗑️ Eliminando publicación:', post.id);
                                             setMenuVisible(false);
                                             onDelete?.(post.id);
                                         }}
@@ -325,12 +325,12 @@ const PostCard = ({
                                     </TouchableOpacity>
                                 );
                             } else {
-                                console.log('❌❌❌ Mostrando opción REPORTAR ❌❌❌');
+                                // console.log('❌❌❌ Mostrando opción REPORTAR ❌❌❌');
                                 return (
                                     <TouchableOpacity
                                         style={styles.modalItem}
                                         onPress={() => {
-                                            console.log('🚨 Reportando publicación:', post.id);
+                                            // console.log('🚨 Reportando publicación:', post.id);
                                             setMenuVisible(false);
                                             onReport?.(post.id);
                                         }}

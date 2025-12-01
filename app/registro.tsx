@@ -268,9 +268,7 @@ export default function RegisterScreen() {
             );
 
             router.push({ pathname: './autCuenta', params: { correo: correoNormalizado } });
-        } catch (error: any) {
-            console.error(error);
-            Alert.alert("Error", "Hubo un problema al registrar el usuario. Inténtalo de nuevo.");
+        } catch (error: any) {            Alert.alert("Error", "Hubo un problema al registrar el usuario. Inténtalo de nuevo.");
         }
     }
 

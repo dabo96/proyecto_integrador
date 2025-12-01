@@ -29,12 +29,8 @@ const SeleccionarUsuarios = () => {
 
         const unsubscribes: (() => void)[] = [];
         const userIds = usuariosFiltrados.map(u => u.id);
-        
-        console.log("👂 Configurando listeners de estado para usuarios seleccionados:", userIds);
-        
         usuariosFiltrados.forEach(usuario => {
             const unsubscribe = escucharEstadoUsuario(usuario.id, (online) => {
-                console.log(`📡 Estado actualizado para ${usuario.id}:`, online ? "en línea" : "desactivado");
                 setOnlineStatus(prev => ({
                     ...prev,
                     [usuario.id]: online
@@ -44,7 +40,6 @@ const SeleccionarUsuarios = () => {
         });
 
         return () => {
-            console.log("🧹 Limpiando listeners de estado de usuarios seleccionados");
             unsubscribes.forEach(unsub => unsub());
         };
     }, [usuariosFiltrados]);
@@ -62,7 +57,6 @@ const SeleccionarUsuarios = () => {
             setUsuarios(usuariosFiltrados);
             setUsuariosFiltrados(usuariosFiltrados);
         } catch (error) {
-            console.error('Error al cargar usuarios:', error);
             Alert.alert('Error', 'No se pudieron cargar los usuarios');
         } finally {
             setLoading(false);
@@ -112,54 +106,57 @@ const SeleccionarUsuarios = () => {
         try {
             setCreandoChat(true);
             const usuarioActual = await obtenerUsuarioActual();
-            
+
             if (!usuarioActual) {
                 Alert.alert('Error', 'No se pudo obtener el usuario actual');
                 return;
             }
 
-            // Si solo hay un usuario seleccionado, crear chat individual
-            if (usuariosSeleccionados.size === 1) {
-                const usuarioId = Array.from(usuariosSeleccionados)[0];
-                const usuario = usuarios.find(u => u.id === usuarioId);
-                
-                if (usuario) {
-                    router.push({
-                        pathname: './chatDetails',
-                        params: {
-                            userId: usuario.id,
-                            name: usuario.nombreCompleto || usuario.nombre,
-                            codigo: usuario.codigoUniversitario || usuario.codigo,
-                            carrera: usuario.carrera,
-                            correo: usuario.correo,
-                        }
-                    });
+            // Incluir al usuario actual en los participantes
+            const participantIds = [usuarioActual.id, ...Array.from(usuariosSeleccionados)];
+
+            // Crear el chat grupal
+            const chatId = await getOrCreateGroupChat(participantIds);
+
+            // Navegar al chat grupal
+            router.push({
+                pathname: './chatDetails',
+                params: {
+                    chatId: chatId,
+                    isGroup: 'true',
                 }
-            } else {
-                // Si hay múltiples usuarios, crear chat grupal
-                const participantIds = [usuarioActual.id, ...Array.from(usuariosSeleccionados)];
-                const chatId = await getOrCreateGroupChat(participantIds);
-                
-                router.push({
-                    pathname: './chatDetails',
-                    params: {
-                        chatId: chatId,
-                        isGroup: 'true',
-                    }
-                });
-            }
+            });
         } catch (error) {
-            console.error('Error al crear chat:', error);
-            Alert.alert('Error', 'No se pudo crear el chat');
+            Alert.alert('Error', 'No se pudo crear el chat grupal');
         } finally {
             setCreandoChat(false);
+        }
+    };
+
+    const seleccionarUsuarioIndividual = (usuario: Usuario) => {
+        // Si hay usuarios seleccionados, agregar a la selección
+        // Si no hay selección, crear chat individual directamente
+        if (usuariosSeleccionados.size > 0) {
+            toggleSeleccionUsuario(usuario.id);
+        } else {
+            // Navegar a los detalles del chat con toda la información del usuario
+            router.push({
+                pathname: './chatDetails',
+                params: {
+                    userId: usuario.id,
+                    name: usuario.nombreCompleto || usuario.nombre,
+                    codigo: usuario.codigoUniversitario || usuario.codigo,
+                    carrera: usuario.carrera,
+                    correo: usuario.correo,
+                }
+            });
         }
     };
 
     const renderUsuario = ({ item }: { item: Usuario }) => {
         const estaSeleccionado = usuariosSeleccionados.has(item.id);
         const isOnline = onlineStatus[item.id] ?? false;
-        
+
         return (
             <TouchableOpacity
                 style={[
@@ -191,13 +188,13 @@ const SeleccionarUsuarios = () => {
                 <View style={styles.usuarioInfo}>
                     <View style={styles.usuarioNombreRow}>
                         <Text style={styles.usuarioNombre}>
-                          {(() => {
-                            const nombreFuente = item.nombreCompleto || item.nombre || '';
-                            const partes = nombreFuente.trim().split(' ').filter(p => p.length > 0);
-                            const primerNombre = partes[0] || '';
-                            const primerApellido = partes.length > 1 ? partes[1] : '';
-                            return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
-                          })()}
+                            {(() => {
+                                const nombreFuente = item.nombreCompleto || item.nombre || '';
+                                const partes = nombreFuente.trim().split(' ').filter(p => p.length > 0);
+                                const primerNombre = partes[0] || '';
+                                const primerApellido = partes.length > 1 ? partes[1] : '';
+                                return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                            })()}
                         </Text>
                     </View>
                     <Text style={styles.usuarioCodigo}>{item.codigoUniversitario || item.codigo}</Text>
@@ -223,15 +220,15 @@ const SeleccionarUsuarios = () => {
                     <Text style={styles.backButtonText}>←</Text>
                 </TouchableOpacity>
                 <Text style={styles.titulo}>
-                    {usuariosSeleccionados.size > 0 
-                        ? `Seleccionados: ${usuariosSeleccionados.size}` 
+                    {usuariosSeleccionados.size > 0
+                        ? `Seleccionados: ${usuariosSeleccionados.size}`
                         : usuariosSeleccionados.size === 0
-                        ? 'Nuevo Chat'
-                        : 'Crear Chat Grupal'}
+                            ? 'Nuevo Chat'
+                            : 'Crear Chat Grupal'}
                 </Text>
                 {usuariosSeleccionados.size > 0 && (
-                    <TouchableOpacity 
-                        onPress={crearChat} 
+                    <TouchableOpacity
+                        onPress={crearChat}
                         style={styles.crearButton}
                         disabled={creandoChat}
                     >

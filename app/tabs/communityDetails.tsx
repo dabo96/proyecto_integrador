@@ -119,7 +119,7 @@ const CommunityDetails = () => {
 
       await cargarPublicaciones(storedUsuarioID, communityId);
     } catch (error) {
-      console.error('Error cargando comunidad:', error);
+      // console.error('Error cargando comunidad:', error);
       Alert.alert('Error', 'No se pudo cargar la información de la comunidad.');
     } finally {
       setLoading(false);
@@ -167,7 +167,7 @@ const CommunityDetails = () => {
       setPosts(publicacionesProcesadas);
       setLikedPosts(nuevosLikes);
     } catch (error) {
-      console.error('Error cargando publicaciones de la comunidad:', error);
+      // console.error('Error cargando publicaciones de la comunidad:', error);
       Alert.alert('Error', 'No se pudieron cargar las publicaciones.');
     }
   };
@@ -215,7 +215,7 @@ const CommunityDetails = () => {
         comentarios: comentariosSnapshot.size,
       };
     } catch (error) {
-      console.error('Error procesando publicación:', error);
+      // console.error('Error procesando publicación:', error);
       return null;
     }
   };
@@ -254,7 +254,7 @@ const CommunityDetails = () => {
 
       await actualizarConteosPublicacion(postId);
     } catch (error) {
-      console.error('Error al gestionar like:', error);
+      // console.error('Error al gestionar like:', error);
     }
   };
 
@@ -282,7 +282,7 @@ const CommunityDetails = () => {
         )
       );
     } catch (error) {
-      console.error('Error actualizando conteos:', error);
+      // console.error('Error actualizando conteos:', error);
     }
   };
 
@@ -332,7 +332,7 @@ const CommunityDetails = () => {
 
       setComentarios((prev) => ({ ...prev, [postId]: comentariosList }));
     } catch (error) {
-      console.error('Error cargando comentarios:', error);
+      // console.error('Error cargando comentarios:', error);
     } finally {
       setLoadingComments(null);
     }
@@ -364,7 +364,7 @@ const CommunityDetails = () => {
         await actualizarConteosPublicacion(postId);
         await cargarComentarios(postId);
       } catch (error) {
-        console.error('Error enviando comentario:', error);
+        // console.error('Error enviando comentario:', error);
       }
     } else {
       setShowCommentInput(postId);
@@ -388,7 +388,7 @@ const CommunityDetails = () => {
       await actualizarConteosPublicacion(postId);
       await cargarComentarios(postId);
     } catch (error) {
-      console.error('Error enviando comentario:', error);
+      // console.error('Error enviando comentario:', error);
     }
   };
 
@@ -421,7 +421,7 @@ const CommunityDetails = () => {
       setReportDetalle('');
       setSelectedPostId('');
     } catch (error) {
-      console.error('Error enviando reporte:', error);
+      // console.error('Error enviando reporte:', error);
       Alert.alert('Error', 'No se pudo enviar el reporte. Inténtalo más tarde.');
     }
   };
@@ -444,7 +444,7 @@ const CommunityDetails = () => {
       await setDoc(doc(db, 'Usuarios', userId, 'comunidades', comunidad.id), payload);
       await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => { });
     } catch (error) {
-      console.warn('No se pudo registrar la membresía:', error);
+      // console.warn('No se pudo registrar la membresía:', error);
     }
   };
 
@@ -467,7 +467,7 @@ const CommunityDetails = () => {
       Alert.alert('¡Listo!', `Ahora eres parte de ${community.nombre}.`);
       await cargarDatos();
     } catch (error) {
-      console.error('Error al unirse a la comunidad:', error);
+      // console.error('Error al unirse a la comunidad:', error);
       Alert.alert('Error', 'No se pudo completar la operación.');
     } finally {
       setGestionando(false);
@@ -475,49 +475,49 @@ const CommunityDetails = () => {
   };
 
   const manejarSalida = () => {
-    console.log('🚪🚪🚪 manejarSalida INICIADO 🚪🚪🚪');
-    console.log('🚪 manejarSalida llamado', { 
-      hasCommunity: !!community, 
-      hasUsuarioID: !!usuarioID, 
-      gestionando,
-      esCreador: community?.creadorID === usuarioID,
-      communityId: community?.id,
-      communityName: community?.nombre
-    });
+    // console.log('🚪🚪🚪 manejarSalida INICIADO 🚪🚪🚪');
+    // console.log('🚪 manejarSalida llamado', { 
+    //   hasCommunity: !!community, 
+    //   hasUsuarioID: !!usuarioID, 
+    //   gestionando,
+    //   esCreador: community?.creadorID === usuarioID,
+    //   communityId: community?.id,
+    //   communityName: community?.nombre
+    // });
 
     // Verificar condiciones y mostrar mensajes apropiados
     if (!community) {
-      console.error('❌ No hay comunidad cargada - RETORNANDO');
+      // console.error('❌ No hay comunidad cargada - RETORNANDO');
       Alert.alert('Error', 'No se pudo cargar la información de la comunidad. Intenta nuevamente.');
       return;
     }
-    console.log('✅ Comunidad verificada');
+    // console.log('✅ Comunidad verificada');
 
     if (!usuarioID) {
-      console.error('❌ No hay usuarioID - RETORNANDO');
+      // console.error('❌ No hay usuarioID - RETORNANDO');
       Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
       return;
     }
-    console.log('✅ UsuarioID verificado');
+    // console.log('✅ UsuarioID verificado');
 
     if (gestionando) {
-      console.log('⚠️ Ya se está procesando una operación - RETORNANDO');
+      // console.log('⚠️ Ya se está procesando una operación - RETORNANDO');
       Alert.alert('Espera', 'Ya se está procesando una operación. Por favor espera.');
       return;
     }
-    console.log('✅ No hay operación en curso');
+    // console.log('✅ No hay operación en curso');
 
     if (community.creadorID === usuarioID) {
-      console.log('⚠️ Usuario es creador - RETORNANDO');
+      // console.log('⚠️ Usuario es creador - RETORNANDO');
       Alert.alert('Administrador', 'Como creador debes eliminar la comunidad desde la pantalla anterior.');
       return;
     }
-    console.log('✅ Usuario no es creador');
+    // console.log('✅ Usuario no es creador');
 
     // Mostrar confirmación usando modal (funciona mejor en web)
-    console.log('📢 Mostrando modal de confirmación...');
+    // console.log('📢 Mostrando modal de confirmación...');
     setShowLeaveModal(true);
-    console.log('✅ Modal de confirmación activado');
+    // console.log('✅ Modal de confirmación activado');
   };
 
   const eliminarMembresiaUsuario = async (userId: string, comunidadId: string) => {
@@ -525,77 +525,77 @@ const CommunityDetails = () => {
       // Intentar eliminar de ambas posibles rutas (mayúsculas y minúsculas)
       const path1 = doc(db, 'Usuarios', userId, 'comunidades', comunidadId);
       const path2 = doc(db, 'usuarios', userId, 'comunidades', comunidadId);
-      
+
       await Promise.all([
         deleteDoc(path1).catch((err) => {
-          console.log('⚠️ No se encontró membresía en Usuarios (mayúscula):', err.message);
+          // console.log('⚠️ No se encontró membresía en Usuarios (mayúscula):', err.message);
         }),
         deleteDoc(path2).catch((err) => {
-          console.log('⚠️ No se encontró membresía en usuarios (minúscula):', err.message);
+          // console.log('⚠️ No se encontró membresía en usuarios (minúscula):', err.message);
         })
       ]);
-      
-      console.log('✅ Membresía eliminada correctamente');
+
+      // console.log('✅ Membresía eliminada correctamente');
     } catch (error) {
-      console.error('❌ Error eliminando membresía:', error);
+      // console.error('❌ Error eliminando membresía:', error);
       throw error;
     }
   };
 
   const confirmarSalida = async () => {
     if (!community || !usuarioID) return;
-    
-    console.log('🎯🎯🎯 confirmarSalida EJECUTADO 🎯🎯🎯');
-    console.log('✅✅✅ Usuario confirmó la salida ✅✅✅');
-    
+
+    // console.log('🎯🎯🎯 confirmarSalida EJECUTADO 🎯🎯🎯');
+    // console.log('✅✅✅ Usuario confirmó la salida ✅✅✅');
+
     setShowLeaveModal(false);
     setGestionando(true);
-    
+
     try {
-      console.log('🔒 Estableciendo gestionando = true');
-      console.log('✅ gestionando establecido');
-      
-      console.log('📤 Removiendo usuario de la comunidad...');
-      console.log('📋 Datos:', { communityId: community.id, usuarioID });
+      // console.log('🔒 Estableciendo gestionando = true');
+      // console.log('✅ gestionando establecido');
+
+      // console.log('📤 Removiendo usuario de la comunidad...');
+      // console.log('📋 Datos:', { communityId: community.id, usuarioID });
       const comunidadRef = doc(db, 'comunidades', community.id);
-      
-      console.log('📝 Ejecutando updateDoc...');
+
+      // console.log('📝 Ejecutando updateDoc...');
       await updateDoc(comunidadRef, {
         miembros: arrayRemove(usuarioID),
       });
-      console.log('✅ Usuario removido del array de miembros');
+      // console.log('✅ Usuario removido del array de miembros');
 
-      console.log('🗑️ Eliminando membresía del usuario...');
+      // console.log('🗑️ Eliminando membresía del usuario...');
       await eliminarMembresiaUsuario(usuarioID, community.id);
-      console.log('✅ Membresía eliminada');
+      // console.log('✅ Membresía eliminada');
 
-      console.log('🔄 Recargando datos...');
+      // console.log('🔄 Recargando datos...');
       // Recargar datos inmediatamente
       await cargarDatos();
-      console.log('✅ Datos recargados');
-      
-      console.log('📢 Mostrando modal de éxito...');
+      // console.log('✅ Datos recargados');
+
+      // console.log('📢 Mostrando modal de éxito...');
       setShowLeaveSuccessModal(true);
-      console.log('✅ Modal de éxito activado');
+      // console.log('✅ Modal de éxito activado');
     } catch (error: any) {
-      console.error('❌❌❌ Error al salir de la comunidad ❌❌❌');
-      console.error('Error completo:', error);
-      console.error('Tipo de error:', typeof error);
-      console.error('Error es instancia de Error:', error instanceof Error);
-      console.error('Detalles del error:', {
-        code: error?.code,
-        message: error?.message,
-        name: error?.name,
-        stack: error?.stack
-      });
+      // console.error('❌❌❌ Error al salir de la comunidad ❌❌❌');
+      // console.error('Error completo:', error);
+      // console.error('Tipo de error:', typeof error);
+      // console.error('Error es instancia de Error:', error instanceof Error);
+      // console.error('Detalles del error:', {
+      //   code: error?.code,
+      //   message: error?.message,
+      //   name: error?.name,
+      //   stack: error?.stack
+      // });
       Alert.alert(
-        'Error', 
+        'Error',
         `No se pudo completar la operación.\n\n${error?.message || 'Error desconocido'}`
       );
     } finally {
-      console.log('🔓 Liberando flag gestionando');
+      // console.log('🔓 Liberando flag gestionando');
       setGestionando(false);
-      console.log('✅ gestionando liberado');
+      // console.log('✅ gestionando liberado');
     }
   };
 
@@ -641,12 +641,12 @@ const CommunityDetails = () => {
           <ModButton
             title={puedeInteractuar ? (esMiembro ? 'Salir' : 'Unirme') : 'Unirme'}
             onPress={() => {
-              console.log('🔘 Botón presionado:', { esMiembro, puedeInteractuar, hasCommunity: !!community, hasUsuarioID: !!usuarioID });
+              // console.log('🔘 Botón presionado:', { esMiembro, puedeInteractuar, hasCommunity: !!community, hasUsuarioID: !!usuarioID });
               if (esMiembro) {
-                console.log('➡️ Llamando manejarSalida...');
+                // console.log('➡️ Llamando manejarSalida...');
                 manejarSalida();
               } else {
-                console.log('➡️ Llamando manejarUnion...');
+                // console.log('➡️ Llamando manejarUnion...');
                 manejarUnion();
               }
             }}
@@ -719,7 +719,7 @@ const CommunityDetails = () => {
               <ModButton
                 title="Cancelar"
                 onPress={() => {
-                  console.log('❌ Usuario canceló la salida');
+                  // console.log('❌ Usuario canceló la salida');
                   setShowLeaveModal(false);
                 }}
                 backgroundColor="#9ca3af"
@@ -765,7 +765,7 @@ const CommunityDetails = () => {
               <ModButton
                 title="OK"
                 onPress={() => {
-                  console.log('✅ Usuario salió de la comunidad - Proceso completado');
+                  // console.log('✅ Usuario salió de la comunidad - Proceso completado');
                   setShowLeaveSuccessModal(false);
                   router.back();
                 }}

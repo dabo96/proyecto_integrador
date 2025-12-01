@@ -69,9 +69,7 @@ const EditProfile = () => {
                     fotoPerfil: data.fotoPerfil || ''
                 });
             }
-        } catch (error) {
-            console.error('Error loading user data:', error);
-            Alert.alert('Error', 'No se pudo cargar la información del usuario');
+        } catch (error) {            Alert.alert('Error', 'No se pudo cargar la información del usuario');
         } finally {
             setLoading(false);
         }
@@ -128,9 +126,7 @@ const EditProfile = () => {
             const storageRef = ref(storage, `profile_images/${userId}_${Date.now()}`);
             await uploadBytes(storageRef, blob);
             return await getDownloadURL(storageRef);
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            throw error;
+        } catch (error) {            throw error;
         }
     };
 
@@ -152,24 +148,12 @@ const EditProfile = () => {
             let imageUrl = fotoPerfil;
 
             // If image is local (newly picked), upload it
-            if (fotoPerfil && !fotoPerfil.startsWith('http') && !fotoPerfil.startsWith('https')) {
-                console.log('📤 Subiendo imagen nueva...');
-                imageUrl = await uploadImage(fotoPerfil);
-                console.log('✅ Imagen subida:', imageUrl);
-            }
+            if (fotoPerfil && !fotoPerfil.startsWith('http') && !fotoPerfil.startsWith('https')) {                imageUrl = await uploadImage(fotoPerfil);            }
 
             // Crear nombreCompleto combinando nombre y apellido
             const nombreTrimmed = nombre.trim();
             const apellidoTrimmed = apellido.trim();
             const nombreCompleto = `${nombreTrimmed} ${apellidoTrimmed}`.trim();
-
-            console.log('💾 Actualizando perfil con:', {
-                nombre: nombreTrimmed,
-                apellido: apellidoTrimmed,
-                nombreCompleto,
-                fotoPerfil: imageUrl
-            });
-
             const updates: any = {
                 nombre: nombreTrimmed,
                 apellido: apellidoTrimmed,
@@ -195,28 +179,15 @@ const EditProfile = () => {
                 Alert.alert('Aviso', 'El cambio de contraseña requiere un proceso adicional de seguridad.');
             }
 
-            const userRef = doc(db, 'Usuarios', userId);
-            console.log('📝 Actualizando documento:', userRef.path);
-            await updateDoc(userRef, updates);
-            console.log('✅ Perfil actualizado exitosamente');
-
+            const userRef = doc(db, 'Usuarios', userId);            await updateDoc(userRef, updates);
             // Mostrar modal de éxito y cerrar automáticamente
             setShowSuccessModal(true);
             
             // Cerrar automáticamente después de 1.5 segundos y regresar al perfil
-            setTimeout(() => {
-                console.log('⏰ Cerrando automáticamente después del timeout...');
-                setShowSuccessModal(false);
+            setTimeout(() => {                setShowSuccessModal(false);
                 router.push('/tabs/profile');
             }, 1500);
-        } catch (error: any) {
-            console.error('❌ Error saving profile:', error);
-            console.error('Detalles del error:', {
-                message: error?.message,
-                code: error?.code,
-                stack: error?.stack
-            });
-            Alert.alert(
+        } catch (error: any) {            Alert.alert(
                 'Error', 
                 `No se pudo guardar los cambios.\n\n${error?.message || 'Error desconocido'}`
             );

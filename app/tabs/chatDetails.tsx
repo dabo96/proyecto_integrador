@@ -112,9 +112,7 @@ const ChatDetails = () => {
             setError(null); // Limpiar error si se obtuvo el usuario
           }
         }
-      } catch (err) {
-        console.error("Error obteniendo usuario actual:", err);
-        if (mounted) setError("No hay usuario autenticado");
+      } catch (err) {        if (mounted) setError("No hay usuario autenticado");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -194,23 +192,17 @@ const ChatDetails = () => {
           }
         } else if (userId && typeof userId === "string") {
           // Chat individual
-          setIsGroup(false);
-          console.log("Cargando chat con usuario ID:", userId, "desde usuario ID:", currentUser.id);
-          const usuarioData = await obtenerUsuarioPorId(userId);
+          setIsGroup(false);          const usuarioData = await obtenerUsuarioPorId(userId);
           setUsuario(usuarioData);
 
           // Crear o reutilizar chat
           const chat = await getOrCreateChat(currentUser.id, userId);
-          setChatId(chat);
-          console.log("Chat ID:", chat);
-        } else {
+          setChatId(chat);        } else {
           setError("ID de usuario o chat no válido");
           setLoading(false);
           return;
         }
-      } catch (err) {
-        console.error("Error al cargar chat:", err);
-        setError("No se pudo cargar el chat");
+      } catch (err) {        setError("No se pudo cargar el chat");
       } finally {
         setLoading(false);
       }
@@ -231,36 +223,24 @@ const ChatDetails = () => {
           setGroupName(chatData.groupName);
         }
       }
-    }, (error) => {
-      console.error("Error escuchando cambios del chat:", error);
-    });
+    }, (error) => {    });
 
     return () => unsubscribe();
   }, [chatId, isGroup]);
 
   useEffect(() => {
     if (isGroup || !userId) return;
-
-    console.log("👂 Configurando listener de estado para chatDetails, usuario:", userId);
-
-    const unsubscribe = escucharEstadoUsuario(String(userId), (online, lastSeen) => {
-      console.log(`📡 Estado actualizado en chatDetails para ${userId}:`, online ? "en línea" : "desactivado");
-      setIsUserOnline(online);
+    const unsubscribe = escucharEstadoUsuario(String(userId), (online, lastSeen) => {      setIsUserOnline(online);
     });
 
-    return () => {
-      console.log("🧹 Limpiando listener de estado en chatDetails");
-      unsubscribe();
+    return () => {      unsubscribe();
     };
   }, [userId, isGroup]);
 
 
   // 🔹 Escuchar mensajes cuando tenemos el chatId
   useEffect(() => {
-    if (!chatId) return;
-
-    console.log("Estableciendo suscripción a mensajes para chat ID:", chatId);
-    const unsubscribe = listenMessages(chatId, (msgs: Message[]) => {
+    if (!chatId) return;    const unsubscribe = listenMessages(chatId, (msgs: Message[]) => {
       setMessages(msgs);
 
       // Si es un chat grupal, asegurar que todos los remitentes tengan color asignado
@@ -290,75 +270,43 @@ const ChatDetails = () => {
 
   // 🔹 Seleccionar imagen de la galería
   const handleSelectImage = async () => {
-    try {
-      console.log("📷 Iniciando selección de imagen de galería...");
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log("📷 Estado de permisos de galería:", status);
-
+    try {      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
           "Permiso denegado",
           "Se necesita acceso a la galería para seleccionar imágenes."
         );
         return;
-      }
-
-      console.log("📷 Abriendo selector de imágenes...");
-      const result = await ImagePicker.launchImageLibraryAsync({
+      }      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
       });
-
-      console.log("📷 Resultado del selector:", result.canceled ? "Cancelado" : "Imagen seleccionada");
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        console.log("📷 URI de imagen seleccionada:", result.assets[0].uri);
-        setSelectedImage(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets[0]) {        setSelectedImage(result.assets[0].uri);
         setSelectedFile(null); // Limpiar archivo si había uno seleccionado
-      } else {
-        console.log("📷 No se seleccionó ninguna imagen");
-      }
-    } catch (error) {
-      console.error("❌ Error seleccionando imagen:", error);
-      Alert.alert("Error", `No se pudo seleccionar la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      } else {      }
+    } catch (error) {      Alert.alert("Error", `No se pudo seleccionar la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`);
     }
   };
 
   // 🔹 Tomar foto con la cámara
   const handleTakePhoto = async () => {
-    try {
-      console.log("📸 Iniciando captura de foto...");
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      console.log("📸 Estado de permisos de cámara:", status);
-
+    try {      const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
           "Permiso denegado",
           "Se necesita acceso a la cámara para tomar fotos."
         );
         return;
-      }
-
-      console.log("📸 Abriendo cámara...");
-      const result = await ImagePicker.launchCameraAsync({
+      }      const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
       });
-
-      console.log("📸 Resultado de la cámara:", result.canceled ? "Cancelado" : "Foto tomada");
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        console.log("📸 URI de foto tomada:", result.assets[0].uri);
-        setSelectedImage(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets[0]) {        setSelectedImage(result.assets[0].uri);
         setSelectedFile(null); // Limpiar archivo si había uno seleccionado
-      } else {
-        console.log("📸 No se tomó ninguna foto");
-      }
-    } catch (error) {
-      console.error("❌ Error tomando foto:", error);
-      Alert.alert("Error", `No se pudo tomar la foto: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      } else {      }
+    } catch (error) {      Alert.alert("Error", `No se pudo tomar la foto: ${error instanceof Error ? error.message : "Error desconocido"}`);
     }
   };
 
@@ -378,22 +326,16 @@ const ChatDetails = () => {
         });
         setSelectedImage(null); // Limpiar imagen si había una seleccionada
       }
-    } catch (error) {
-      console.error("Error seleccionando archivo:", error);
-      Alert.alert("Error", "No se pudo seleccionar el archivo");
+    } catch (error) {      Alert.alert("Error", "No se pudo seleccionar el archivo");
     }
   };
 
   // 🔹 Abrir selector de imágenes (galería por defecto, cámara con long press)
-  const handleImageOptions = () => {
-    console.log("📷 Botón de cámara presionado - abriendo galería directamente");
-    handleSelectImage();
+  const handleImageOptions = () => {    handleSelectImage();
   };
 
   // 🔹 Abrir cámara (para long press)
-  const handleImageOptionsLongPress = () => {
-    console.log("📸 Botón de cámara presionado largo - abriendo cámara");
-    handleTakePhoto();
+  const handleImageOptionsLongPress = () => {    handleTakePhoto();
   };
 
   // 🔹 Enviar mensaje
@@ -448,9 +390,7 @@ const ChatDetails = () => {
           fileType
         );
       } else {
-        if (!userId) {
-          console.warn("No se encontró el ID del receptor.");
-          // Restaurar el mensaje si hay error
+        if (!userId) {          // Restaurar el mensaje si hay error
           setNewMessage(messageToSend);
           if (imageToSend) setSelectedImage(imageToSend);
           if (fileToSend) setSelectedFile(fileToSend);
@@ -467,9 +407,7 @@ const ChatDetails = () => {
           fileType
         );
       }
-    } catch (error) {
-      console.error("Error al enviar mensaje:", error);
-      // Restaurar el mensaje si hay error
+    } catch (error) {      // Restaurar el mensaje si hay error
       setNewMessage(messageToSend);
       if (imageToSend) setSelectedImage(imageToSend);
       if (fileToSend) setSelectedFile(fileToSend);
@@ -481,9 +419,7 @@ const ChatDetails = () => {
 
   // 🔹 Abrir archivo
   const handleOpenFile = (fileUrl: string) => {
-    Linking.openURL(fileUrl).catch((err) => {
-      console.error("Error abriendo archivo:", err);
-      Alert.alert("Error", "No se pudo abrir el archivo");
+    Linking.openURL(fileUrl).catch((err) => {      Alert.alert("Error", "No se pudo abrir el archivo");
     });
   };
 
@@ -546,9 +482,7 @@ const ChatDetails = () => {
       setGroupName(editingGroupName.trim());
       setShowEditGroupNameModal(false);
       Alert.alert("Éxito", "El nombre del grupo se ha actualizado correctamente");
-    } catch (error) {
-      console.error("Error actualizando nombre del grupo:", error);
-      Alert.alert("Error", "No se pudo actualizar el nombre del grupo");
+    } catch (error) {      Alert.alert("Error", "No se pudo actualizar el nombre del grupo");
     } finally {
       setSavingGroupName(false);
     }
@@ -569,9 +503,7 @@ const ChatDetails = () => {
       await deleteMessage(chatId, messageToDelete.id);
       setShowDeleteModal(false);
       setMessageToDelete(null);
-    } catch (error) {
-      console.error("Error eliminando mensaje:", error);
-      Alert.alert("Error", "No se pudo eliminar el mensaje");
+    } catch (error) {      Alert.alert("Error", "No se pudo eliminar el mensaje");
     } finally {
       setDeletingMessage(false);
     }
@@ -860,10 +792,6 @@ const ChatDetails = () => {
           <TouchableOpacity
             style={styles.headerUserInfo}
             onPress={() => {
-              console.log('Click en perfil - usuario:', usuario);
-              console.log('userId del parámetro:', userId);
-              console.log('usuario.id:', usuario?.id);
-
               // Usar el userId del parámetro directamente, que es más confiable
               if (userId) {
                 router.push({
@@ -875,9 +803,7 @@ const ChatDetails = () => {
                   pathname: './otherProfile',
                   params: { userId: usuario.id }
                 });
-              } else {
-                console.error('No se encontró userId para navegar al perfil');
-              }
+              } else {              }
             }}
           >
             <View style={styles.headerAvatarContainer}>

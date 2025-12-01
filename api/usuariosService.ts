@@ -26,11 +26,11 @@ export const obtenerUsuarioActual = async (): Promise<Usuario | null> => {
     const usuarioID = await AsyncStorage.getItem("usuarioID");
 
     if (!usuarioID) {
-      console.warn("⚠️ No hay usuarioID guardado en AsyncStorage.");
+      // console.warn("⚠️ No hay usuarioID guardado en AsyncStorage.");
       return null;
     }
 
-    console.log("🔹 UsuarioID obtenido:", usuarioID);
+    // console.log("🔹 UsuarioID obtenido:", usuarioID);
 
     const usuarioRef = doc(db, "Usuarios", usuarioID);
     const usuarioSnap = await getDoc(usuarioRef);
@@ -50,14 +50,14 @@ export const obtenerUsuarioActual = async (): Promise<Usuario | null> => {
         uid: usuarioID,
       };
 
-      console.log("👤 Datos del usuario actual:", usuario);
+      // console.log("👤 Datos del usuario actual:", usuario);
       return usuario;
     } else {
-      console.warn("⚠️ No se encontró el usuario en Firestore.");
+      // console.warn("⚠️ No se encontró el usuario en Firestore.");
       return null;
     }
   } catch (error) {
-    console.error("❌ Error al obtener usuario:", error);
+    // console.error("❌ Error al obtener usuario:", error);
     return null;
   }
 };
@@ -87,7 +87,7 @@ export const obtenerTodosLosUsuarios = async (): Promise<Usuario[]> => {
         
         return usuarios;
     } catch (error) {
-        console.error("Error al obtener usuarios:", error);
+        // console.error("Error al obtener usuarios:", error);
         return [];
     }
 };
@@ -98,7 +98,7 @@ export const obtenerUsuarioPorId = async (userId: string): Promise<Usuario | nul
         const snapshot = await getDoc(userRef);
 
         if (!snapshot.exists()) {
-            console.warn("No se encontró el usuario con ID:", userId);
+            // console.warn("No se encontró el usuario con ID:", userId);
             return null;
         }
 
@@ -118,7 +118,7 @@ export const obtenerUsuarioPorId = async (userId: string): Promise<Usuario | nul
 
         return usuario;
     } catch (error) {
-        console.error("Error al obtener usuario por ID:", error);
+        // console.error("Error al obtener usuario por ID:", error);
         return null;
     }
 };
@@ -130,9 +130,9 @@ export const actualizarEstadoOnline = async (usuarioID: string): Promise<void> =
       online: true,
       lastSeen: serverTimestamp(),
     });
-    console.log("✅ Estado online actualizado para:", usuarioID);
+    // console.log("✅ Estado online actualizado para:", usuarioID);
   } catch (error) {
-    console.error("Error actualizando estado online:", error);
+    // console.error("Error actualizando estado online:", error);
     throw error;
   }
 };
@@ -145,9 +145,9 @@ export const actualizarEstadoOffline = async (usuarioID: string): Promise<void> 
       online: false,
       lastSeen: serverTimestamp(),
     });
-    console.log("✅ Estado offline actualizado para usuario:", usuarioID);
+    // console.log("✅ Estado offline actualizado para usuario:", usuarioID);
   } catch (error) {
-    console.error("Error actualizando estado offline:", error);
+    // console.error("Error actualizando estado offline:", error);
     throw error;
   }
 };
@@ -160,7 +160,7 @@ export const escucharEstadoUsuario = (
 ): (() => void) => {
   const userRef = doc(db, "Usuarios", usuarioID);
   
-  console.log("👂 Iniciando listener de estado para usuario:", usuarioID);
+  // console.log("👂 Iniciando listener de estado para usuario:", usuarioID);
   
   // Variable para rastrear el último estado conocido
   let lastKnownOnline: boolean | null = null;
@@ -173,15 +173,15 @@ export const escucharEstadoUsuario = (
       const isFromCache = snapshot.metadata.fromCache;
       const hasPendingWrites = snapshot.metadata.hasPendingWrites;
       
-      console.log(`📥 [LISTENER] Snapshot recibido para ${usuarioID}:`, {
-        exists: snapshot.exists(),
-        fromCache: isFromCache,
-        hasPendingWrites: hasPendingWrites,
-        isFirstCall
-      });
+      // console.log(`📥 [LISTENER] Snapshot recibido para ${usuarioID}:`, {
+      //   exists: snapshot.exists(),
+      //   fromCache: isFromCache,
+      //   hasPendingWrites: hasPendingWrites,
+      //   isFirstCall
+      // });
       
       if (!snapshot.exists()) {
-        console.log(`❌ Usuario ${usuarioID} no existe en Firestore`);
+        // console.log(`❌ Usuario ${usuarioID} no existe en Firestore`);
         if (lastKnownOnline !== false) {
           lastKnownOnline = false;
           callback(false, null);
@@ -194,11 +194,11 @@ export const escucharEstadoUsuario = (
       const online = Boolean(data.online); // Convertir explícitamente a boolean
       const lastSeen = data.lastSeen;
       
-      console.log(`📊 [LISTENER] Datos del usuario ${usuarioID}:`, {
-        online,
-        lastKnownOnline,
-        lastSeen: lastSeen ? (lastSeen.toDate ? lastSeen.toDate().toISOString() : lastSeen) : null
-      });
+      // console.log(`📊 [LISTENER] Datos del usuario ${usuarioID}:`, {
+      //   online,
+      //   lastKnownOnline,
+      //   lastSeen: lastSeen ? (lastSeen.toDate ? lastSeen.toDate().toISOString() : lastSeen) : null
+      // });
       
       // En la primera llamada, siempre ejecutar el callback para establecer el estado inicial
       // Después, solo llamar al callback si el estado cambió
@@ -208,9 +208,9 @@ export const escucharEstadoUsuario = (
         isFirstCall = false;
         
         if (online) {
-          console.log(`✅ Usuario ${usuarioID} EN LÍNEA (tiempo real) - ${wasFirstCall ? 'Estado inicial' : 'Cambio detectado'}`);
+          // console.log(`✅ Usuario ${usuarioID} EN LÍNEA (tiempo real) - ${wasFirstCall ? 'Estado inicial' : 'Cambio detectado'}`);
         } else {
-          console.log(`📴 Usuario ${usuarioID} DESCONECTADO (tiempo real) - ${wasFirstCall ? 'Estado inicial' : 'Cambio detectado'}`);
+          // console.log(`📴 Usuario ${usuarioID} DESCONECTADO (tiempo real) - ${wasFirstCall ? 'Estado inicial' : 'Cambio detectado'}`);
         }
         
         // Llamar al callback inmediatamente con el nuevo estado
@@ -226,24 +226,24 @@ export const escucharEstadoUsuario = (
             
             // Si online=true pero lastSeen es muy antiguo (más de 2 minutos), marcar como offline
             if (timeSinceLastSeen > 120000) {
-              console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s)`);
+              // console.log(`⏰ Usuario ${usuarioID} offline por inactividad (${Math.round(timeSinceLastSeen / 1000)}s)`);
               if (lastKnownOnline !== false) {
                 lastKnownOnline = false;
                 callback(false, lastSeen);
               }
             }
           } catch (error) {
-            console.error("Error procesando lastSeen:", error);
+            // console.error("Error procesando lastSeen:", error);
           }
         }
       }
     },
     (error) => {
-      console.error("❌ Error escuchando estado del usuario:", error);
-      console.error("Detalles del error:", {
-        code: error.code,
-        message: error.message
-      });
+      // console.error("❌ Error escuchando estado del usuario:", error);
+      // console.error("Detalles del error:", {
+      //   code: error.code,
+      //   message: error.message
+      // });
       if (lastKnownOnline !== false) {
         lastKnownOnline = false;
         callback(false, null);

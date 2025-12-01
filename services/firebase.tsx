@@ -20,7 +20,6 @@ export const db = getFirestore(app, "linku");
 
 // Asegurar que la red esté habilitada para tiempo real
 enableNetwork(db).catch((error) => {
-  console.error("Error habilitando red de Firestore:", error);
 });
 
 export const storage = getStorage(app);

@@ -87,9 +87,7 @@ export default function OtherProfileScreen() {
             setLoading(true);
 
             const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
-            if (!storedUsuarioID) {
-                console.error('No se encontró usuarioID');
-                return;
+            if (!storedUsuarioID) {                return;
             }
 
             setCurrentUserID(storedUsuarioID);
@@ -102,8 +100,7 @@ export default function OtherProfileScreen() {
 
             // Obtener perfil del usuario objetivo
             const perfil = await obtenerPerfilUsuario(usuarioIDObjetivo as string);
-            if (!perfil) return console.error('No se pudo cargar el perfil');
-            setUserProfile(perfil);
+            if (!perfil) return            setUserProfile(perfil);
 
             // Verificar si el usuario actual sigue al usuario objetivo
             const sigue = await verificarSiSigue(storedUsuarioID, usuarioIDObjetivo as string);
@@ -148,9 +145,7 @@ export default function OtherProfileScreen() {
             }
 
             setUserPosts(posts);
-        } catch (error) {
-            console.error('Error cargando datos del perfil:', error);
-        } finally {
+        } catch (error) {        } finally {
             setLoading(false);
         }
     };
@@ -161,18 +156,11 @@ export default function OtherProfileScreen() {
 
     // Escuchar estado de conexión del usuario
     useEffect(() => {
-        if (!usuarioIDObjetivo) return;
-
-        console.log("👂 Configurando listener de estado para otherProfile, usuario:", usuarioIDObjetivo);
-        
-        const unsubscribe = escucharEstadoUsuario(String(usuarioIDObjetivo), (online) => {
-            console.log(`📡 Estado actualizado en otherProfile para ${usuarioIDObjetivo}:`, online ? "en línea" : "desactivado");
-            setIsUserOnline(online);
+        if (!usuarioIDObjetivo) return;        
+        const unsubscribe = escucharEstadoUsuario(String(usuarioIDObjetivo), (online) => {            setIsUserOnline(online);
         });
 
-        return () => {
-            console.log("🧹 Limpiando listener de estado en otherProfile");
-            unsubscribe();
+        return () => {            unsubscribe();
         };
     }, [usuarioIDObjetivo]);
 
@@ -223,9 +211,7 @@ export default function OtherProfileScreen() {
             });
 
             setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
-        } catch (error) {
-            console.error('Error cargando comentarios:', error);
-        } finally {
+        } catch (error) {        } finally {
             setLoadingComments(null);
         }
     };
@@ -254,9 +240,7 @@ export default function OtherProfileScreen() {
                 // Actualizar conteos
                 await actualizarConteos(postId);
                 await cargarComentarios(postId);
-            } catch (error) {
-                console.error('Error enviando comentario:', error);
-            }
+            } catch (error) {            }
         } else {
             setShowCommentInput(postId);
             await cargarComentarios(postId);
@@ -279,9 +263,7 @@ export default function OtherProfileScreen() {
             setCommentText('');
             await actualizarConteos(postId);
             await cargarComentarios(postId);
-        } catch (error) {
-            console.error('Error enviando comentario:', error);
-        }
+        } catch (error) {        }
     };
 
     const handleLike = async (postId: string) => {
@@ -311,14 +293,10 @@ export default function OtherProfileScreen() {
                 setLikedPosts(prev => ({ ...prev, [postId]: false }));
                 await actualizarConteos(postId);
             }
-        } catch (error) {
-            console.error('Error dando like:', error);
-        }
+        } catch (error) {        }
     };
 
-    const handleViewLikes = (postId: string) => {
-        console.log('👀 Ver likes del post', postId);
-        // Aquí luego puedes:
+    const handleViewLikes = (postId: string) => {        // Aquí luego puedes:
         // - navegar a otra pantalla
         // - abrir un modal con la lista de usuarios
         // por ahora solo dejamos el log
@@ -348,9 +326,7 @@ export default function OtherProfileScreen() {
                         : post
                 )
             );
-        } catch (error) {
-            console.error('Error actualizando conteos:', error);
-        }
+        } catch (error) {        }
     };
 
     const handleFollow = async () => {
@@ -373,14 +349,10 @@ export default function OtherProfileScreen() {
                     setFollowStatus('pending');
                 }
             }
-        } catch (error) {
-            console.error('Error manejando seguimiento:', error);
-        }
+        } catch (error) {        }
     };
 
-    const handleMessage = () => {
-        console.log('Abrir chat con usuario');
-    };
+    const handleMessage = () => {    };
 
     const seleccionarUsuario = (usuario: Usuario) => {
         // Navegar a los detalles del chat con toda la información del usuario
@@ -400,9 +372,7 @@ export default function OtherProfileScreen() {
   const obtenerSeguidosCompletos = async (usuarioID: string): Promise<Usuario[]> => {
     try {
       setLoadingUsers(true);
-      const seguidosIDs = await obtenerListaSeguidos(usuarioID);
-      console.log('📊 IDs de seguidos obtenidos:', seguidosIDs.length, seguidosIDs);
-      
+      const seguidosIDs = await obtenerListaSeguidos(usuarioID);      
       // Usar un Map para evitar duplicados
       const usuariosUnicos = new Map<string, Usuario>();
       
@@ -423,12 +393,8 @@ export default function OtherProfileScreen() {
         }
       }
 
-      const usuarios = Array.from(usuariosUnicos.values());
-      console.log('📊 Usuarios seguidos únicos:', usuarios.length);
-      return usuarios;
-    } catch (error) {
-      console.error('Error obteniendo seguidos:', error);
-      return [];
+      const usuarios = Array.from(usuariosUnicos.values());      return usuarios;
+    } catch (error) {      return [];
     } finally {
       setLoadingUsers(false);
     }
@@ -469,9 +435,7 @@ export default function OtherProfileScreen() {
             }
 
             return seguidores;
-        } catch (error) {
-            console.error('Error obteniendo seguidores:', error);
-            return [];
+        } catch (error) {            return [];
         } finally {
             setLoadingUsers(false);
         }

@@ -38,7 +38,6 @@ export default function NewCommunityScreen() {
           setUsuarioID(storedUsuarioID);
         }
       } catch (error) {
-        console.error('Error obteniendo datos del usuario:', error);
       }
     };
     
@@ -76,8 +75,6 @@ export default function NewCommunityScreen() {
       const nombreArchivo = `comunidades/${Date.now()}_${Math.floor(Math.random() * 10000)}.jpg`;
       const storageRef = ref(storage, nombreArchivo);
 
-      console.log('🔹 Subiendo imagen a Firebase Storage:', nombreArchivo);
-      
       // Convierte la URI a blob
       const response = await fetch(uri);
       const blob = await response.blob();
@@ -85,15 +82,11 @@ export default function NewCommunityScreen() {
       // Sube la imagen
       await uploadBytes(storageRef, blob);
 
-      console.log('✅ Imagen subida, obteniendo URL...');
-      
       // Obtiene la URL pública
       const downloadURL = await getDownloadURL(storageRef);
-      console.log('✅ Imagen subida correctamente:', downloadURL);
 
       return downloadURL;
     } catch (error) {
-      console.error('❌ Error subiendo imagen:', error);
       throw error;
     }
   };
@@ -156,8 +149,6 @@ export default function NewCommunityScreen() {
         }
       );
 
-      console.log('Comunidad creada exitosamente:', comunidadRef.id);
-
       Alert.alert(
         'Éxito',
         'La comunidad ha sido creada exitosamente',
@@ -169,7 +160,6 @@ export default function NewCommunityScreen() {
         ]
       );
     } catch (error) {
-      console.error('Error creando comunidad:', error);
       Alert.alert('Error', 'No se pudo crear la comunidad');
     } finally {
       setLoading(false);

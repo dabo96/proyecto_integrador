@@ -34,7 +34,6 @@ export default function Busqueda() {
         setHasSearched(true);
 
         try {
-            console.log('Buscando usuarios con texto:', texto);
             const usuariosRef = collection(db, 'Usuarios');
             const usuariosSnapshot = await getDocs(usuariosRef);
             const resultados: Usuario[] = [];
@@ -67,9 +66,7 @@ export default function Busqueda() {
             });
 
             setResults(resultados);
-        } catch (error) {
-            console.error('Error buscando usuarios:', error);
-        } finally {
+        } catch (error) { } finally {
             setLoading(false);
         }
     };
@@ -123,11 +120,11 @@ export default function Busqueda() {
                             />
                             <View style={styles.textContainer}>
                                 <Text style={styles.title}>
-                                  {(() => {
-                                    const primerNombre = item.nombres?.split(' ')[0] || '';
-                                    const primerApellido = item.apellidos?.split(' ')[0] || '';
-                                    return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
-                                  })()}
+                                    {(() => {
+                                        const primerNombre = item.nombres?.split(' ')[0] || '';
+                                        const primerApellido = item.apellidos?.split(' ')[0] || '';
+                                        return primerApellido ? `${primerNombre} ${primerApellido}`.trim() : primerNombre;
+                                    })()}
                                 </Text>
                                 <Text style={styles.subtitle}>Ver perfil</Text>
                             </View>
@@ -137,7 +134,7 @@ export default function Busqueda() {
                     ListEmptyComponent={
                         hasSearched && query.length > 0 ? (
                             <View style={styles.centerContainer}>
-                                <Text style={styles.noResults}>No se encontraron resultados para "{query}"</Text>
+                                <Text style={styles.noResults}>No se encontraron resultados para `&quot;{query}&quot;</Text>
                             </View>
                         ) : (
                             !hasSearched ? (

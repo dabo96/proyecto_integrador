@@ -149,7 +149,6 @@ export default function Notificaciones() {
         }
       }
     } catch (e) {
-      console.error('Error cargando publicaciones:', e);
     }
 
     // === Mis publicaciones (para filtrar interacciones) ===
@@ -216,7 +215,6 @@ export default function Notificaciones() {
         });
       }
     } catch (e) {
-      console.error('Error cargando comentarios:', e);
     }
 
     // === Likes ===
@@ -272,7 +270,6 @@ export default function Notificaciones() {
         });
       }
     } catch (e) {
-      console.error('Error cargando likes:', e);
     }
 
     // === Seguidores ===
@@ -330,7 +327,6 @@ export default function Notificaciones() {
         }
       }
     } catch (e) {
-      console.error('Error cargando seguidores:', e);
     }
 
     // === Solicitudes de seguimiento pendientes ===
@@ -388,7 +384,6 @@ export default function Notificaciones() {
         }
       }
     } catch (e) {
-      console.error('Error cargando solicitudes de seguimiento:', e);
     }
 
     notificaciones.sort((a, b) => b.timestamp - a.timestamp);
@@ -406,7 +401,6 @@ export default function Notificaciones() {
         setLista(datos);
       } else setLista([]);
     } catch (error) {
-      console.error('Error en cargar:', error);
       setLista([]);
     } finally {
       setCargando(false);
@@ -455,7 +449,6 @@ export default function Notificaciones() {
         })
       );
     } catch (error) {
-      console.error('Error siguiendo usuario:', error);
     }
   };
 
@@ -489,7 +482,6 @@ export default function Notificaciones() {
       // Recargar notificaciones para actualizar contadores
       await cargar();
     } catch (error) {
-      console.error('Error aceptando solicitud:', error);
       Alert.alert('Error', 'No se pudo aceptar la solicitud. Intenta nuevamente.');
     }
   };
@@ -505,7 +497,6 @@ export default function Notificaciones() {
 
       Alert.alert('Solicitud rechazada', 'La solicitud ha sido rechazada.');
     } catch (error) {
-      console.error('Error rechazando solicitud:', error);
       Alert.alert('Error', 'No se pudo rechazar la solicitud. Intenta nuevamente.');
     }
   };
@@ -513,26 +504,20 @@ export default function Notificaciones() {
   // Función para obtener una publicación por ID
   const obtenerPublicacionPorID = async (publicacionID: string): Promise<Post | null> => {
     try {
-      console.log('🔍 Obteniendo publicación con ID:', publicacionID);
       setLoadingPost(true);
       const postRef = doc(db, 'publicaciones', publicacionID);
       const postDoc = await getDoc(postRef);
 
       if (!postDoc.exists()) {
-        console.error('❌ La publicación no existe:', publicacionID);
         return null;
       }
 
       const data = postDoc.data();
-      console.log('📄 Datos de la publicación:', { id: postDoc.id, usuarioID: data.usuarioID, texto: data.texto?.substring(0, 50) });
       const usuario = await obtenerUsuarioPorId(data.usuarioID);
 
       if (!usuario) {
-        console.error('❌ No se encontró el usuario:', data.usuarioID);
         return null;
       }
-
-      console.log('👤 Usuario encontrado:', usuario.nombre);
 
       const nombreFuente = usuario.nombreCompleto || usuario.nombre || '';
       const partesNombre = nombreFuente.trim().split(' ');
@@ -587,16 +572,8 @@ export default function Notificaciones() {
         isOwner: data.usuarioID === currentUserID,
       };
 
-      console.log('✅ Publicación procesada exitosamente:', {
-        id: postDoc.id,
-        autor: `${nombresAutor} ${apellidosAutor}`,
-        likes: likesCount,
-        comentarios: comentariosCount
-      });
-
       return publicacion;
     } catch (error) {
-      console.error('❌ Error obteniendo publicación:', error);
       return null;
     } finally {
       setLoadingPost(false);
@@ -641,7 +618,6 @@ export default function Notificaciones() {
 
       setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
     } catch (error) {
-      console.error('Error cargando comentarios:', error);
     } finally {
       setLoadingComments(null);
     }
@@ -687,7 +663,6 @@ export default function Notificaciones() {
         }
       }
     } catch (error) {
-      console.error('Error en like:', error);
     }
   };
 
@@ -715,7 +690,6 @@ export default function Notificaciones() {
         setSelectedPost({ ...selectedPost, comentarios: selectedPost.comentarios + 1 });
       }
     } catch (error) {
-      console.error('Error enviando comentario:', error);
       Alert.alert('Error', 'No se pudo enviar el comentario');
     }
   };
@@ -734,18 +708,9 @@ export default function Notificaciones() {
   };
 
   const handleNotificationPress = async (n: Notificacion) => {
-    console.log('🔔 Notificación clickeada:', {
-      tipo: n.tipo,
-      publicacionID: n.publicacionID,
-      usuarioID: n.usuarioID,
-      name: n.name
-    });
-
     // Si la notificación tiene una publicación asociada, abrir modal
     if (n.publicacionID && (n.tipo === 'like' || n.tipo === 'comentario' || n.tipo === 'publicacion')) {
-      console.log('📝 Abriendo modal para publicación:', n.publicacionID);
       const post = await obtenerPublicacionPorID(n.publicacionID);
-      console.log('📝 Publicación obtenida:', post ? post.id : 'null');
       if (post) {
         setSelectedPost(post);
         setShowPostModal(true);

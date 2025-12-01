@@ -1,10 +1,10 @@
+import ModButton from '@/components/ModButton';
+import { db } from '@/services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, TextInput, View, Alert } from 'react-native';
+import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase';
-import ModButton from '@/components/ModButton';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function RecuperarScreen() {
     const router = useRouter();
@@ -30,7 +30,6 @@ export default function RecuperarScreen() {
         try {
             const q = query(collection(db, "Usuarios"), where("correo", "==", correo));
             const querySnapshot = await getDocs(q);
-            console.log(querySnapshot.docs.map(d => d.data()))
 
             if (querySnapshot.empty) {
                 Alert.alert("Error", "No existe un usuario con ese correo");
@@ -41,9 +40,6 @@ export default function RecuperarScreen() {
             // Tomar el primer documento ya que el correo es único
             const userDoc = querySnapshot.docs[0];
             const userRef = doc(db, "Usuarios", userDoc.id);
-
-            console.log(userDoc);
-
             await updateDoc(userRef, {
                 contrasena: nuevaContrasena,
                 updatedAt: new Date()
@@ -52,7 +48,6 @@ export default function RecuperarScreen() {
             router.push("./iniciarSesion")
 
         } catch (error) {
-            console.error(error);
             Alert.alert("Error", "Hubo un problema al actualizar la contraseña");
         }
 
@@ -98,9 +93,9 @@ export default function RecuperarScreen() {
 
                 <View style={{ height: 40 }} />
 
-                <ModButton style={styles.button} 
+                <ModButton style={styles.button}
                     title={loading ? "Actualizando..." : "Actualizar"}
-                    onPress={()=>{handlePasswordChange()}}/>
+                    onPress={() => { handlePasswordChange() }} />
             </View>
         </LinearGradient>
     );

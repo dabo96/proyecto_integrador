@@ -16,33 +16,22 @@ export default function Score() {
       try {
         // ✅ Cambiado de 'userID' a 'usuarioID' para coincidir con tus otros archivos
         const usuarioID = await AsyncStorage.getItem('usuarioID');
-        if (!usuarioID) {
-          console.warn('No se encontró usuarioID en AsyncStorage');
-          setNombre('Usuario');
+        if (!usuarioID) {          setNombre('Usuario');
           setLoading(false);
           return;
         }
-
-        console.log('🔹 UsuarioID obtenido:', usuarioID);
-
         // ✅ Colección correcta: "Usuarios"
         const userRef = doc(db, 'Usuarios', usuarioID);
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
-          const data = userSnap.data();
-          console.log('📘 Datos del usuario:', data);
-          
+          const data = userSnap.data();          
           // ✅ Usar 'nombres' en lugar de 'nombre' para coincidir con tu estructura
           const nombreCompleto = data.nombres || data.nombre || 'Usuario';
           setNombre(nombreCompleto);
-        } else {
-          console.warn('⚠️ Usuario no encontrado en Firestore');
-          setNombre('Usuario');
+        } else {          setNombre('Usuario');
         }
-      } catch (error) {
-        console.error('❌ Error obteniendo nombre del usuario:', error);
-        setNombre('Usuario');
+      } catch (error) {        setNombre('Usuario');
       } finally {
         setLoading(false);
       }

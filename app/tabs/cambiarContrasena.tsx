@@ -25,9 +25,7 @@ export default function CambiarContrasena() {
         } else {
           setError('No se encontró información del usuario. Por favor, inicia sesión nuevamente.');
         }
-      } catch (error) {
-        console.error('Error cargando usuario:', error);
-        setError('Error al cargar información del usuario');
+      } catch (error) {        setError('Error al cargar información del usuario');
       }
     };
     loadCurrentUser();
@@ -77,15 +75,6 @@ export default function CambiarContrasena() {
       const contrasenaActualTrimmed = contrasenaActual.trim();
 
       // Logs para depuración
-      console.log('🔍 Verificando contraseña:');
-      console.log('  - UsuarioID:', currentUserID);
-      console.log('  - Contraseña almacenada existe:', !!passwordStored);
-      console.log('  - Longitud almacenada:', passwordStored?.length || 0);
-      console.log('  - Longitud ingresada:', contrasenaActualTrimmed?.length || 0);
-      console.log('  - ¿Coinciden?:', passwordStored === contrasenaActualTrimmed);
-      console.log('  - Tipo almacenada:', typeof passwordStored);
-      console.log('  - Tipo ingresada:', typeof contrasenaActualTrimmed);
-
       if (!passwordStored) {
         setError('No se encontró la contraseña en la base de datos');
         setLoading(false);
@@ -135,9 +124,7 @@ export default function CambiarContrasena() {
       setTimeout(() => {
         router.replace('/iniciarSesion');
       }, 2000);
-    } catch (error: any) {
-      console.error('Error cambiando contraseña:', error);
-      setError('Hubo un problema al cambiar la contraseña. Intenta nuevamente.');
+    } catch (error: any) {      setError('Hubo un problema al cambiar la contraseña. Intenta nuevamente.');
       Alert.alert('Error', 'Hubo un problema al cambiar la contraseña.');
     } finally {
       setLoading(false);

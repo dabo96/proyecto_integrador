@@ -66,7 +66,7 @@ export const subirYModerarImagen = async (
       }
     };
   } catch (error: any) {
-    console.error('Error subiendo y moderando imagen:', error);
+    // console.error('Error subiendo y moderando imagen:', error);
     throw new Error(`Error al procesar imagen: ${error.message}`);
   }
 };
@@ -93,7 +93,7 @@ export const moderarImagenExistente = async (publicId: string): Promise<Cloudina
       reason: !isSafe ? moderationStatus?.status : undefined
     };
   } catch (error: any) {
-    console.error('Error moderando imagen existente:', error);
+    // console.error('Error moderando imagen existente:', error);
     throw new Error(`Error al moderar imagen: ${error.message}`);
   }
 };

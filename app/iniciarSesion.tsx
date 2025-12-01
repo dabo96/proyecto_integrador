@@ -21,7 +21,6 @@ export default function SignInScreen() {
     const [banDate, setBanDate] = useState('');
 
     const handleSignIn = async () => {
-        // Limpiar errores previos
         setErrorCorreo('');
         setErrorContrasena('');
 
@@ -39,125 +38,93 @@ export default function SignInScreen() {
         setLoading(true);
 
         try {
+            // Normalizar el correo
             const correoNormalizado = correo.trim().toLowerCase();
-            console.log("🔍 Buscando usuario con correo:", correoNormalizado);
 
-            const q = query(collection(db, "Usuarios"), where("correo", "==", correoNormalizado));
+            // Buscar usuario por correo
+            const usuariosRef = collection(db, 'Usuarios');
+            const q = query(usuariosRef, where('correo', '==', correoNormalizado));
             const querySnapshot = await getDocs(q);
 
-            console.log("📊 Resultados de búsqueda:", querySnapshot.empty ? "Vacío" : "Encontrado");
-
             if (querySnapshot.empty) {
-                console.log("❌ Usuario no encontrado");
+                setErrorCorreo('Correo o contraseña incorrectos');
+                setErrorContrasena('Correo o contraseña incorrectos');
+                Alert.alert("Error", "Correo o contraseña incorrectos");
                 setLoading(false);
-                setErrorCorreo('Correo incorrecto. Verifica que esté bien escrito.');
-                Alert.alert(
-                    "Correo incorrecto",
-                    "El correo ingresado no está registrado. Verifica que esté bien escrito o regístrate si no tienes una cuenta.",
-                    [
-                        {
-                            text: "Registrarse",
-                            onPress: () => router.push('./registro'),
-                        },
-                        { text: "Intentar de nuevo", style: 'cancel' }
-                    ]
-                );
                 return;
             }
 
-            let userFound: any = null;
-            querySnapshot.forEach((doc) => {
-                userFound = { id: doc.id, ...doc.data() };
-            });
+            // Obtener el primer documento (el correo es único)
+            const userDoc = querySnapshot.docs[0];
+            const userData = userDoc.data();
+            const userId = userDoc.id;
 
-            if (!userFound.verificado) {
-                await AsyncStorage.multiSet([
-                    ['pendingVerificationUserID', userFound.id],
-                    ['pendingVerificationEmail', correoNormalizado],
-                ]);
-                setLoading(false);
-                Alert.alert(
-                    "Cuenta sin verificar",
-                    "Necesitas verificar tu cuenta con el código enviado a tu correo institucional.",
-                    [
-                        {
-                            text: "Verificar ahora",
-                            onPress: () => router.push({ pathname: './autCuenta', params: { correo: correoNormalizado } }),
-                        },
-                        { text: "Cancelar" }
-                    ]
-                );
-                return;
-            }
+            // Verificar si el usuario está baneado
+            if (userData.bannedUntil) {
+                const bannedUntil = userData.bannedUntil.toDate ? userData.bannedUntil.toDate() : new Date(userData.bannedUntil);
+                const now = new Date();
 
-            const passwordStored = userFound?.contrasena || userFound?.contraseña;
-
-            if (passwordStored === contrasena.trim()) {
-                // 🔹 VERIFICAR BANEO
-                if (userFound.bannedUntil) {
-                    const bannedUntil = userFound.bannedUntil.toDate ? userFound.bannedUntil.toDate() : new Date(userFound.bannedUntil);
-                    const now = new Date();
-
-                    if (bannedUntil > now) {
-                        setLoading(false);
-                        const banReason = userFound.banReason || 'Infracción de contenido';
-                        const dateString = bannedUntil.toLocaleDateString();
-
-                        console.log('🚫 Usuario baneado detectado:', {
-                            userId: userFound.id,
-                            bannedUntil: dateString,
-                            banReason
-                        });
-
-                        setBanMessage(banReason);
-                        setBanDate(dateString);
-                        setShowBanModal(true);
-                        return;
-                    }
+                if (bannedUntil > now) {
+                    // Usuario aún está baneado
+                    const banDateFormatted = bannedUntil.toLocaleDateString('es-ES', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    setBanMessage(userData.banReason || 'Infracción de políticas');
+                    setBanDate(banDateFormatted);
+                    setShowBanModal(true);
+                    setLoading(false);
+                    return;
                 }
-
-                // Guardar el usuarioID en AsyncStorage
-                await AsyncStorage.setItem('usuarioID', userFound.id);
-                const nombreCompleto = userFound.nombreCompleto || userFound.nombres || userFound.nombre || 'Usuario';
-                await AsyncStorage.setItem('usuarioNombre', nombreCompleto);
-                setLoading(false);
-                // Limpiar errores al tener éxito
-                setErrorCorreo('');
-                setErrorContrasena('');
-                Alert.alert("Éxito", `Bienvenido ${nombreCompleto.split(' ')[0] || nombreCompleto}`);
-                router.push('./tabs/homeScreen');
-            } else {
-                setLoading(false);
-                setErrorContrasena('Contraseña incorrecta. Verifica que esté bien escrita.');
-                Alert.alert(
-                    "Contraseña incorrecta",
-                    "La contraseña ingresada no es correcta. Verifica que esté bien escrita o usa '¿Olvidaste tu contraseña?' si no la recuerdas."
-                );
             }
 
-        } catch (error: any) {
-            console.error("❌ Error al iniciar sesión:", error);
-            console.error("Mensaje de error:", error?.message);
+            // Verificar si el usuario está verificado
+            if (!userData.verificado) {
+                Alert.alert(
+                    "Cuenta no verificada",
+                    "Tu cuenta aún no ha sido verificada. Por favor, verifica tu cuenta antes de iniciar sesión."
+                );
+                setLoading(false);
+                return;
+            }
+
+            // Verificar contraseña
+            const passwordStored = userData?.contrasena || userData?.contraseña;
+            const contrasenaIngresada = contrasena.trim();
+
+            if (!passwordStored) {
+                setErrorContrasena('Error en la autenticación');
+                Alert.alert("Error", "Error en la autenticación. Por favor, contacta al soporte.");
+                setLoading(false);
+                return;
+            }
+
+            if (passwordStored !== contrasenaIngresada) {
+                setErrorCorreo('Correo o contraseña incorrectos');
+                setErrorContrasena('Correo o contraseña incorrectos');
+                Alert.alert("Error", "Correo o contraseña incorrectos");
+                setLoading(false);
+                return;
+            }
+
+            // Guardar información del usuario en AsyncStorage
+            const nombreCompleto = userData.nombreCompleto || 
+                `${userData.nombres || ''} ${userData.apellidos || ''}`.trim() || 
+                'Usuario';
+
+            await AsyncStorage.multiSet([
+                ['usuarioID', userId],
+                ['usuarioNombre', nombreCompleto]
+            ]);
+
             setLoading(false);
 
-            // Verificar si es un error de conexión o de usuario no encontrado
-            if (error?.code === 'unavailable' || error?.message?.includes('network')) {
-                Alert.alert(
-                    "Error de conexión",
-                    "No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta nuevamente."
-                );
-            } else if (error?.code === 'permission-denied') {
-                Alert.alert(
-                    "Error de permisos",
-                    "No tienes permisos para acceder a esta información."
-                );
-            } else {
-                Alert.alert(
-                    "Error",
-                    error?.message || "Hubo un problema al iniciar sesión. Por favor intenta nuevamente."
-                );
-            }
-            return;
+            // Redirigir al usuario a la pantalla principal
+            router.replace('/tabs/homeScreen');
+        } catch (error: any) {
+            Alert.alert("Error", "Hubo un problema al iniciar sesión. Inténtalo de nuevo.");
+            setLoading(false);
         }
     };
 
@@ -179,7 +146,7 @@ export default function SignInScreen() {
                     value={correo}
                     onChangeText={(text) => {
                         setCorreo(text);
-                        setErrorCorreo(''); // Limpiar error al escribir
+                        setErrorCorreo('');
                     }}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -195,7 +162,7 @@ export default function SignInScreen() {
                     value={contrasena}
                     onChangeText={(text) => {
                         setContrasena(text);
-                        setErrorContrasena(''); // Limpiar error al escribir
+                        setErrorContrasena('');
                     }}
                 />
                 {errorContrasena ? <Text style={styles.errorText}>{errorContrasena}</Text> : null}
@@ -211,7 +178,6 @@ export default function SignInScreen() {
                 <Link title='Registrate' color="white" onPress={() => { router.push('./registro') }} />
             </View>
 
-            {/* Modal de Cuenta Suspendida */}
             <Modal
                 visible={showBanModal}
                 transparent

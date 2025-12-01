@@ -62,7 +62,7 @@ export const uploadImageToStorage = async (uri: string, chatId: string): Promise
     const nombreArchivo = `chats/${chatId}/imagenes/${timestamp}_${randomId}.jpg`;
     const storageRef = ref(storage, nombreArchivo);
 
-    console.log("🔹 Subiendo imagen a Firebase Storage:", nombreArchivo);
+    // console.log("🔹 Subiendo imagen a Firebase Storage:", nombreArchivo);
 
     // Convertir la URI a blob
     const response = await fetch(uri);
@@ -71,15 +71,15 @@ export const uploadImageToStorage = async (uri: string, chatId: string): Promise
     // Subir la imagen
     await uploadBytes(storageRef, blob);
 
-    console.log("✅ Imagen subida, obteniendo URL...");
+    // console.log("✅ Imagen subida, obteniendo URL...");
 
     // Obtener la URL pública
     const downloadURL = await getDownloadURL(storageRef);
-    console.log("✅ Imagen subida correctamente:", downloadURL);
+    // console.log("✅ Imagen subida correctamente:", downloadURL);
 
     return downloadURL;
   } catch (error) {
-    console.error("❌ Error subiendo imagen:", error);
+    // console.error("❌ Error subiendo imagen:", error);
     throw error;
   }
 };
@@ -94,7 +94,7 @@ export const uploadFileToStorage = async (uri: string, fileName: string, mimeTyp
     const nombreArchivo = `chats/${chatId}/archivos/${timestamp}_${randomId}.${extension}`;
     const storageRef = ref(storage, nombreArchivo);
 
-    console.log("🔹 Subiendo archivo a Firebase Storage:", nombreArchivo);
+    // console.log("🔹 Subiendo archivo a Firebase Storage:", nombreArchivo);
 
     // Convertir la URI a blob
     const response = await fetch(uri);
@@ -103,15 +103,15 @@ export const uploadFileToStorage = async (uri: string, fileName: string, mimeTyp
     // Subir el archivo
     await uploadBytes(storageRef, blob);
 
-    console.log("✅ Archivo subido, obteniendo URL...");
+    // console.log("✅ Archivo subido, obteniendo URL...");
 
     // Obtener la URL pública
     const downloadURL = await getDownloadURL(storageRef);
-    console.log("✅ Archivo subido correctamente:", downloadURL);
+    // console.log("✅ Archivo subido correctamente:", downloadURL);
 
     return downloadURL;
   } catch (error) {
-    console.error("❌ Error subiendo archivo:", error);
+    // console.error("❌ Error subiendo archivo:", error);
     throw error;
   }
 };
@@ -129,7 +129,7 @@ export const sendMessage = async (
 ): Promise<void> => {
   // Validar que haya al menos texto, imagen o archivo
   if (!chatId || !senderId || (!text.trim() && !imageUrl && !fileUrl)) {
-    console.warn("Faltan parámetros para enviar el mensaje");
+    // console.warn("Faltan parámetros para enviar el mensaje");
     return;
   }
 
@@ -201,11 +201,11 @@ export const sendMessage = async (
 
   // REACTIVAR CHAT: Si alguien envía un mensaje, reactivar el chat para quienes lo eliminaron
   if (deletedFor.length > 0) {
-    console.log(`🔄 ANTES de reactivar - deletedFor:`, deletedFor);
-    console.log(`🔄 Reactivando chat para ${deletedFor.length} usuario(s) que lo eliminaron`);
+    // console.log(`🔄 ANTES de reactivar - deletedFor:`, deletedFor);
+    // console.log(`🔄 Reactivando chat para ${deletedFor.length} usuario(s) que lo eliminaron`);
     updateData.deletedFor = []; // Limpiar completamente el array
     updateData.deleted = false; // Marcar como no eliminado
-    console.log(`✅ DESPUÉS de reactivar - deletedFor será:`, updateData.deletedFor);
+    // console.log(`✅ DESPUÉS de reactivar - deletedFor será:`, updateData.deletedFor);
   }
 
   // Para chats grupales, incrementar contador de todos los demás participantes
@@ -320,7 +320,7 @@ export const deleteChat = async (chatId: string, userId: string) => {
     await deleteDoc(chatRef);
 
   } catch (error) {
-    console.error("Error eliminando chat:", error);
+    // console.error("Error eliminando chat:", error);
     throw error;
   }
 };
@@ -410,7 +410,7 @@ export const deleteMessage = async (chatId: string, messageId: string): Promise<
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    console.error("Error eliminando mensaje:", error);
+    // console.error("Error eliminando mensaje:", error);
     throw error;
   }
 };

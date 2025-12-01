@@ -107,9 +107,7 @@ export default function AutCuenta() {
             await AsyncStorage.multiRemove(['pendingVerificationUserID', 'pendingVerificationEmail']);
             router.replace('/iniciarSesion');
             Alert.alert('Cuenta verificada', 'Tu cuenta ha sido verificada correctamente. Ahora puedes iniciar sesión.');
-        } catch (error) {
-            console.error(error);
-            Alert.alert('Error', 'Ocurrió un error al verificar el código. Intenta nuevamente.');
+        } catch (error) {            Alert.alert('Error', 'Ocurrió un error al verificar el código. Intenta nuevamente.');
         } finally {
             setIsSubmitting(false);
         }

@@ -51,7 +51,7 @@ export const subirImagenConModeracion = async (
     
     return imageUrl;
   } catch (error: any) {
-    console.error('Error en moderación:', error);
+    // console.error('Error en moderación:', error);
     // En caso de error, puedes decidir si rechazar o permitir
     // Por seguridad, es mejor rechazar
     Alert.alert(

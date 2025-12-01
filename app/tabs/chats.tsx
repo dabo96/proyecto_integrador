@@ -43,17 +43,14 @@ const ChatCreem = () => {
         const u = await obtenerUsuarioActual();
 
         if (u) {
-          console.log("✅ Usuario actual obtenido:", u.id, u.nombre);
           setCurrentUser(u);
         } else {
-          console.error("❌ obtenerUsuarioActual() retornó null");
           showAlert(
             "Error",
             "No se pudo obtener la información del usuario. Por favor, inicia sesión nuevamente."
           );
         }
       } catch (err) {
-        console.error("❌ Error obteniendo usuario actual:", err);
         showAlert(
           "Error",
           "Ocurrió un error al cargar tu información. Por favor, intenta de nuevo."
@@ -81,11 +78,9 @@ const ChatCreem = () => {
             .filter((id: string) => id !== currentUser.id)
         ),
       ];
-      //console.log("💬 IDs de usuarios en chats:", userIds);
 
       // Solo buscar los que no estén en caché
       const newUserIds = userIds.filter(id => !cacheRef.current[id]);
-      //console.log("💬 Nuevos IDs de usuario", newUserIds);
 
       if (newUserIds.length > 0) {
         const fetchedUsers = await Promise.all(
@@ -93,22 +88,20 @@ const ChatCreem = () => {
         );
 
         fetchedUsers.forEach(u => {
-          console.log("💬 Usuario cacheado:", u);
           if (u && u.id) cacheRef.current[u.id] = u;
         });
 
         // Actualizamos cache global una sola vez
         setUsuariosCache({ ...cacheRef.current });
-        //console.log("💬 Chats recibidos:", usuariosCache);
       }
 
       // Filtrar chats vacíos (sin mensajes), eliminados, y donde el usuario ya no es participante
       const filteredChats = data.filter(chat => {
         const lastMessage = (chat.lastMessage || "").trim();
         // No considerar mensajes eliminados o vacíos como mensajes válidos
-        const hasMessage = lastMessage !== "" && 
-                          lastMessage !== "Este mensaje fue eliminado" &&
-                          !lastMessage.toLowerCase().includes("este mensaje fue eliminado");
+        const hasMessage = lastMessage !== "" &&
+          lastMessage !== "Este mensaje fue eliminado" &&
+          !lastMessage.toLowerCase().includes("este mensaje fue eliminado");
         const notDeleted = !chat.deleted;
         const notDeletedForUser = !chat.deletedFor?.includes(currentUser.id);
         const isParticipant = chat.participants?.includes(currentUser.id);
@@ -121,10 +114,10 @@ const ChatCreem = () => {
       // Mapeamos los chats con la info de los usuarios
       const formattedChats = filteredChats.map(chat => {
         const isGroup = chat.isGroup || (chat.participants?.length || 0) > 2;
-        
+
         // Obtener timestamp para ordenamiento
-        const updatedAtTimestamp = chat.updatedAt?.toDate 
-          ? chat.updatedAt.toDate().getTime() 
+        const updatedAtTimestamp = chat.updatedAt?.toDate
+          ? chat.updatedAt.toDate().getTime()
           : (chat.updatedAt ? new Date(chat.updatedAt).getTime() : 0);
 
         if (isGroup) {
@@ -148,9 +141,9 @@ const ChatCreem = () => {
 
           // Filtrar mensajes eliminados del preview
           const lastMessage = (chat.lastMessage || "").trim();
-          const displayMessage = (lastMessage === "Este mensaje fue eliminado" || 
-                                 lastMessage === "" ||
-                                 lastMessage.toLowerCase().includes("este mensaje fue eliminado")) ? "" : lastMessage;
+          const displayMessage = (lastMessage === "Este mensaje fue eliminado" ||
+            lastMessage === "" ||
+            lastMessage.toLowerCase().includes("este mensaje fue eliminado")) ? "" : lastMessage;
 
           return {
             id: chat.id,
@@ -175,16 +168,15 @@ const ChatCreem = () => {
             (id: string) => id !== currentUser.id
           );
 
-      
+
 
           const otherUser = cacheRef.current[otherUserId] || { nombre: "Desconocido" };
-          //console.log("💬 Formateando chat con usuario:", otherUser);
-          
+
           // Filtrar mensajes eliminados del preview
           const lastMessage = (chat.lastMessage || "").trim();
-          const displayMessage = (lastMessage === "Este mensaje fue eliminado" || 
-                                 lastMessage === "" ||
-                                 lastMessage.toLowerCase().includes("este mensaje fue eliminado")) ? "" : lastMessage;
+          const displayMessage = (lastMessage === "Este mensaje fue eliminado" ||
+            lastMessage === "" ||
+            lastMessage.toLowerCase().includes("este mensaje fue eliminado")) ? "" : lastMessage;
 
           return {
             id: chat.id,
@@ -213,8 +205,7 @@ const ChatCreem = () => {
         return timestampB - timestampA; // Orden descendente (más reciente primero)
       });
 
-      //console.log("💬 Chats formateados:", chats);
-      setChats(sortedChats);
+      setChats(formattedChats);
     });
 
 
@@ -222,50 +213,44 @@ const ChatCreem = () => {
     return () => unsubscribe();
 
 
-}, [currentUser, onlineStatus]);
+  }, [currentUser, onlineStatus]);
 
-// Escuchar estados de conexión de los usuarios en los chats
-useEffect(() => {
-  if (!currentUser || chats.length === 0) return;
+  // Escuchar estados de conexión de los usuarios en los chats
+  useEffect(() => {
+    if (!currentUser || chats.length === 0) return;
 
-  const unsubscribes: (() => void)[] = [];
-  const userIdsToListen = new Set<string>();
+    const unsubscribes: (() => void)[] = [];
+    const userIdsToListen = new Set<string>();
 
-  // Recopilar todos los IDs de usuarios únicos de chats individuales
-  chats.forEach(chat => {
-    if (!chat.isGroup && chat.otherUserId) {
-      userIdsToListen.add(chat.otherUserId);
-    }
-  });
-
-  console.log("👂 Configurando listeners de estado para usuarios:", Array.from(userIdsToListen));
-
-  // Escuchar estado de cada usuario
-  userIdsToListen.forEach(userId => {
-    const unsubscribe = escucharEstadoUsuario(userId, (online, lastSeen) => {
-      console.log(`📡 [CHATS] Estado actualizado para ${userId}:`, online ? "en línea" : "desactivado");
-      setOnlineStatus(prev => {
-        // Solo actualizar si el valor realmente cambió
-        if (prev[userId] === online) {
-          console.log(`⚠️ [CHATS] Estado no cambió para ${userId}, ya era ${online}`);
-          return prev; // Retornar el mismo objeto si no hay cambio
-        }
-        const newStatus = {
-          ...prev,
-          [userId]: online
-        };
-        console.log(`✅ [CHATS] Estado completo actualizado para ${userId}:`, newStatus);
-        return newStatus;
-      });
+    // Recopilar todos los IDs de usuarios únicos de chats individuales
+    chats.forEach(chat => {
+      if (!chat.isGroup && chat.otherUserId) {
+        userIdsToListen.add(chat.otherUserId);
+      }
     });
-    unsubscribes.push(unsubscribe);
-  });
 
-  return () => {
-    console.log("🧹 Limpiando listeners de estado");
-    unsubscribes.forEach(unsub => unsub());
-  };
-}, [chats, currentUser]);
+    // Escuchar estado de cada usuario
+    userIdsToListen.forEach(userId => {
+      const unsubscribe = escucharEstadoUsuario(userId, (online, lastSeen) => {
+        setOnlineStatus(prev => {
+          // Solo actualizar si el valor realmente cambió
+          if (prev[userId] === online) {
+            return prev; // Retornar el mismo objeto si no hay cambio
+          }
+          const newStatus = {
+            ...prev,
+            [userId]: online
+          };
+          return newStatus;
+        });
+      });
+      unsubscribes.push(unsubscribe);
+    });
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [chats, currentUser]);
 
   // Función para abrir modal de confirmación de eliminación
   const handleOpenDeleteChat = (chatId: string) => {
@@ -307,7 +292,7 @@ useEffect(() => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Chats</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.push("./seleccionarUsuarios")}
           style={styles.addButton}
         >

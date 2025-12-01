@@ -19,7 +19,7 @@ export const crearPublicacion = async (data: Publicacion): Promise<string> => {
     });
     return docRef.id;
   } catch (error) {
-    console.error("Error al crear publicación:", error);
+    // console.error("Error al crear publicación:", error);
     throw error;
   }
 };
@@ -34,9 +34,9 @@ export const listarPublicaciones = async (): Promise<void> => {
       ...(doc.data() as Omit<Publicacion, "id">),
     }));
 
-    console.log("📄 Publicaciones encontradas:", publicaciones);
+    // console.log("📄 Publicaciones encontradas:", publicaciones);
   } catch (error) {
-    console.error("❌ Error al listar publicaciones:", error);
+    // console.error("❌ Error al listar publicaciones:", error);
   }
 };
 

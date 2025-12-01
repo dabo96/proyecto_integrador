@@ -90,14 +90,14 @@ export default function ComunidadScreen(): JSX.Element {
         comunidad => comunidad.creadorID !== storedUsuarioID && !comunidadesArray.find(c => c.id === comunidad.id)
       );
       
-      console.log('Comunidades cargadas (del usuario):', comunidadesArray);
-      console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
+      // console.log('Comunidades cargadas (del usuario):', comunidadesArray);
+      // console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
       
       setComunidades(comunidadesArray);
       setTodasComunidades(comunidadesDisponibles);
       
     } catch (error) {
-      console.error('Error cargando comunidades:', error);
+      // console.error('Error cargando comunidades:', error);
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export default function ComunidadScreen(): JSX.Element {
       // Compatibilidad con colecciones antiguas en minúscula
       await setDoc(doc(db, 'usuarios', userId, 'comunidades', comunidad.id), payload).catch(() => {});
     } catch (error) {
-      console.warn('No se pudo registrar la membresía del usuario:', error);
+      // console.warn('No se pudo registrar la membresía del usuario:', error);
     }
   };
 
@@ -155,7 +155,7 @@ export default function ComunidadScreen(): JSX.Element {
       Alert.alert('Te uniste a la comunidad', `Ahora eres parte de ${comunidad.nombre}.`);
       await cargarComunidades();
     } catch (error) {
-      console.error('Error al unirse a la comunidad:', error);
+      // console.error('Error al unirse a la comunidad:', error);
       Alert.alert('Error', 'No pudimos unirte a la comunidad. Inténtalo nuevamente.');
     } finally {
       setGestionando(false);
@@ -164,7 +164,7 @@ export default function ComunidadScreen(): JSX.Element {
 
   const performLeaveCommunity = async (comunidad: Comunidad) => {
     if (gestionando) {
-      console.log('⚠️ Ya hay una operación en curso');
+      // console.log('⚠️ Ya hay una operación en curso');
       return;
     }
 
@@ -190,7 +190,7 @@ export default function ComunidadScreen(): JSX.Element {
       return;
     }
 
-    console.log('🚪 Saliendo de la comunidad:', comunidad.nombre);
+    // console.log('🚪 Saliendo de la comunidad:', comunidad.nombre);
     setGestionando(true);
     try {
       // 1. Remover al usuario de la lista de miembros en la comunidad
@@ -198,16 +198,16 @@ export default function ComunidadScreen(): JSX.Element {
       await updateDoc(comunidadRef, {
         miembros: arrayRemove(currentUser),
       });
-      console.log('✅ Usuario removido de la lista de miembros');
+      // console.log('✅ Usuario removido de la lista de miembros');
 
       // 2. Eliminar la membresía del usuario
       await eliminarMembresiaUsuario(currentUser, comunidad.id);
-      console.log('✅ Membresía eliminada del usuario');
+      // console.log('✅ Membresía eliminada del usuario');
 
       Alert.alert('Saliste de la comunidad', `Ya no perteneces a ${comunidad.nombre}.`);
       await cargarComunidades();
     } catch (error) {
-      console.error('❌ Error al salir de la comunidad:', error);
+      // console.error('❌ Error al salir de la comunidad:', error);
       Alert.alert('Error', `No pudimos procesar tu salida. ${error instanceof Error ? error.message : 'Inténtalo nuevamente.'}`);
     } finally {
       setGestionando(false);
@@ -215,7 +215,7 @@ export default function ComunidadScreen(): JSX.Element {
   };
 
   const handleLeaveCommunity = (comunidad: Comunidad) => {
-    console.log('🚪 handleLeaveCommunity llamado para:', comunidad.nombre);
+    // console.log('🚪 handleLeaveCommunity llamado para:', comunidad.nombre);
     const currentUser = usuarioID;
     if (!currentUser) {
       Alert.alert('Sesión expirada', 'Inicia sesión nuevamente para gestionar comunidades.');
@@ -229,13 +229,13 @@ export default function ComunidadScreen(): JSX.Element {
         { 
           text: 'Cancelar', 
           style: 'cancel',
-          onPress: () => console.log('❌ Usuario canceló la salida')
+          onPress: () => {/* console.log('❌ Usuario canceló la salida') */}
         },
         {
           text: 'Salir',
           style: 'destructive',
           onPress: () => {
-            console.log('✅ Usuario confirmó la salida');
+            // console.log('✅ Usuario confirmó la salida');
             performLeaveCommunity(comunidad);
           },
         },
@@ -245,7 +245,7 @@ export default function ComunidadScreen(): JSX.Element {
 
   const performDeleteCommunity = async (comunidad: Comunidad) => {
     if (gestionando) {
-      console.log('⚠️ Ya hay una operación en curso');
+      // console.log('⚠️ Ya hay una operación en curso');
       return;
     }
 
@@ -261,7 +261,7 @@ export default function ComunidadScreen(): JSX.Element {
       return;
     }
 
-    console.log('🗑️ Eliminando comunidad:', comunidad.nombre);
+    // console.log('🗑️ Eliminando comunidad:', comunidad.nombre);
     setGestionando(true);
     try {
       // 1. Obtener todas las publicaciones de la comunidad
@@ -269,7 +269,7 @@ export default function ComunidadScreen(): JSX.Element {
       const publicacionesSnapshot = await getDocs(
         query(publicacionesRef, where('comunidadID', '==', comunidad.id))
       );
-      console.log(`📄 Encontradas ${publicacionesSnapshot.docs.length} publicaciones`);
+      // console.log(`📄 Encontradas ${publicacionesSnapshot.docs.length} publicaciones`);
 
       // 2. Eliminar todas las interacciones (likes y comentarios) de cada publicación
       const interaccionesRef = collection(db, 'interacciones');
@@ -283,28 +283,28 @@ export default function ComunidadScreen(): JSX.Element {
           interaccionesSnapshot.docs.map((interaccionDoc) => deleteDoc(interaccionDoc.ref))
         );
       }
-      console.log(`💬 Eliminadas ${totalInteracciones} interacciones`);
+      // console.log(`💬 Eliminadas ${totalInteracciones} interacciones`);
 
       // 3. Eliminar todas las publicaciones de la comunidad
       await Promise.all(
         publicacionesSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref))
       );
-      console.log('✅ Publicaciones eliminadas');
+      // console.log('✅ Publicaciones eliminadas');
 
       // 4. Eliminar membresías de todos los usuarios
       await Promise.all(
         (comunidad.miembros || []).map((miembroId) => eliminarMembresiaUsuario(miembroId, comunidad.id))
       );
-      console.log(`✅ Membresías eliminadas de ${comunidad.miembros?.length || 0} usuarios`);
+      // console.log(`✅ Membresías eliminadas de ${comunidad.miembros?.length || 0} usuarios`);
 
       // 5. Eliminar la comunidad
       await deleteDoc(doc(db, 'comunidades', comunidad.id));
-      console.log('✅ Comunidad eliminada');
+      // console.log('✅ Comunidad eliminada');
 
       Alert.alert('Comunidad eliminada', `${comunidad.nombre} fue eliminada correctamente.`);
       await cargarComunidades();
     } catch (error) {
-      console.error('❌ Error al eliminar la comunidad:', error);
+      // console.error('❌ Error al eliminar la comunidad:', error);
       Alert.alert('Error', `No pudimos eliminar la comunidad. ${error instanceof Error ? error.message : 'Inténtalo nuevamente.'}`);
     } finally {
       setGestionando(false);
@@ -312,7 +312,7 @@ export default function ComunidadScreen(): JSX.Element {
   };
 
   const handleDeleteCommunity = (comunidad: Comunidad) => {
-    console.log('🗑️ handleDeleteCommunity llamado para:', comunidad.nombre);
+    // console.log('🗑️ handleDeleteCommunity llamado para:', comunidad.nombre);
     Alert.alert(
       'Eliminar comunidad',
       `¿Seguro que deseas eliminar ${comunidad.nombre}? Esta acción no se puede deshacer.`,
@@ -320,13 +320,13 @@ export default function ComunidadScreen(): JSX.Element {
         { 
           text: 'Cancelar', 
           style: 'cancel',
-          onPress: () => console.log('❌ Usuario canceló la eliminación')
+          onPress: () => {/* console.log('❌ Usuario canceló la eliminación') */}
         },
         {
           text: 'Eliminar',
           style: 'destructive',
           onPress: () => {
-            console.log('✅ Usuario confirmó la eliminación');
+            // console.log('✅ Usuario confirmó la eliminación');
             performDeleteCommunity(comunidad);
           },
         },
@@ -408,7 +408,7 @@ export default function ComunidadScreen(): JSX.Element {
                     <ModButton
                       title="Eliminar"
                       onPress={() => {
-                        console.log('🔘 Botón presionado: Eliminar, Comunidad:', item.nombre);
+                        // console.log('🔘 Botón presionado: Eliminar, Comunidad:', item.nombre);
                         handleDeleteCommunity(item);
                       }}
                       backgroundColor="#dc2626"

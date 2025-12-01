@@ -84,7 +84,7 @@ export const moderarImagenDesdeURL = async (imageUrl: string): Promise<Sightengi
       reason: reasons.length > 0 ? reasons.join(', ') : undefined
     };
   } catch (error: any) {
-    console.error('Error moderando imagen:', error);
+    // console.error('Error moderando imagen:', error);
     throw new Error(`Error al moderar imagen: ${error.message}`);
   }
 };
@@ -145,7 +145,7 @@ export const moderarImagenDesdeBase64 = async (base64Image: string): Promise<Sig
       reason: reasons.length > 0 ? reasons.join(', ') : undefined
     };
   } catch (error: any) {
-    console.error('Error moderando imagen:', error);
+    // console.error('Error moderando imagen:', error);
     throw new Error(`Error al moderar imagen: ${error.message}`);
   }
 };

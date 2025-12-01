@@ -44,7 +44,7 @@ export const obtenerPerfilUsuario = async (usuarioID: string): Promise<PerfilUsu
     const userDoc = await getDoc(userRef);
 
     if (!userDoc.exists()) {
-      console.warn("Usuario no encontrado");
+      // console.warn("Usuario no encontrado");
       return null;
     }
 
@@ -78,7 +78,7 @@ export const obtenerPerfilUsuario = async (usuarioID: string): Promise<PerfilUsu
       totalPublicaciones,
     };
   } catch (error) {
-    console.error("❌ Error obteniendo perfil:", error);
+    // console.error("❌ Error obteniendo perfil:", error);
     throw error;
   }
 };
@@ -127,7 +127,7 @@ export const obtenerPublicacionesPerfil = async (usuarioID: string): Promise<Pub
 
     return publicaciones;
   } catch (error) {
-    console.error("❌ Error obteniendo publicaciones del perfil:", error);
+    // console.error("❌ Error obteniendo publicaciones del perfil:", error);
     throw error;
   }
 };
@@ -153,7 +153,7 @@ export const contarSeguidores = async (usuarioID: string): Promise<number> => {
 
     return seguidoresCount;
   } catch (error) {
-    console.error("❌ Error contando seguidores:", error);
+    // console.error("❌ Error contando seguidores:", error);
     return 0;
   }
 };
@@ -176,10 +176,10 @@ export const contarSeguidos = async (usuarioID: string): Promise<number> => {
       }
     });
 
-    console.log(`📊 Contando seguidos para ${usuarioID}: ${seguidosSet.size} únicos de ${contactosSnapshot.size} documentos`);
+    // console.log(`📊 Contando seguidos para ${usuarioID}: ${seguidosSet.size} únicos de ${contactosSnapshot.size} documentos`);
     return seguidosSet.size;
   } catch (error) {
-    console.error("❌ Error contando seguidos:", error);
+    // console.error("❌ Error contando seguidos:", error);
     return 0;
   }
 };
@@ -199,7 +199,7 @@ export const contarPublicaciones = async (usuarioID: string): Promise<number> =>
     const snapshot = await getDocs(q);
     return snapshot.size;
   } catch (error) {
-    console.error("❌ Error contando publicaciones:", error);
+    // console.error("❌ Error contando publicaciones:", error);
     return 0;
   }
 };
@@ -219,7 +219,7 @@ export const contarLikesPublicacion = async (publicacionID: string): Promise<num
     const snapshot = await getDocs(q);
     return snapshot.size;
   } catch (error) {
-    console.error("❌ Error contando likes:", error);
+    // console.error("❌ Error contando likes:", error);
     return 0;
   }
 };
@@ -239,7 +239,7 @@ export const contarComentariosPublicacion = async (publicacionID: string): Promi
     const snapshot = await getDocs(q);
     return snapshot.size;
   } catch (error) {
-    console.error("❌ Error contando comentarios:", error);
+    // console.error("❌ Error contando comentarios:", error);
     return 0;
   }
 };
@@ -264,7 +264,7 @@ export const verificarSiSigue = async (
 
     return sigue;
   } catch (error) {
-    console.error("❌ Error verificando seguimiento:", error);
+    // console.error("❌ Error verificando seguimiento:", error);
     return false;
   }
 };
@@ -278,10 +278,10 @@ export const seguirUsuario = async (
 ): Promise<SolicitudEstado> => {
   try {
     const resultado = await enviarSolicitudSeguimiento(usuarioActualID, usuarioASeguirID);
-    console.log("Resultado de solicitud de seguimiento:", resultado);
+    // console.log("Resultado de solicitud de seguimiento:", resultado);
     return resultado;
   } catch (error) {
-    console.error("❌ Error enviando solicitud de seguimiento:", error);
+    // console.error("❌ Error enviando solicitud de seguimiento:", error);
     throw error;
   }
 };
@@ -303,9 +303,9 @@ export const dejarDeSeguirUsuario = async (
       await deleteDoc(doc(db, "Usuarios", usuarioActualID, "contactos", docSnapshot.id));
     });
 
-    console.log("✅ Dejaste de seguir al usuario");
+    // console.log("✅ Dejaste de seguir al usuario");
   } catch (error) {
-    console.error("❌ Error dejando de seguir:", error);
+    // console.error("❌ Error dejando de seguir:", error);
     throw error;
   }
 };
@@ -329,10 +329,10 @@ export const obtenerListaSeguidos = async (usuarioID: string): Promise<string[]>
     });
 
     const seguidosArray = Array.from(seguidosSet);
-    console.log(`📊 Obteniendo seguidos para ${usuarioID}: ${seguidosArray.length} únicos de ${contactosSnapshot.size} documentos`);
+    // console.log(`📊 Obteniendo seguidos para ${usuarioID}: ${seguidosArray.length} únicos de ${contactosSnapshot.size} documentos`);
     return seguidosArray;
   } catch (error) {
-    console.error("❌ Error obteniendo seguidos:", error);
+    // console.error("❌ Error obteniendo seguidos:", error);
     return [];
   }
 };
@@ -344,7 +344,7 @@ export const verificarSolicitudPendiente = async (
   try {
     return await verificarSolicitudPendienteInterno(solicitanteID, usuarioObjetivoID);
   } catch (error) {
-    console.error("❌ Error verificando solicitud pendiente:", error);
+    // console.error("❌ Error verificando solicitud pendiente:", error);
     return false;
   }
 };
@@ -356,7 +356,7 @@ export const cancelarSolicitudSeguimiento = async (
   try {
     await cancelarSolicitudPendiente(solicitanteID, usuarioObjetivoID);
   } catch (error) {
-    console.error("❌ Error cancelando solicitud de seguimiento:", error);
+    // console.error("❌ Error cancelando solicitud de seguimiento:", error);
     throw error;
   }
 };

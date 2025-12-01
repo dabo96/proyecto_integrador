@@ -31,18 +31,18 @@ const Contacts = () => {
       if (userId) {
         userIds.push(userId);
         const unsubscribe = escucharEstadoUsuario(userId, (online) => {
-          console.log(`📡 [CONTACTS] Estado actualizado para contacto ${userId}:`, online ? "en línea" : "desactivado");
+          // console.log(`📡 [CONTACTS] Estado actualizado para contacto ${userId}:`, online ? "en línea" : "desactivado");
           setOnlineStatus(prev => {
             // Solo actualizar si el valor realmente cambió
             if (prev[userId] === online) {
-              console.log(`⚠️ [CONTACTS] Estado no cambió para ${userId}, ya era ${online}`);
+              // console.log(`⚠️ [CONTACTS] Estado no cambió para ${userId}, ya era ${online}`);
               return prev;
             }
             const newStatus = {
               ...prev,
               [userId]: online
             };
-            console.log(`✅ [CONTACTS] Estado actualizado para ${userId}:`, newStatus);
+            // console.log(`✅ [CONTACTS] Estado actualizado para ${userId}:`, newStatus);
             return newStatus;
           });
         });
@@ -50,10 +50,10 @@ const Contacts = () => {
       }
     });
 
-    console.log("👂 Configurando listeners de estado para contactos:", userIds);
+    // console.log("👂 Configurando listeners de estado para contactos:", userIds);
 
     return () => {
-      console.log("🧹 Limpiando listeners de estado de contactos");
+      // console.log("🧹 Limpiando listeners de estado de contactos");
       unsubscribes.forEach(unsub => unsub());
     };
   }, [contacts]);
@@ -70,7 +70,7 @@ const Contacts = () => {
       setContacts(data.contactos);
       setContactRequests(data.solicitudes);
     } catch (error) {
-      console.error('Error cargando contactos:', error);
+      // console.error('Error cargando contactos:', error);
       Alert.alert('Error', 'No se pudieron cargar tus contactos en este momento.');
     } finally {
       setLoading(false);
@@ -88,7 +88,7 @@ const Contacts = () => {
       await aceptarSolicitud(current, id);
       await cargarDatos();
     } catch (error) {
-      console.error('Error aceptando solicitud:', error);
+      // console.error('Error aceptando solicitud:', error);
       Alert.alert('Error', 'No pudimos aceptar la solicitud. Intenta nuevamente.');
     }
   };
@@ -103,7 +103,7 @@ const Contacts = () => {
       await rechazarSolicitud(current, id);
       await cargarDatos();
     } catch (error) {
-      console.error('Error rechazando solicitud:', error);
+      // console.error('Error rechazando solicitud:', error);
       Alert.alert('Error', 'No pudimos rechazar la solicitud. Intenta nuevamente.');
     }
   };

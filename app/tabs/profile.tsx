@@ -104,17 +104,14 @@ const Profile = () => {
       } else {
         const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
         if (!storedUsuarioID) {
-          console.error('No se encontró usuarioID');
           return;
         }
         targetUserId = storedUsuarioID;
       }
 
       setCurrentUserID(targetUserId);
-      console.log('🔍 Cargando perfil para usuario:', targetUserId);
-
       const perfil = await obtenerPerfilUsuario(targetUserId);
-      if (!perfil) return console.error('No se pudo cargar el perfil');
+      if (!perfil) return;
       setUserProfile(perfil);
 
       const publicaciones = await obtenerPublicacionesPerfil(targetUserId);
@@ -140,7 +137,6 @@ const Profile = () => {
       setSeguidores(perfil.seguidores);
       setSeguidos(perfil.seguidos);
     } catch (error) {
-      console.error('Error cargando datos del perfil:', error);
     } finally {
       setLoading(false);
     }
@@ -188,7 +184,6 @@ const Profile = () => {
         await actualizarConteos(postId);
       }
     } catch (error) {
-      console.error('Error dando like:', error);
     }
   };
 
@@ -239,7 +234,6 @@ const Profile = () => {
 
       setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
     } catch (error) {
-      console.error('Error cargando comentarios:', error);
     } finally {
       setLoadingComments(null);
     }
@@ -269,7 +263,6 @@ const Profile = () => {
         await actualizarConteos(postId);
         await cargarComentarios(postId);
       } catch (error) {
-        console.error('Error enviando comentario:', error);
       }
     } else {
       setShowCommentInput(postId);
@@ -296,44 +289,30 @@ const Profile = () => {
       await actualizarConteos(postId);
       await cargarComentarios(postId);
     } catch (error) {
-      console.error('Error enviando comentario:', error);
     }
   };
 
   const handleDelete = (postId: string) => {
-    console.log('🗑️ handleDelete llamado para postId:', postId);
     setPostToDelete(postId);
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
     if (!postToDelete) return;
-
-    console.log('✅ Confirmando eliminación de publicación:', postToDelete);
     setDeletingPost(true);
 
     try {
-      console.log('📤 Eliminando publicación de Firestore...');
       await deleteDoc(doc(db, 'publicaciones', postToDelete));
-      console.log('✅ Publicación eliminada de Firestore');
-
       // Eliminar interacciones asociadas (likes y comentarios)
-      console.log('🗑️ Eliminando interacciones asociadas...');
-      try {
-        const likesQuery = query(
-          collection(db, 'interacciones'),
-          where('publicacionID', '==', postToDelete)
-        );
-        const likesSnapshot = await getDocs(likesQuery);
-        const deletePromises = likesSnapshot.docs.map(docSnapshot => deleteDoc(docSnapshot.ref));
-        await Promise.all(deletePromises);
-        console.log('✅ Interacciones eliminadas');
-      } catch (interactionsError) {
-        console.error('⚠️ Error eliminando interacciones (continuando):', interactionsError);
-      }
+      const likesQuery = query(
+        collection(db, 'interacciones'),
+        where('publicacionID', '==', postToDelete)
+      );
+      const likesSnapshot = await getDocs(likesQuery);
+      const deletePromises = likesSnapshot.docs.map(docSnapshot => deleteDoc(docSnapshot.ref));
+      await Promise.all(deletePromises);
 
       // Actualizar el estado local
-      console.log('🔄 Actualizando estado local...');
       setUserPosts(prev => prev.filter(p => p.id !== postToDelete));
       setLikedPosts(prev => {
         const newLiked = { ...prev };
@@ -345,20 +324,12 @@ const Profile = () => {
         delete newComentarios[postToDelete];
         return newComentarios;
       });
-
-      console.log('✅ Publicación eliminada exitosamente');
       setShowDeleteModal(false);
       setPostToDelete(null);
 
       // Mostrar mensaje de éxito
       Alert.alert('Éxito', 'Publicación eliminada correctamente');
     } catch (error: any) {
-      console.error('❌ Error eliminando publicación:', error);
-      console.error('Detalles del error:', {
-        code: error?.code,
-        message: error?.message,
-        stack: error?.stack
-      });
       Alert.alert(
         'Error',
         `No se pudo eliminar la publicación.\n\n${error?.message || 'Error desconocido'}`
@@ -392,7 +363,6 @@ const Profile = () => {
         )
       );
     } catch (error) {
-      console.error('Error actualizando conteos:', error);
     }
   };
 
@@ -401,8 +371,6 @@ const Profile = () => {
     try {
       setLoadingUsers(true);
       const seguidosIDs = await obtenerListaSeguidos(usuarioID);
-      console.log('📊 IDs de seguidos obtenidos:', seguidosIDs.length, seguidosIDs);
-
       // Usar un Set para evitar duplicados
       const usuariosUnicos = new Map<string, any>();
 
@@ -424,10 +392,8 @@ const Profile = () => {
       }
 
       const usuarios = Array.from(usuariosUnicos.values());
-      console.log('📊 Usuarios seguidos únicos:', usuarios.length);
       return usuarios;
     } catch (error) {
-      console.error('Error obteniendo seguidos:', error);
       return [];
     } finally {
       setLoadingUsers(false);
@@ -470,7 +436,6 @@ const Profile = () => {
 
       return seguidores;
     } catch (error) {
-      console.error('Error obteniendo seguidores:', error);
       return [];
     } finally {
       setLoadingUsers(false);
@@ -517,30 +482,20 @@ const Profile = () => {
         router.replace('/iniciarSesion');
       }, 500);
     } catch (error) {
-      console.error('Error cerrando sesión:', error);
       setShowLoggingOutModal(false);
     }
   };
 
   // 🔹 Cambiar foto de perfil
   const handleChangeProfilePhoto = async () => {
-    console.log('📸 handleChangeProfilePhoto llamado');
-    try {
-      console.log('🔐 Solicitando permisos de galería...');
-      // Solicitar permisos
+    try {      // Solicitar permisos
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log('📋 Estado de permisos:', status);
-
       if (status !== 'granted') {
         Alert.alert('Permisos necesarios', 'Necesitamos acceso a tu galería para cambiar la foto de perfil.');
         return;
       }
-
-      console.log('✅ Permisos otorgados, mostrando opciones...');
-
       // En web, mostrar directamente el selector de archivos
       if (Platform.OS === 'web') {
-        console.log('🌐 Plataforma web detectada, usando selector directo');
         pickImage('library');
         return;
       }
@@ -553,19 +508,17 @@ const Profile = () => {
           {
             text: 'Cancelar',
             style: 'cancel',
-            onPress: () => console.log('❌ Usuario canceló'),
+            onPress: () => { },
           },
           {
             text: 'Tomar foto',
             onPress: () => {
-              console.log('📷 Usuario eligió tomar foto');
               pickImage('camera');
             },
           },
           {
             text: 'Elegir de galería',
             onPress: () => {
-              console.log('🖼️ Usuario eligió galería');
               pickImage('library');
             },
           },
@@ -573,7 +526,6 @@ const Profile = () => {
         { cancelable: true }
       );
     } catch (error: any) {
-      console.error('❌ Error solicitando permisos:', error);
       Alert.alert('Error', `No se pudieron solicitar los permisos necesarios.\n\n${error?.message || ''}`);
     }
   };
@@ -612,7 +564,6 @@ const Profile = () => {
       }, 1500);
 
     } catch (error) {
-      console.error('Error durante el proceso de baneo:', error);
       setShowLoggingOutModal(false);
       // Forzar cierre de sesión local de todos modos
       await AsyncStorage.removeItem('usuarioID');
@@ -648,12 +599,8 @@ const Profile = () => {
       if (!result.canceled && result.assets[0] && currentUserID) {
         setUploadingImage(true);
         const imageUri = result.assets[0].uri;
-        console.log('📸 Imagen seleccionada:', imageUri);
-        console.log('👤 Usuario ID:', currentUserID);
-
         try {
           // Validar y subir imagen (la validación es transparente)
-          console.log('⬆️ Iniciando validación y subida...');
           const validacionResult = await validarYSubirImagen(
             imageUri,
             currentUserID
@@ -668,36 +615,21 @@ const Profile = () => {
           }
 
           const downloadURL = validacionResult.url!;
-          console.log('✅ Imagen validada y subida, URL:', downloadURL);
-
           // Actualizar perfil en Firestore
-          console.log('📝 Actualizando perfil en Firestore...');
           await actualizarFotoPerfil(currentUserID, downloadURL);
-          console.log('✅ Perfil actualizado');
-
           // Recargar datos del perfil
-          console.log('🔄 Recargando datos del perfil...');
           await loadUserData();
-          console.log('✅ Datos recargados');
-
           setUploadingImage(false);
           Alert.alert('Éxito', 'Foto de perfil actualizada correctamente.');
         } catch (uploadError: any) {
-          console.error('❌ Error en el proceso de subida:', uploadError);
-          console.error('Mensaje de error:', uploadError?.message);
-          console.error('Stack:', uploadError?.stack);
           setUploadingImage(false);
           Alert.alert(
             'Error',
-            `No se pudo actualizar la foto de perfil.\n\nError: ${uploadError?.message || 'Error desconocido'}\n\nRevisa la consola para más detalles.`
+            `No se pudo actualizar la foto de perfil.\n\nError: ${uploadError?.message || 'Error desconocido'}`
           );
         }
-      } else {
-        console.log('⚠️ Selección cancelada o datos incompletos');
       }
     } catch (error: any) {
-      console.error('❌ Error cambiando foto de perfil:', error);
-      console.error('Mensaje de error:', error?.message);
       setUploadingImage(false);
       Alert.alert(
         'Error',
@@ -744,7 +676,6 @@ const Profile = () => {
           <View style={styles.profileImageContainer} pointerEvents="box-none">
             <Pressable
               onPress={() => {
-                console.log('👆 Pressable presionado');
                 handleChangeProfilePhoto();
               }}
               disabled={uploadingImage}
@@ -909,15 +840,6 @@ const Profile = () => {
             // En el perfil propio, siempre debería ser true, pero verificamos por seguridad
             const storedUsuarioID = currentUserID; // Usar el valor actual
             const isOwner = post.usuarioID === storedUsuarioID || storedUsuarioID === userProfile?.id;
-
-            console.log('📋 Post info:', {
-              postId: post.id,
-              postUsuarioID: post.usuarioID,
-              currentUserID: storedUsuarioID,
-              userProfileId: userProfile?.id,
-              isOwner
-            });
-
             return (
               <PostCard
                 key={post.id}

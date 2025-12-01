@@ -101,39 +101,21 @@ export default function MainPageScreen() {
         }
 
         try {
-            console.log('Buscando usuarios con texto:', texto);
             const usuariosRef = collection(db, 'Usuarios');
             const usuariosSnapshot = await getDocs(usuariosRef);
             const resultados: Usuario[] = [];
 
-            console.log('Total de documentos en Usuarios:', usuariosSnapshot.size);
-
             usuariosSnapshot.forEach((doc) => {
                 const data = doc.data();
-                console.log('Documento encontrado - TODOS los campos:', {
-                    id: doc.id,
-                    allData: data,
-                    keys: Object.keys(data)
-                });
-
                 // Usar el campo "nombre" que contiene el nombre completo
                 const nombreOrigen = data.nombreCompleto || data.nombre || [data.nombres, data.apellidos].filter(Boolean).join(' ');
                 const nombreCompleto = String(nombreOrigen || '').trim().toLowerCase();
                 const textoBusqueda = texto.trim().toLowerCase();
 
-                console.log('Comparando:', {
-                    nombreCompleto,
-                    textoBusqueda
-                });
-
                 // Buscar si el texto está en el nombre completo
                 const coincideNombre = nombreCompleto.includes(textoBusqueda);
 
-                console.log('Coincidencia:', { coincideNombre });
-
                 if (coincideNombre) {
-                    console.log('✓ Coincidencia encontrada:', data.nombre);
-
                     // Dividir el nombre completo para separar nombres y apellidos
                     const partesNombre = (nombreOrigen || '').trim().split(' ');
                     const nombres = data.nombres || partesNombre[0] || '';
@@ -149,12 +131,9 @@ export default function MainPageScreen() {
                 }
             });
 
-            console.log('Resultados encontrados:', resultados.length);
-            console.log('Resultados:', resultados);
             setSearchResults(resultados);
             setShowSearchResults(resultados.length > 0);
         } catch (error) {
-            console.error('Error buscando usuarios:', error);
         }
     };
 
@@ -174,7 +153,6 @@ export default function MainPageScreen() {
 
             return seguidoIDs;
         } catch (error) {
-            console.error('Error obteniendo contactos:', error);
             return [];
         }
     };
@@ -199,7 +177,6 @@ export default function MainPageScreen() {
 
             return seguidorIDs;
         } catch (error) {
-            console.error('Error obteniendo seguidores:', error);
             return [];
         }
     };
@@ -208,13 +185,11 @@ export default function MainPageScreen() {
     const procesarPublicacion = async (docSnapshot: any): Promise<Post | null> => {
         try {
             const data = docSnapshot.data();
-            console.log('Procesando publicación:', data);
             const usuarioRef = doc(db, 'Usuarios', data.usuarioID);
             const usuarioDoc = await getDoc(usuarioRef);
 
             if (usuarioDoc.exists()) {
                 const usuarioData = usuarioDoc.data() as any;
-                console.log('Datos del usuario encontrados:', usuarioData);
                 const nombreFuente = usuarioData.nombreCompleto || usuarioData.nombre || '';
                 const partesNombre = nombreFuente.trim().split(' ');
                 const nombresAutor = usuarioData.nombres || partesNombre[0] || '';
@@ -252,8 +227,6 @@ export default function MainPageScreen() {
                     likes: likesCount,
                     comentarios: comentariosCount
                 };
-                console.log('Publicación procesada exitosamente:', publicacion);
-
                 // Verificar si el usuario actual le dio like a esta publicación
                 if (usuarioID) {
                     const userLikeQuery = query(
@@ -270,11 +243,9 @@ export default function MainPageScreen() {
 
                 return publicacion;
             } else {
-                console.log('Usuario no encontrado en la base de datos');
                 return null;
             }
         } catch (error) {
-            console.error('Error procesando publicación:', error);
             return null;
         }
     };
@@ -287,10 +258,6 @@ export default function MainPageScreen() {
         // Combinar todos los IDs únicos: usuario actual, usuarios seguidos y seguidores
         const allUserIDsSet = new Set([usuarioID, ...seguidoIDs, ...seguidorIDs]);
         const allUserIDs = Array.from(allUserIDsSet);
-        console.log('Configurando listener para usuarios:', allUserIDs);
-        console.log('  - Usuario actual:', usuarioID);
-        console.log('  - Usuarios seguidos:', seguidoIDs.length);
-        console.log('  - Seguidores:', seguidorIDs.length);
         const publicacionesRef = collection(db, 'publicaciones');
         const publicaciones: Post[] = [];
         let processedCount = 0;
@@ -308,8 +275,6 @@ export default function MainPageScreen() {
             });
 
             // Limitar a 20 publicaciones
-            console.log('Total de publicaciones procesadas:', publicaciones.length);
-            console.log('Publicaciones finales:', publicaciones);
             setPosts(publicaciones.slice(0, 20));
             setLoading(false);
         };
@@ -325,21 +290,18 @@ export default function MainPageScreen() {
             );
 
             const unsubscribe = onSnapshot(q, async (snapshot) => {
-                console.log(`Listener para usuario ${userID}: ${snapshot.docs.length} documentos encontrados`);
                 const nuevasPublicaciones: Post[] = [];
 
                 for (const docSnapshot of snapshot.docs) {
                     const data = docSnapshot.data();
                     // Filtrar publicaciones que pertenecen a comunidades (solo mostrar en perfiles y comunidades)
                     if (data.comunidadID) {
-                        console.log('Publicación de comunidad excluida del feed:', docSnapshot.id);
                         continue;
                     }
 
                     const publicacion = await procesarPublicacion(docSnapshot);
                     if (publicacion) {
                         nuevasPublicaciones.push(publicacion);
-                        console.log('Publicación procesada:', publicacion.id);
                     }
                 }
 
@@ -352,7 +314,6 @@ export default function MainPageScreen() {
                 processedCount++;
                 await procesarTodasPublicaciones();
             }, (error) => {
-                console.error('Error en listener de publicaciones:', error);
                 setError('Error al cargar las publicaciones');
                 setLoading(false);
             });
@@ -417,7 +378,6 @@ export default function MainPageScreen() {
 
             setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
         } catch (error) {
-            console.error('Error cargando comentarios:', error);
         } finally {
             setLoadingComments(null);
         }
@@ -437,7 +397,6 @@ export default function MainPageScreen() {
             const likeSnapshot = await getDocs(likeQuery);
             return !likeSnapshot.empty;
         } catch (error) {
-            console.error('Error verificando like:', error);
             return false;
         }
     };
@@ -445,8 +404,6 @@ export default function MainPageScreen() {
     // Función para actualizar los conteos de una publicación
     const actualizarConteosPublicacion = async (postId: string) => {
         try {
-            console.log('Actualizando conteos para publicación:', postId);
-
             // Contar likes
             const likesQuery = query(
                 collection(db, 'interacciones'),
@@ -455,8 +412,6 @@ export default function MainPageScreen() {
             );
             const likesSnapshot = await getDocs(likesQuery);
             const likesCount = likesSnapshot.size;
-            console.log('Total de likes encontrados:', likesCount);
-
             // Contar comentarios
             const comentariosQuery = query(
                 collection(db, 'interacciones'),
@@ -465,8 +420,6 @@ export default function MainPageScreen() {
             );
             const comentariosSnapshot = await getDocs(comentariosQuery);
             const comentariosCount = comentariosSnapshot.size;
-            console.log('Total de comentarios encontrados:', comentariosCount);
-
             // Actualizar el estado de la publicación específica
             setPosts(prevPosts => {
                 const updatedPosts = prevPosts.map(post =>
@@ -474,12 +427,9 @@ export default function MainPageScreen() {
                         ? { ...post, likes: likesCount, comentarios: comentariosCount }
                         : post
                 );
-                console.log('Publicaciones actualizadas');
                 return updatedPosts;
             });
         } catch (error) {
-            console.error('Error actualizando conteos:', error);
-            console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
 
@@ -519,7 +469,6 @@ export default function MainPageScreen() {
             }
             setLikesList(users);
         } catch (error) {
-            console.error("Error fetching likes details:", error);
             Alert.alert("Error", "No se pudieron cargar los likes.");
         } finally {
             setLoadingLikes(false);
@@ -535,9 +484,6 @@ export default function MainPageScreen() {
             const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
             const storedUsuarioNombre = await AsyncStorage.getItem('usuarioNombre');
 
-            console.log('storedUsuarioID', storedUsuarioID);
-            console.log('storedUsuarioNombre', storedUsuarioNombre);
-
             if (!storedUsuarioID) {
                 setError('No se encontró información del usuario');
                 setLoading(false);
@@ -551,7 +497,6 @@ export default function MainPageScreen() {
             try {
                 await actualizarEstadoOnline(storedUsuarioID);
             } catch (error) {
-                console.error('Error actualizando estado online:', error);
             }
 
             // Obtener foto de perfil del usuario y nombre
@@ -579,7 +524,6 @@ export default function MainPageScreen() {
             setSeguidorIDs(seguidorIDs);
 
         } catch (error) {
-            console.error('Error cargando feed:', error);
             setError('Error al cargar las publicaciones');
             setLoading(false);
         }
@@ -604,8 +548,6 @@ export default function MainPageScreen() {
             if (docSnapshot.exists()) {
                 const usuarioData = docSnapshot.data();
                 setUsuarioFotoPerfil(usuarioData.fotoPerfil || null);
-                console.log('📸 Foto de perfil actualizada:', usuarioData.fotoPerfil);
-
                 // Actualizar nombre (solo primer nombre y primer apellido)
                 const nombreCompleto = usuarioData.nombreCompleto || usuarioData.nombre || 'Usuario';
                 const partesNombre = nombreCompleto.trim().split(' ');
@@ -615,7 +557,6 @@ export default function MainPageScreen() {
                 setUsuarioNombre(nombreFormateado);
             }
         }, (error) => {
-            console.error('Error en listener de foto de perfil:', error);
         });
 
         return () => {
@@ -659,17 +600,10 @@ export default function MainPageScreen() {
 
             // Enviar comentario
             if (!usuarioID) {
-                console.error('No hay usuarioID disponible');
                 return;
             }
 
             try {
-                console.log('Guardando comentario:', {
-                    usuarioID,
-                    publicacionID: postId,
-                    comentario: commentText.trim()
-                });
-
                 const docRef = await addDoc(collection(db, 'interacciones'), {
                     usuarioID: usuarioID,
                     publicacionID: postId,
@@ -678,7 +612,6 @@ export default function MainPageScreen() {
                     fecha: new Date()
                 });
 
-                console.log('Comentario agregado exitosamente con ID:', docRef.id);
                 setCommentText('');
                 setShowCommentInput(null);
 
@@ -688,8 +621,6 @@ export default function MainPageScreen() {
                 // Recargar los comentarios
                 await cargarComentarios(postId);
             } catch (error) {
-                console.error('Error enviando comentario:', error);
-                console.error('Detalles del error:', JSON.stringify(error, null, 2));
             }
         } else {
             // Mostrar input de comentario y cargar comentarios existentes
@@ -702,17 +633,10 @@ export default function MainPageScreen() {
         if (!commentText.trim()) return;
 
         if (!usuarioID) {
-            console.error('No hay usuarioID disponible');
             return;
         }
 
         try {
-            console.log('Guardando comentario:', {
-                usuarioID,
-                publicacionID: postId,
-                comentario: commentText.trim()
-            });
-
             const docRef = await addDoc(collection(db, 'interacciones'), {
                 usuarioID: usuarioID,
                 publicacionID: postId,
@@ -721,7 +645,6 @@ export default function MainPageScreen() {
                 fecha: new Date()
             });
 
-            console.log('Comentario agregado exitosamente con ID:', docRef.id);
             setCommentText('');
 
             // Actualizar los conteos de la publicación
@@ -730,20 +653,15 @@ export default function MainPageScreen() {
             // Recargar los comentarios
             await cargarComentarios(postId);
         } catch (error) {
-            console.error('Error enviando comentario:', error);
-            console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
 
     const handleLike = async (postId: string) => {
         if (!usuarioID) {
-            console.error('No hay usuarioID disponible');
             return;
         }
 
         try {
-            console.log('Verificando like:', { usuarioID, publicacionID: postId });
-
             // Verificar si el usuario ya dio like a esta publicación
             const likeQuery = query(
                 collection(db, 'interacciones'),
@@ -753,19 +671,14 @@ export default function MainPageScreen() {
             );
             const likeSnapshot = await getDocs(likeQuery);
 
-            console.log('Likes existentes:', likeSnapshot.size);
-
             if (likeSnapshot.empty) {
                 // El usuario no ha dado like, agregar
-                console.log('Agregando nuevo like');
                 const docRef = await addDoc(collection(db, 'interacciones'), {
                     usuarioID: usuarioID,
                     publicacionID: postId,
                     tipo: 'like',
                     fecha: new Date()
                 });
-                console.log('Like agregado exitosamente con ID:', docRef.id);
-
                 // Actualizar el estado para indicar que le dio like
                 setLikedPosts(prev => ({ ...prev, [postId]: true }));
 
@@ -773,11 +686,8 @@ export default function MainPageScreen() {
                 await actualizarConteosPublicacion(postId);
             } else {
                 // El usuario ya dio like, eliminarlo
-                console.log('Eliminando like existente');
                 const likeDoc = likeSnapshot.docs[0];
                 await deleteDoc(likeDoc.ref);
-                console.log('Like eliminado exitosamente');
-
                 // Actualizar el estado para indicar que retiró el like
                 setLikedPosts(prev => ({ ...prev, [postId]: false }));
 
@@ -785,14 +695,11 @@ export default function MainPageScreen() {
                 await actualizarConteosPublicacion(postId);
             }
         } catch (error) {
-            console.error('Error dando like:', error);
-            console.error('Detalles del error:', JSON.stringify(error, null, 2));
         }
     };
 
 
     const handleViewLikes = (postId: string) => {
-        console.log('👀 Ver likes del post', postId);
         // Aquí luego puedes:
         // - navegar a otra pantalla
         // - abrir un modal con la lista de usuarios
@@ -814,7 +721,6 @@ export default function MainPageScreen() {
             const reporteSnapshot = await getDocs(reporteQuery);
             return !reporteSnapshot.empty;
         } catch (error) {
-            console.error('Error verificando reporte existente:', error);
             return false;
         }
     };
@@ -831,7 +737,6 @@ export default function MainPageScreen() {
             }
             return null;
         } catch (error) {
-            console.error('Error obteniendo usuario reportado:', error);
             return null;
         }
     };
@@ -852,10 +757,8 @@ export default function MainPageScreen() {
                 reportes_count: reportesCount
             });
 
-            console.log(`Contador de reportes actualizado para publicación ${postId}: ${reportesCount}`);
             return reportesCount;
         } catch (error) {
-            console.error('Error actualizando contador de reportes:', error);
             return 0;
         }
     };
@@ -884,15 +787,12 @@ export default function MainPageScreen() {
                     fecha: new Date()
                 });
 
-                console.log(`Índice de conducta actualizado para usuario ${usuarioReportadoID}: ${indiceActual} → ${nuevoIndice}`);
-
                 // Verificar si necesita sanción automática
                 await verificarSancionAutomatica(usuarioReportadoID, nuevoIndice);
 
                 return nuevoIndice;
             }
         } catch (error) {
-            console.error('Error actualizando índice de conducta:', error);
         }
     };
 
@@ -928,10 +828,8 @@ export default function MainPageScreen() {
                     motivo: motivo
                 });
 
-                console.log(`Sanción aplicada a usuario ${usuarioID}: ${tipoSancion}`);
             }
         } catch (error) {
-            console.error('Error aplicando sanción automática:', error);
         }
     };
 
@@ -968,7 +866,6 @@ export default function MainPageScreen() {
             setShowReportModal(true);
 
         } catch (error) {
-            console.error('Error preparando reporte:', error);
             Alert.alert('Error', 'Ocurrió un error al procesar el reporte');
         }
     };
@@ -1003,8 +900,6 @@ export default function MainPageScreen() {
                 estado: 'activo'
             });
 
-            console.log('Reporte creado exitosamente:', reporteRef.id);
-
             // Actualizar contador de reportes
             const reportesCount = await actualizarContadorReportes(selectedPostId);
 
@@ -1030,7 +925,6 @@ export default function MainPageScreen() {
             );
 
         } catch (error) {
-            console.error('Error enviando reporte:', error);
             Alert.alert('Error', 'Ocurrió un error al enviar el reporte');
         }
     };

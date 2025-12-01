@@ -39,22 +39,13 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
     const obtenerUsuario = async () => {
       try {
         const usuarioID = await AsyncStorage.getItem("usuarioID");
-        if (!usuarioID) return;
-
-        console.log("🔹 UsuarioID obtenido:", usuarioID);
-        const usuarioRef = doc(db, "Usuarios", usuarioID);
+        if (!usuarioID) return;        const usuarioRef = doc(db, "Usuarios", usuarioID);
         const usuarioSnap = await getDoc(usuarioRef);
 
         if (usuarioSnap.exists()) {
-          const data = usuarioSnap.data();
-          console.log("🔹 Usuario obtenido:", data);
-          setUsuario({ id: usuarioID, ...data });
-        } else {
-          console.warn("⚠️ No se encontró el usuario en Firestore.");
-        }
-      } catch (err) {
-        console.error("❌ Error obteniendo usuario:", err);
-      }
+          const data = usuarioSnap.data();          setUsuario({ id: usuarioID, ...data });
+        } else {        }
+      } catch (err) {      }
     };
 
     obtenerUsuario();
@@ -88,26 +79,16 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
     try {
       const storage = getStorage(app); // ✅ obtiene la instancia global de tu proyecto
       const nombreArchivo = `publicaciones/${Date.now()}_${Math.floor(Math.random() * 10000)}.jpg`;
-      const storageRef = ref(storage, nombreArchivo); // ✅ referencia correcta
-
-      console.log("🔹 Subiendo imagen a Firebase Storage:", nombreArchivo);
-      // convierte la URI a blob
+      const storageRef = ref(storage, nombreArchivo); // ✅ referencia correcta      // convierte la URI a blob
       const response = await fetch(uri);
       const blob = await response.blob();
 
       // sube la imagen
       await uploadBytes(storageRef, blob);
-
-      console.log("✅ Imagen subida, obteniendo URL...");
-
       // obtiene la URL pública
       const downloadURL = await getDownloadURL(storageRef);
-      console.log("✅ Imagen subida correctamente:", downloadURL);
-
       return downloadURL;
-    } catch (error) {
-      console.error("❌ Error subiendo imagen:", error);
-      throw error;
+    } catch (error) {      throw error;
     }
   };
 
@@ -124,10 +105,7 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
 
     setLoading(true);
     try {
-      let imagenUrl: string | null = null;
-
-      console.log("🔹 Publicando con imagen:", imagen);
-      if (imagen) {
+      let imagenUrl: string | null = null;      if (imagen) {
         // Validar contenido de la imagen antes de publicar
         const result = await validarYSubirImagenPublicacion(
           subirImagenAFirebase,
@@ -173,13 +151,9 @@ const NuevaPublicacionScreen: React.FC<NuevaPublicacionProps> = ({ onGoBack }) =
             onPress: () => router.back(),
           },
         ]
-      );
-      console.log("✅ Publicación creada con ID:", docRef.id);
-      setTexto("");
+      );      setTexto("");
       setImagen(null);
-    } catch (error) {
-      console.error("❌ Error al publicar:", error);
-      Alert.alert("Error", "No se pudo crear la publicación.");
+    } catch (error) {      Alert.alert("Error", "No se pudo crear la publicación.");
     } finally {
       setLoading(false);
     }
