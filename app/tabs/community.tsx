@@ -3,9 +3,9 @@ import CommunityCard from "@/components/cards/CommunityCard";
 import { db } from '@/services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
-import React, { JSX, useEffect, useState } from "react";
+import React, { JSX, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface Comunidad {
@@ -120,9 +120,11 @@ export default function ComunidadScreen(): JSX.Element {
     }
   };
 
-  useEffect(() => {
-    cargarComunidades();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      cargarComunidades();
+    }, [])
+  );
 
   const registrarMembresiaUsuario = async (userId: string, comunidad: Comunidad, rol: 'admin' | 'miembro') => {
     try {
