@@ -1,4 +1,4 @@
-import { deleteChat, deleteMessage, getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
+import { deleteChat, deleteMessage, getOrCreateChat, leaveGroupChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
 import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
 import { showAlert } from "@/utils/alert";
@@ -90,6 +90,9 @@ const ChatDetails = () => {
   const [deletingChat, setDeletingChat] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [isParticipant, setIsParticipant] = useState(true);
+  const [showLeaveGroupModal, setShowLeaveGroupModal] = useState(false);
+  const [leavingGroup, setLeavingGroup] = useState(false);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -112,7 +115,9 @@ const ChatDetails = () => {
             setError(null); // Limpiar error si se obtuvo el usuario
           }
         }
-      } catch (err) {        if (mounted) setError("No hay usuario autenticado");
+      } catch (err) {
+        console.error("Error obteniendo usuario actual:", err);
+        if (mounted) setError("No hay usuario autenticado");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -180,6 +185,7 @@ const ChatDetails = () => {
 
             // Verificar que el usuario actual esté en los participantes
             const currentUserInParticipants = uniqueParticipantIds.includes(currentUser.id);
+            setIsParticipant(currentUserInParticipants);
             if (!currentUserInParticipants) {
               setError("No eres participante de este chat");
               setLoading(false);
@@ -192,17 +198,23 @@ const ChatDetails = () => {
           }
         } else if (userId && typeof userId === "string") {
           // Chat individual
-          setIsGroup(false);          const usuarioData = await obtenerUsuarioPorId(userId);
+          setIsGroup(false);
+          console.log("Cargando chat con usuario ID:", userId, "desde usuario ID:", currentUser.id);
+          const usuarioData = await obtenerUsuarioPorId(userId);
           setUsuario(usuarioData);
 
           // Crear o reutilizar chat
           const chat = await getOrCreateChat(currentUser.id, userId);
-          setChatId(chat);        } else {
+          setChatId(chat);
+          console.log("Chat ID:", chat);
+        } else {
           setError("ID de usuario o chat no válido");
           setLoading(false);
           return;
         }
-      } catch (err) {        setError("No se pudo cargar el chat");
+      } catch (err) {
+        console.error("Error al cargar chat:", err);
+        setError("No se pudo cargar el chat");
       } finally {
         setLoading(false);
       }
@@ -211,9 +223,9 @@ const ChatDetails = () => {
     cargarChat();
   }, [userId, currentUser, paramChatId, paramIsGroup]);
 
-  // 🔹 Escuchar cambios en el chat grupal (para actualizar nombre del grupo en tiempo real)
+  // 🔹 Escuchar cambios en el chat grupal (para actualizar nombre del grupo y verificar participantes)
   useEffect(() => {
-    if (!chatId || !isGroup) return;
+    if (!chatId || !isGroup || !currentUser) return;
 
     const chatRef = doc(db, "Chats", chatId);
     const unsubscribe = onSnapshot(chatRef, (chatDoc) => {
@@ -222,25 +234,41 @@ const ChatDetails = () => {
         if (chatData.groupName && chatData.groupName !== groupName) {
           setGroupName(chatData.groupName);
         }
+        // Verificar si el usuario sigue siendo participante
+        const participants = chatData.participants || [];
+        const userIsParticipant = participants.includes(currentUser.id);
+        setIsParticipant(userIsParticipant);
       }
-    }, (error) => {    });
+    }, (error) => {
+      console.error("Error escuchando cambios del chat:", error);
+    });
 
     return () => unsubscribe();
-  }, [chatId, isGroup]);
+  }, [chatId, isGroup, currentUser]);
 
   useEffect(() => {
     if (isGroup || !userId) return;
-    const unsubscribe = escucharEstadoUsuario(String(userId), (online, lastSeen) => {      setIsUserOnline(online);
+
+    console.log("👂 Configurando listener de estado para chatDetails, usuario:", userId);
+
+    const unsubscribe = escucharEstadoUsuario(String(userId), (online, lastSeen) => {
+      console.log(`📡 Estado actualizado en chatDetails para ${userId}:`, online ? "en línea" : "desactivado");
+      setIsUserOnline(online);
     });
 
-    return () => {      unsubscribe();
+    return () => {
+      console.log("🧹 Limpiando listener de estado en chatDetails");
+      unsubscribe();
     };
   }, [userId, isGroup]);
 
 
   // 🔹 Escuchar mensajes cuando tenemos el chatId
   useEffect(() => {
-    if (!chatId) return;    const unsubscribe = listenMessages(chatId, (msgs: Message[]) => {
+    if (!chatId) return;
+
+    console.log("Estableciendo suscripción a mensajes para chat ID:", chatId);
+    const unsubscribe = listenMessages(chatId, (msgs: Message[]) => {
       setMessages(msgs);
 
       // Si es un chat grupal, asegurar que todos los remitentes tengan color asignado
@@ -270,43 +298,75 @@ const ChatDetails = () => {
 
   // 🔹 Seleccionar imagen de la galería
   const handleSelectImage = async () => {
-    try {      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      console.log("📷 Iniciando selección de imagen de galería...");
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log("📷 Estado de permisos de galería:", status);
+
       if (status !== "granted") {
         Alert.alert(
           "Permiso denegado",
           "Se necesita acceso a la galería para seleccionar imágenes."
         );
         return;
-      }      const result = await ImagePicker.launchImageLibraryAsync({
+      }
+
+      console.log("📷 Abriendo selector de imágenes...");
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
       });
-      if (!result.canceled && result.assets && result.assets[0]) {        setSelectedImage(result.assets[0].uri);
+
+      console.log("📷 Resultado del selector:", result.canceled ? "Cancelado" : "Imagen seleccionada");
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        console.log("📷 URI de imagen seleccionada:", result.assets[0].uri);
+        setSelectedImage(result.assets[0].uri);
         setSelectedFile(null); // Limpiar archivo si había uno seleccionado
-      } else {      }
-    } catch (error) {      Alert.alert("Error", `No se pudo seleccionar la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      } else {
+        console.log("📷 No se seleccionó ninguna imagen");
+      }
+    } catch (error) {
+      console.error("❌ Error seleccionando imagen:", error);
+      Alert.alert("Error", `No se pudo seleccionar la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`);
     }
   };
 
   // 🔹 Tomar foto con la cámara
   const handleTakePhoto = async () => {
-    try {      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    try {
+      console.log("📸 Iniciando captura de foto...");
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      console.log("📸 Estado de permisos de cámara:", status);
+
       if (status !== "granted") {
         Alert.alert(
           "Permiso denegado",
           "Se necesita acceso a la cámara para tomar fotos."
         );
         return;
-      }      const result = await ImagePicker.launchCameraAsync({
+      }
+
+      console.log("📸 Abriendo cámara...");
+      const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
       });
-      if (!result.canceled && result.assets && result.assets[0]) {        setSelectedImage(result.assets[0].uri);
+
+      console.log("📸 Resultado de la cámara:", result.canceled ? "Cancelado" : "Foto tomada");
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        console.log("📸 URI de foto tomada:", result.assets[0].uri);
+        setSelectedImage(result.assets[0].uri);
         setSelectedFile(null); // Limpiar archivo si había uno seleccionado
-      } else {      }
-    } catch (error) {      Alert.alert("Error", `No se pudo tomar la foto: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      } else {
+        console.log("📸 No se tomó ninguna foto");
+      }
+    } catch (error) {
+      console.error("❌ Error tomando foto:", error);
+      Alert.alert("Error", `No se pudo tomar la foto: ${error instanceof Error ? error.message : "Error desconocido"}`);
     }
   };
 
@@ -326,22 +386,37 @@ const ChatDetails = () => {
         });
         setSelectedImage(null); // Limpiar imagen si había una seleccionada
       }
-    } catch (error) {      Alert.alert("Error", "No se pudo seleccionar el archivo");
+    } catch (error) {
+      console.error("Error seleccionando archivo:", error);
+      Alert.alert("Error", "No se pudo seleccionar el archivo");
     }
   };
 
   // 🔹 Abrir selector de imágenes (galería por defecto, cámara con long press)
-  const handleImageOptions = () => {    handleSelectImage();
+  const handleImageOptions = () => {
+    console.log("📷 Botón de cámara presionado - abriendo galería directamente");
+    handleSelectImage();
   };
 
   // 🔹 Abrir cámara (para long press)
-  const handleImageOptionsLongPress = () => {    handleTakePhoto();
+  const handleImageOptionsLongPress = () => {
+    console.log("📸 Botón de cámara presionado largo - abriendo cámara");
+    handleTakePhoto();
   };
 
   // 🔹 Enviar mensaje
   const handleSendMessage = async () => {
     if (!chatId || !currentUser) return;
     if (newMessage.trim() === "" && !selectedImage && !selectedFile) return;
+
+    // Verificar si el usuario es participante (solo para grupos)
+    if (isGroup && !isParticipant) {
+      Alert.alert(
+        "No puedes enviar mensajes",
+        "Ya no perteneces al grupo. No puedes enviar mensajes."
+      );
+      return;
+    }
 
     // Guardar el mensaje antes de limpiarlo
     const messageToSend = newMessage;
@@ -390,7 +465,9 @@ const ChatDetails = () => {
           fileType
         );
       } else {
-        if (!userId) {          // Restaurar el mensaje si hay error
+        if (!userId) {
+          console.warn("No se encontró el ID del receptor.");
+          // Restaurar el mensaje si hay error
           setNewMessage(messageToSend);
           if (imageToSend) setSelectedImage(imageToSend);
           if (fileToSend) setSelectedFile(fileToSend);
@@ -407,7 +484,9 @@ const ChatDetails = () => {
           fileType
         );
       }
-    } catch (error) {      // Restaurar el mensaje si hay error
+    } catch (error) {
+      console.error("Error al enviar mensaje:", error);
+      // Restaurar el mensaje si hay error
       setNewMessage(messageToSend);
       if (imageToSend) setSelectedImage(imageToSend);
       if (fileToSend) setSelectedFile(fileToSend);
@@ -419,7 +498,9 @@ const ChatDetails = () => {
 
   // 🔹 Abrir archivo
   const handleOpenFile = (fileUrl: string) => {
-    Linking.openURL(fileUrl).catch((err) => {      Alert.alert("Error", "No se pudo abrir el archivo");
+    Linking.openURL(fileUrl).catch((err) => {
+      console.error("Error abriendo archivo:", err);
+      Alert.alert("Error", "No se pudo abrir el archivo");
     });
   };
 
@@ -444,7 +525,26 @@ const ChatDetails = () => {
     setShowDeleteChatModal(true);
   };
 
-  // 🔹 Función para manejar la eliminación de chat
+  // 🔹 Salir del grupo
+  const handleLeaveGroup = async () => {
+    if (!currentUser || !chatId || !isGroup) return;
+
+    try {
+      setLeavingGroup(true);
+      await leaveGroupChat(chatId, currentUser.id);
+      setShowLeaveGroupModal(false);
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "No se pudo salir del grupo. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setLeavingGroup(false);
+    }
+  };
+
+  // 🔹 Función para manejar la eliminación de chat (solo para chats individuales)
   const handleDeleteChat = async () => {
     if (!currentUser || !chatId) return;
 
@@ -482,7 +582,9 @@ const ChatDetails = () => {
       setGroupName(editingGroupName.trim());
       setShowEditGroupNameModal(false);
       Alert.alert("Éxito", "El nombre del grupo se ha actualizado correctamente");
-    } catch (error) {      Alert.alert("Error", "No se pudo actualizar el nombre del grupo");
+    } catch (error) {
+      console.error("Error actualizando nombre del grupo:", error);
+      Alert.alert("Error", "No se pudo actualizar el nombre del grupo");
     } finally {
       setSavingGroupName(false);
     }
@@ -503,7 +605,9 @@ const ChatDetails = () => {
       await deleteMessage(chatId, messageToDelete.id);
       setShowDeleteModal(false);
       setMessageToDelete(null);
-    } catch (error) {      Alert.alert("Error", "No se pudo eliminar el mensaje");
+    } catch (error) {
+      console.error("Error eliminando mensaje:", error);
+      Alert.alert("Error", "No se pudo eliminar el mensaje");
     } finally {
       setDeletingMessage(false);
     }
@@ -792,6 +896,10 @@ const ChatDetails = () => {
           <TouchableOpacity
             style={styles.headerUserInfo}
             onPress={() => {
+              console.log('Click en perfil - usuario:', usuario);
+              console.log('userId del parámetro:', userId);
+              console.log('usuario.id:', usuario?.id);
+
               // Usar el userId del parámetro directamente, que es más confiable
               if (userId) {
                 router.push({
@@ -803,7 +911,9 @@ const ChatDetails = () => {
                   pathname: './otherProfile',
                   params: { userId: usuario.id }
                 });
-              } else {              }
+              } else {
+                console.error('No se encontró userId para navegar al perfil');
+              }
             }}
           >
             <View style={styles.headerAvatarContainer}>
@@ -915,19 +1025,20 @@ const ChatDetails = () => {
             </TouchableOpacity>
 
             <TextInput
-              style={styles.textInput}
-              placeholder="Escribe un mensaje..."
+              style={[styles.textInput, isGroup && !isParticipant && styles.textInputDisabled]}
+              placeholder={isGroup && !isParticipant ? "Ya no perteneces al grupo" : "Escribe un mensaje..."}
               placeholderTextColor="#999"
               value={newMessage}
               onChangeText={setNewMessage}
               multiline
               maxLength={1000}
+              editable={!(isGroup && !isParticipant)}
             />
 
             <TouchableOpacity
-              style={[styles.sendButton, uploading && styles.sendButtonDisabled]}
+              style={[styles.sendButton, (uploading || (isGroup && !isParticipant)) && styles.sendButtonDisabled]}
               onPress={handleSendMessage}
-              disabled={uploading}
+              disabled={uploading || (isGroup && !isParticipant)}
             >
               {uploading ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -956,7 +1067,7 @@ const ChatDetails = () => {
                 style={styles.groupMenuItem}
                 onPress={handleOpenEditGroupName}
               >
-                <Ionicons name="pencil" size={20} color="#333" style={styles.groupMenuIcon} />
+              <Ionicons name="pencil" size={20} color="#333" style={styles.groupMenuIcon} />
                 <Text style={styles.groupMenuText}>Editar nombre del grupo</Text>
               </TouchableOpacity>
             )}
@@ -978,16 +1089,32 @@ const ChatDetails = () => {
 
             {isGroup && <View style={styles.menuDivider} />}
 
-            <TouchableOpacity
-              style={styles.groupMenuItem}
-              onPress={handleOpenDeleteChat}
-              disabled={deletingChat}
-            >
-              <Ionicons name="trash-outline" size={20} color="#ef4444" style={styles.groupMenuIcon} />
-              <Text style={[styles.groupMenuText, { color: "#ef4444" }]}>
-                Eliminar chat
-              </Text>
-            </TouchableOpacity>
+            {isGroup ? (
+              <TouchableOpacity
+                style={styles.groupMenuItem}
+                onPress={() => {
+                  setShowGroupMenu(false);
+                  setShowLeaveGroupModal(true);
+                }}
+                disabled={leavingGroup}
+              >
+                <Ionicons name="exit-outline" size={20} color="#ef4444" style={styles.groupMenuIcon} />
+                <Text style={[styles.groupMenuText, { color: "#ef4444" }]}>
+                  Salir del grupo
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.groupMenuItem}
+                onPress={handleOpenDeleteChat}
+                disabled={deletingChat}
+              >
+                <Ionicons name="trash-outline" size={20} color="#ef4444" style={styles.groupMenuIcon} />
+                <Text style={[styles.groupMenuText, { color: "#ef4444" }]}>
+                  Eliminar chat
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.menuDivider} />
 
@@ -1270,6 +1397,58 @@ const ChatDetails = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de confirmación para salir del grupo */}
+      <Modal
+        visible={showLeaveGroupModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLeaveGroupModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Salir del grupo</Text>
+              <TouchableOpacity
+                onPress={() => setShowLeaveGroupModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={styles.modalLabel}>
+                ¿Estás seguro de que deseas salir de este grupo? Ya no podrás enviar mensajes ni ver las conversaciones.
+              </Text>
+              <Text style={[styles.modalLabel, { fontSize: 12, marginTop: 8, color: "#999" }]}>
+                Podrás volver a unirte si alguien te agrega nuevamente.
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowLeaveGroupModal(false)}
+                disabled={leavingGroup}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalDeleteButton, leavingGroup && styles.modalSaveButtonDisabled]}
+                onPress={handleLeaveGroup}
+                disabled={leavingGroup}
+              >
+                {leavingGroup ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalSaveButtonText}>Salir</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1412,6 +1591,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
     maxHeight: 100,
+  },
+  textInputDisabled: {
+    backgroundColor: "#E5E5E5",
+    color: "#999",
+    opacity: 0.6,
   },
   sendButton: {
     backgroundColor: "#0491C6",

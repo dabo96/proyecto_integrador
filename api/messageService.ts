@@ -1,5 +1,5 @@
 import { db, storage } from "@/services/firebase";
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from "firebase/firestore";
+import { addDoc, arrayRemove, collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 // Crear o reutilizar un chat entre dos usuarios
@@ -279,6 +279,31 @@ export const updateGroupName = async (chatId: string, newGroupName: string): Pro
     groupName: newGroupName.trim(),
     updatedAt: serverTimestamp(),
   });
+};
+
+// Salir de un chat grupal (remover usuario de participantes)
+export const leaveGroupChat = async (chatId: string, userId: string): Promise<void> => {
+  try {
+    const chatRef = doc(db, "Chats", chatId);
+    const chatDoc = await getDoc(chatRef);
+
+    if (!chatDoc.exists()) {
+      throw new Error("Chat no encontrado");
+    }
+
+    const chatData = chatDoc.data();
+    if (!chatData.isGroup) {
+      throw new Error("Esta función solo es para chats grupales");
+    }
+
+    // Remover el usuario del array de participantes
+    await updateDoc(chatRef, {
+      participants: arrayRemove(userId),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    throw error;
+  }
 };
 
 // Eliminar chat completamente de la base de datos

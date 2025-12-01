@@ -593,10 +593,76 @@ const CommunityDetails = () => {
         `No se pudo completar la operación.\n\n${error?.message || 'Error desconocido'}`
       );
     } finally {
-      // console.log('🔓 Liberando flag gestionando');
       setGestionando(false);
-      // console.log('✅ gestionando liberado');
     }
+  };
+
+  const performDeleteCommunity = async () => {
+    if (!community || !usuarioID) return;
+
+    setGestionando(true);
+    try {
+      // 1. Eliminar interacciones y publicaciones (Best effort)
+      try {
+        const publicacionesRef = collection(db, 'publicaciones');
+        const publicacionesSnapshot = await getDocs(
+          query(publicacionesRef, where('comunidadID', '==', community.id))
+        );
+
+        const interaccionesRef = collection(db, 'interacciones');
+
+        // Eliminar interacciones de cada publicación
+        for (const publicacionDoc of publicacionesSnapshot.docs) {
+          const interaccionesSnapshot = await getDocs(
+            query(interaccionesRef, where('publicacionID', '==', publicacionDoc.id))
+          );
+          await Promise.all(
+            interaccionesSnapshot.docs.map((doc) => deleteDoc(doc.ref))
+          );
+        }
+
+        // Eliminar publicaciones
+        await Promise.all(
+          publicacionesSnapshot.docs.map((doc) => deleteDoc(doc.ref))
+        );
+      } catch (e) {
+        // console.warn('Error limpiando publicaciones:', e);
+      }
+
+      // 2. Eliminar membresías (Best effort)
+      try {
+        await Promise.all(
+          (community.miembros || []).map((miembroId) => eliminarMembresiaUsuario(miembroId, community.id))
+        );
+      } catch (e) {
+        // console.warn('Error limpiando membresías:', e);
+      }
+
+      // 3. Eliminar la comunidad (Critical)
+      await deleteDoc(doc(db, 'comunidades', community.id));
+
+      Alert.alert('Comunidad eliminada', `${community.nombre} fue eliminada correctamente.`);
+      router.back();
+    } catch (error) {
+      Alert.alert('Error', `No pudimos eliminar la comunidad. ${error instanceof Error ? error.message : 'Inténtalo nuevamente.'}`);
+    } finally {
+      setGestionando(false);
+    }
+  };
+
+  const handleDeleteCommunity = () => {
+    Alert.alert(
+      'Eliminar comunidad',
+      `¿Seguro que deseas eliminar ${community?.nombre}? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: performDeleteCommunity,
+        },
+      ]
+    );
   };
 
   const handleCreatePost = () => {
@@ -639,18 +705,17 @@ const CommunityDetails = () => {
             style={styles.headerButton}
           />
           <ModButton
-            title={puedeInteractuar ? (esMiembro ? 'Salir' : 'Unirme') : 'Unirme'}
+            title={puedeInteractuar ? (community.creadorID === usuarioID ? 'Eliminar' : (esMiembro ? 'Salir' : 'Unirme')) : 'Unirme'}
             onPress={() => {
-              // console.log('🔘 Botón presionado:', { esMiembro, puedeInteractuar, hasCommunity: !!community, hasUsuarioID: !!usuarioID });
-              if (esMiembro) {
-                // console.log('➡️ Llamando manejarSalida...');
+              if (community.creadorID === usuarioID) {
+                handleDeleteCommunity();
+              } else if (esMiembro) {
                 manejarSalida();
               } else {
-                // console.log('➡️ Llamando manejarUnion...');
                 manejarUnion();
               }
             }}
-            backgroundColor={esMiembro ? '#dc2626' : '#16a34a'}
+            backgroundColor={community.creadorID === usuarioID ? '#dc2626' : (esMiembro ? '#dc2626' : '#16a34a')}
             style={styles.headerButton}
             disabled={gestionando}
           />
