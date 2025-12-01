@@ -105,13 +105,21 @@ export default function ComunidadScreen(): JSX.Element {
         }
       );
 
-      // console.log('Comunidades cargadas (del usuario):', comunidadesArray);
-      // console.log('Comunidades a las que pertenece:', comunidadesPerteneceArray);
-      // console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
+      console.log('Comunidades cargadas (del usuario):', comunidadesArray);
+      console.log('Comunidades a las que pertenece:', comunidadesPerteneceArray);
+      console.log('Todas las comunidades disponibles:', comunidadesDisponibles);
 
-      setComunidades(comunidadesArray);
-      setComunidadesPertenece(comunidadesPerteneceArray);
-      setTodasComunidades(comunidadesDisponibles);
+      // Ordenar por fecha de creación (más recientes primero)
+      const sortByDate = (a: Comunidad, b: Comunidad) => {
+        const dateA = a.fechaCreacion?.toDate?.() || new Date(a.fechaCreacion);
+        const dateB = b.fechaCreacion?.toDate?.() || new Date(b.fechaCreacion);
+        console.log('Comparando:', a.nombre, dateA, 'vs', b.nombre, dateB);
+        return dateB.getTime() - dateA.getTime();
+      };
+
+      setComunidades(comunidadesArray.sort(sortByDate));
+      setComunidadesPertenece(comunidadesPerteneceArray.sort(sortByDate));
+      setTodasComunidades(comunidadesDisponibles.sort(sortByDate));
 
     } catch (error) {
       // console.error('Error cargando comunidades:', error);
