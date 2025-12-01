@@ -158,6 +158,11 @@ export default function NewCommunityScreen() {
       // Cerrar modal y regresar después de 2 segundos
       setTimeout(() => {
         setShowSuccessModal(false);
+        // Limpiar los campos del formulario antes de regresar
+        setNombre('');
+        setDescripcion('');
+        setImagenUrl('');
+        setImagenLocal(null);
         router.back();
       }, 2000);
     } catch (error) {
