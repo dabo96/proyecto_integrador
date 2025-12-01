@@ -208,16 +208,10 @@ async function validarConGoogleVision(
         const isRacyStrict = (level: string | null | undefined) => {
             if (!level) return false;
             // Rechazar si es UNLIKELY o superior (MÁS ESTRICTO)
-            if (level === 'UNLIKELY' || level === 'POSSIBLE' || level === 'LIKELY' || level === 'VERY_LIKELY') {
+            if (level === 'POSSIBLE' || level === 'LIKELY' || level === 'VERY_LIKELY') {
                 return true;
             }
             return false;
-        };
-
-        // Rechazar también si es UNLIKELY pero hay otros indicadores
-        const isRacyUnlikely = (level: string | null | undefined) => {
-            if (!level) return false;
-            return level === 'UNLIKELY';
         };
 
         // Verificar contenido para adultos
@@ -446,16 +440,18 @@ async function validarConGoogleVision(
             }
         }
 
-        // Validación adicional: Si racy/adult es UNLIKELY pero hay múltiples indicadores, rechazar
+        // Validación adicional: Si racy/adult es UNLIKELY pero hay múltiples indicadores REALES, rechazar
+        // IMPORTANTE: Solo rechazar si hay etiquetas sospechosas REALES (contextLabels o strictLabels)
+        // No rechazar solo porque SafeSearch devuelva UNLIKELY sin etiquetas sospechosas
         const isAdultUnlikely = adultLevel === 'UNLIKELY';
-        const hasMultipleIndicators =
-            (racyLevel && racyLevel !== 'VERY_UNLIKELY') ||
-            (adultLevel && adultLevel !== 'VERY_UNLIKELY') ||
-            hasContextLabel ||
-            hasStrictLabel;
+        const isRacyUnlikelyLevel = racyLevel === 'UNLIKELY';
 
-        // Si hay múltiples indicadores aunque sean bajos (UNLIKELY), rechazar
-        if (hasMultipleIndicators && (isRacyUnlikely(racyLevel) || isAdultUnlikely)) {
+        // Solo considerar "múltiples indicadores" si hay ETIQUETAS SOSPECHOSAS detectadas
+        // No solo basarse en niveles de SafeSearch
+        const hasActualSuspiciousLabels = hasContextLabel || hasStrictLabel;
+
+        // Si hay múltiples indicadores REALES (etiquetas sospechosas) Y niveles UNLIKELY o superior, rechazar
+        if (hasActualSuspiciousLabels && (isRacyUnlikelyLevel || isAdultUnlikely)) {
             const motivo = 'La imagen contiene contenido sugerente o inapropiado';
             console.warn('🚫 IMAGEN RECHAZADA - Múltiples indicadores de contenido inapropiado:', {
                 imageUrl,
@@ -467,6 +463,7 @@ async function validarConGoogleVision(
                     violence: detections.violence
                 },
                 tieneContexto: hasContextLabel,
+                tieneEtiquetasEstrictas: hasStrictLabel,
                 etiquetas: labels.map(l => l.description).slice(0, 15),
                 timestamp: new Date().toISOString()
             });
