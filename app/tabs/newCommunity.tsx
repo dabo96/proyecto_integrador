@@ -8,16 +8,17 @@ import { addDoc, collection, doc, setDoc } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function NewCommunityScreen() {
@@ -29,6 +30,7 @@ export default function NewCommunityScreen() {
   const [usuarioID, setUsuarioID] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     const getUserData = async () => {
@@ -40,7 +42,7 @@ export default function NewCommunityScreen() {
       } catch (error) {
       }
     };
-    
+
     getUserData();
   }, []);
 
@@ -139,7 +141,7 @@ export default function NewCommunityScreen() {
 
       // Guardar la comunidad
       const comunidadRef = await addDoc(collection(db, 'comunidades'), comunidadData);
-      
+
       // Crear la referencia en la subcolección de comunidades del usuario
       await setDoc(
         doc(db, 'usuarios', usuarioID, 'comunidades', comunidadRef.id),
@@ -150,16 +152,14 @@ export default function NewCommunityScreen() {
         }
       );
 
-      Alert.alert(
-        'Éxito',
-        'La comunidad ha sido creada exitosamente',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
-      );
+      // Mostrar modal de éxito
+      setShowSuccessModal(true);
+
+      // Cerrar modal y regresar después de 2 segundos
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        router.back();
+      }, 2000);
     } catch (error) {
       Alert.alert('Error', 'No se pudo crear la comunidad');
     } finally {
@@ -187,7 +187,7 @@ export default function NewCommunityScreen() {
       </View>
 
       {/* Formulario */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -199,7 +199,7 @@ export default function NewCommunityScreen() {
             {imagenLocal ? (
               <View style={styles.imageWrapper}>
                 <Image source={{ uri: imagenLocal }} style={styles.previewImage} />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => setImagenLocal(null)}
                 >
@@ -209,7 +209,7 @@ export default function NewCommunityScreen() {
             ) : imagenUrl ? (
               <View style={styles.imageWrapper}>
                 <Image source={{ uri: imagenUrl }} style={styles.previewImage} />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => setImagenUrl('')}
                 >
@@ -222,10 +222,10 @@ export default function NewCommunityScreen() {
               </View>
             )}
           </View>
-          
+
           <View style={styles.imageButtonsContainer}>
-            <TouchableOpacity 
-              style={[styles.cameraButton, uploading && styles.buttonDisabled]} 
+            <TouchableOpacity
+              style={[styles.cameraButton, uploading && styles.buttonDisabled]}
               onPress={abrirGaleria}
               disabled={uploading}
             >
@@ -292,13 +292,33 @@ export default function NewCommunityScreen() {
         <View style={styles.buttonContainer}>
           <ModButton
             title={loading || uploading ? 'Creando...' : 'Crear Comunidad'}
-            onPress={loading || uploading ? () => {} : handleCrearComunidad}
+            onPress={loading || uploading ? () => { } : handleCrearComunidad}
             backgroundColor={loading || uploading ? "#9CA3AF" : "#2F4AA6"}
             style={styles.createButton}
             textStyle={styles.createButtonText}
           />
         </View>
       </ScrollView>
+
+      {/* Modal de éxito */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.successIconContainer}>
+              <Text style={styles.successIcon}>✓</Text>
+            </View>
+            <Text style={styles.modalTitle}>¡Comunidad creada con éxito!</Text>
+            <Text style={styles.modalDescription}>
+              Tu comunidad ha sido creada correctamente
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -475,6 +495,54 @@ const styles = StyleSheet.create({
   createButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 32,
+    width: '85%',
+    maxWidth: 350,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  successIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#16a34a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  successIcon: {
+    fontSize: 40,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+    color: '#1f2937',
+    fontFamily: 'Montserrat_400Regular',
+  },
+  modalDescription: {
+    fontSize: 15,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: 'Montserrat_400Regular',
   },
 });
 
