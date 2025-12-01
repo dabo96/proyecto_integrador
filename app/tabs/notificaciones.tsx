@@ -298,7 +298,31 @@ export default function Notificaciones() {
             ? solicitudData.createdAt.toDate().getTime()
             : new Date(solicitudData.createdAt || Date.now()).getTime();
           
-          const nombre = solicitudData.nombre || `${u.nombre || ''} ${u.apellido || u.apellidos || ''}`.trim();
+          // Obtener solo el primer nombre y primer apellido
+          let primerNombre = '';
+          let primerApellido = '';
+          
+          // Intentar obtener desde campos separados primero (nombres y apellidos)
+          if (u.nombres) {
+            primerNombre = u.nombres.split(' ')[0]; // Solo el primer nombre
+          }
+          if (u.apellidos) {
+            primerApellido = u.apellidos.split(' ')[0]; // Solo el primer apellido
+          }
+          
+          // Si no hay campos separados, intentar desde nombreCompleto o nombre
+          if (!primerNombre || !primerApellido) {
+            const nombreFuente = solicitudData.nombre || u.nombreCompleto || u.nombre || '';
+            const partesNombre = nombreFuente.trim().split(' ').filter(p => p.length > 0);
+            if (!primerNombre && partesNombre.length > 0) {
+              primerNombre = partesNombre[0];
+            }
+            if (!primerApellido && partesNombre.length > 1) {
+              primerApellido = partesNombre[1]; // Primer apellido
+            }
+          }
+          
+          const nombre = `${primerNombre} ${primerApellido}`.trim();
           
           notificaciones.push({
             id: `solicitud_${solicitudDoc.id}`,

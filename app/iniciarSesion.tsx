@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function SignInScreen() {
     const router = useRouter();
@@ -14,11 +14,22 @@ export default function SignInScreen() {
     const [correo, setCorreo] = useState('');
     const [contrasena, setContrasena] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showNotRegisteredModal, setShowNotRegisteredModal] = useState(false);
+    const [errorCorreo, setErrorCorreo] = useState('');
+    const [errorContrasena, setErrorContrasena] = useState('');
 
     const handleSignIn = async () => {
+        // Limpiar errores previos
+        setErrorCorreo('');
+        setErrorContrasena('');
+
         if (!correo.trim() || !contrasena.trim()) {
-            Alert.alert("Error", "Por favor ingresa correo y contraseña");
+            if (!correo.trim()) {
+                setErrorCorreo('Por favor ingresa tu correo');
+            }
+            if (!contrasena.trim()) {
+                setErrorContrasena('Por favor ingresa tu contraseña');
+            }
+            Alert.alert("Error", "Por favor completa todos los campos");
             return;
         }
 
@@ -34,9 +45,20 @@ export default function SignInScreen() {
             console.log("📊 Resultados de búsqueda:", querySnapshot.empty ? "Vacío" : "Encontrado");
 
             if (querySnapshot.empty) {
-                console.log("❌ Usuario no encontrado, mostrando modal");
+                console.log("❌ Usuario no encontrado");
                 setLoading(false);
-                setShowNotRegisteredModal(true);
+                setErrorCorreo('Correo incorrecto. Verifica que esté bien escrito.');
+                Alert.alert(
+                    "Correo incorrecto",
+                    "El correo ingresado no está registrado. Verifica que esté bien escrito o regístrate si no tienes una cuenta.",
+                    [
+                        {
+                            text: "Registrarse",
+                            onPress: () => router.push('./registro'),
+                        },
+                        { text: "Intentar de nuevo", style: 'cancel' }
+                    ]
+                );
                 return;
             }
 
@@ -50,6 +72,7 @@ export default function SignInScreen() {
                     ['pendingVerificationUserID', userFound.id],
                     ['pendingVerificationEmail', correoNormalizado],
                 ]);
+                setLoading(false);
                 Alert.alert(
                     "Cuenta sin verificar",
                     "Necesitas verificar tu cuenta con el código enviado a tu correo institucional.",
@@ -61,7 +84,6 @@ export default function SignInScreen() {
                         { text: "Cancelar" }
                     ]
                 );
-                setLoading(false);
                 return;
             }
 
@@ -73,11 +95,18 @@ export default function SignInScreen() {
                 const nombreCompleto = userFound.nombreCompleto || userFound.nombres || userFound.nombre || 'Usuario';
                 await AsyncStorage.setItem('usuarioNombre', nombreCompleto);
                 setLoading(false);
+                // Limpiar errores al tener éxito
+                setErrorCorreo('');
+                setErrorContrasena('');
                 Alert.alert("Éxito", `Bienvenido ${nombreCompleto.split(' ')[0] || nombreCompleto}`);
                 router.push('./tabs/homeScreen');
             } else {
                 setLoading(false);
-                Alert.alert("Error", "Contraseña incorrecta");
+                setErrorContrasena('Contraseña incorrecta. Verifica que esté bien escrita.');
+                Alert.alert(
+                    "Contraseña incorrecta",
+                    "La contraseña ingresada no es correcta. Verifica que esté bien escrita o usa '¿Olvidaste tu contraseña?' si no la recuerdas."
+                );
             }
 
         } catch (error: any) {
@@ -119,21 +148,31 @@ export default function SignInScreen() {
                 <Text style={styles.texto}>Correo</Text>
                 <View style={{ height: 10 }}></View>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, errorCorreo && styles.inputError]}
                     placeholder="Correo"
                     value={correo}
-                    onChangeText={setCorreo}
+                    onChangeText={(text) => {
+                        setCorreo(text);
+                        setErrorCorreo(''); // Limpiar error al escribir
+                    }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
                 />
+                {errorCorreo ? <Text style={styles.errorText}>{errorCorreo}</Text> : null}
                 <View style={{ height: 10 }}></View>
                 <Text style={styles.texto}>Contraseña</Text>
                 <View style={{ height: 10 }}></View>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, errorContrasena && styles.inputError]}
                     placeholder="Contraseña"
                     secureTextEntry
                     value={contrasena}
-                    onChangeText={setContrasena}
+                    onChangeText={(text) => {
+                        setContrasena(text);
+                        setErrorContrasena(''); // Limpiar error al escribir
+                    }}
                 />
+                {errorContrasena ? <Text style={styles.errorText}>{errorContrasena}</Text> : null}
                 <View style={{ height: 15 }}></View>
                 <Link title='¿Olvidaste tu contraseña?' color="white" onPress={() => { router.push('./recuperar') }} />
                 <View style={{ height: 50 }}></View>
@@ -145,40 +184,6 @@ export default function SignInScreen() {
                 <Text style={[styles.texto, { marginTop: 20 }]}>¿No tienes una cuenta?</Text>
                 <Link title='Registrate' color="white" onPress={() => { router.push('./registro') }} />
             </View>
-
-            {/* Modal de usuario no registrado */}
-            <Modal
-                visible={showNotRegisteredModal}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowNotRegisteredModal(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>No estás registrado</Text>
-                        <Text style={styles.modalMessage}>
-                            No estás registrado. Regístrate para continuar.
-                        </Text>
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.modalButtonCancel]}
-                                onPress={() => setShowNotRegisteredModal(false)}
-                            >
-                                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.modalButtonRegister]}
-                                onPress={() => {
-                                    setShowNotRegisteredModal(false);
-                                    router.push('./registro');
-                                }}
-                            >
-                                <Text style={styles.modalButtonRegisterText}>Registrarse</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
         </LinearGradient>
     );
 }
@@ -218,75 +223,17 @@ const styles = StyleSheet.create({
         borderColor: '#fff',
         fontFamily: 'Montserrat_400Regular',
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
+    inputError: {
+        borderColor: '#ff4444',
+        borderWidth: 2,
     },
-    modalContainer: {
-        backgroundColor: 'white',
-        borderRadius: 15,
-        padding: 24,
-        width: '85%',
-        maxWidth: 400,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    modalTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 12,
-        textAlign: 'center',
-        fontFamily: 'Montserrat_700Bold',
-    },
-    modalMessage: {
-        fontSize: 16,
-        color: '#666',
-        textAlign: 'center',
-        marginBottom: 24,
-        lineHeight: 22,
+    errorText: {
+        color: '#ff4444',
+        fontSize: 12,
+        marginTop: 5,
+        marginLeft: 10,
+        alignSelf: 'flex-start',
         fontFamily: 'Montserrat_400Regular',
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        width: '100%',
-        justifyContent: 'space-between',
-        gap: 12,
-    },
-    modalButton: {
-        flex: 1,
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalButtonCancel: {
-        backgroundColor: '#E0E0E0',
-    },
-    modalButtonRegister: {
-        backgroundColor: '#0491C6',
-    },
-    modalButtonCancelText: {
-        color: '#333',
-        fontSize: 16,
-        fontWeight: '600',
-        fontFamily: 'Montserrat_600SemiBold',
-    },
-    modalButtonRegisterText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: '600',
-        fontFamily: 'Montserrat_600SemiBold',
+        width: 300,
     },
 });

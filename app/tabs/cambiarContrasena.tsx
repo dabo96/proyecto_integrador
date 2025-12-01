@@ -1,21 +1,48 @@
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
-import React, { useState } from 'react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function CambiarContrasena() {
-  const [correo, setCorreo] = useState('');
   const [contrasenaActual, setContrasenaActual] = useState('');
   const [nuevaContrasena, setNuevaContrasena] = useState('');
   const [confirmarContrasena, setConfirmarContrasena] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [currentUserID, setCurrentUserID] = useState<string | null>(null);
   const router = useRouter();
 
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const usuarioID = await AsyncStorage.getItem('usuarioID');
+        if (usuarioID) {
+          setCurrentUserID(usuarioID);
+        } else {
+          setError('No se encontró información del usuario. Por favor, inicia sesión nuevamente.');
+        }
+      } catch (error) {
+        console.error('Error cargando usuario:', error);
+        setError('Error al cargar información del usuario');
+      }
+    };
+    loadCurrentUser();
+  }, []);
+
   const handleChangePassword = async () => {
-    if (!correo.trim() || !contrasenaActual.trim() || !nuevaContrasena.trim() || !confirmarContrasena.trim()) {
+    // Limpiar error previo
+    setError('');
+
+    if (!currentUserID) {
+      setError('No se encontró información del usuario. Por favor, inicia sesión nuevamente.');
+      return;
+    }
+
+    if (!contrasenaActual.trim() || !nuevaContrasena.trim() || !confirmarContrasena.trim()) {
       setError('Todos los campos son obligatorios');
       return;
     }
@@ -25,33 +52,95 @@ export default function CambiarContrasena() {
       return;
     }
 
-    try {
-      const q = query(collection(db, 'Usuarios'), where('correo', '==', correo));
-      const querySnapshot = await getDocs(q);
+    if (nuevaContrasena.trim() === contrasenaActual.trim()) {
+      setError('La nueva contraseña debe ser diferente a la actual');
+      return;
+    }
 
-      if (querySnapshot.empty) {
-        setError('Correo no encontrado');
+    setLoading(true);
+
+    try {
+      // Obtener usuario directamente por ID
+      const userRef = doc(db, 'Usuarios', currentUserID);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        setError('Usuario no encontrado');
+        setLoading(false);
         return;
       }
 
-      const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
 
-      if (userData.contrasena !== contrasenaActual) {
-        setError('La contraseña actual es incorrecta');
+      // Verificar contraseña actual (exactamente como en el login)
+      const passwordStored = userData?.contrasena || userData?.contraseña;
+      const contrasenaActualTrimmed = contrasenaActual.trim();
+
+      // Logs para depuración
+      console.log('🔍 Verificando contraseña:');
+      console.log('  - UsuarioID:', currentUserID);
+      console.log('  - Contraseña almacenada existe:', !!passwordStored);
+      console.log('  - Longitud almacenada:', passwordStored?.length || 0);
+      console.log('  - Longitud ingresada:', contrasenaActualTrimmed?.length || 0);
+      console.log('  - ¿Coinciden?:', passwordStored === contrasenaActualTrimmed);
+      console.log('  - Tipo almacenada:', typeof passwordStored);
+      console.log('  - Tipo ingresada:', typeof contrasenaActualTrimmed);
+
+      if (!passwordStored) {
+        setError('No se encontró la contraseña en la base de datos');
+        setLoading(false);
         return;
       }
 
-      await updateDoc(doc(db, 'Usuarios', userDoc.id), {
-        contrasena: nuevaContrasena,
+      // Comparación exacta como en el login
+      if (passwordStored !== contrasenaActualTrimmed) {
+        setError('La contraseña actual es incorrecta');
+        setLoading(false);
+        return;
+      }
+
+      // Actualizar contraseña
+      await updateDoc(userRef, {
+        contrasena: nuevaContrasena.trim(),
         updatedAt: new Date(),
       });
 
-      Alert.alert('Éxito', 'Tu contraseña ha sido actualizada correctamente');
-      // 🔹 No se redirige automáticamente
+      // Limpiar campos
+      setContrasenaActual('');
+      setNuevaContrasena('');
+      setConfirmarContrasena('');
+      setError('');
+      
+      // Limpiar sesión del usuario para que tenga que iniciar sesión de nuevo
+      await AsyncStorage.removeItem('usuarioID');
+      await AsyncStorage.removeItem('usuarioNombre');
+      
+      setLoading(false);
+      
+      // Mostrar aviso de éxito
+      Alert.alert(
+        'Contraseña actualizada',
+        'Tu contraseña ha sido actualizada correctamente.',
+        [
+          {
+            text: 'Aceptar',
+            onPress: () => {
+              router.replace('/iniciarSesion');
+            }
+          }
+        ]
+      );
+      
+      // Redirigir automáticamente después de 2 segundos si el usuario no presiona el botón
+      setTimeout(() => {
+        router.replace('/iniciarSesion');
+      }, 2000);
     } catch (error: any) {
-      console.error(error);
+      console.error('Error cambiando contraseña:', error);
+      setError('Hubo un problema al cambiar la contraseña. Intenta nuevamente.');
       Alert.alert('Error', 'Hubo un problema al cambiar la contraseña.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,16 +149,6 @@ export default function CambiarContrasena() {
       <View style={styles.container}>
         <Text style={styles.title}>Cambiar Contraseña</Text>
         <View style={{ height: 30 }} />
-
-        <Text style={styles.label}>Correo</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Tu correo @utp.edu.pe"
-          value={correo}
-          onChangeText={setCorreo}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
 
         <Text style={styles.label}>Contraseña Actual</Text>
         <TextInput
@@ -101,7 +180,12 @@ export default function CambiarContrasena() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <View style={{ height: 30 }} />
 
-        <ModButton title="Actualizar Contraseña" style={styles.button} onPress={handleChangePassword} />
+        <ModButton 
+          title={loading ? 'Actualizando...' : 'Actualizar Contraseña'} 
+          style={styles.button} 
+          onPress={handleChangePassword}
+          disabled={loading}
+        />
 
         <View style={{ height: 20 }} />
         <ModButton

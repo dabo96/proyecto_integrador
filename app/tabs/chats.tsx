@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { FlatList, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Chat = {
@@ -32,6 +32,7 @@ const ChatCreem = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
 
   // Obtener usuario actual
   useEffect(() => {
@@ -102,26 +103,16 @@ const ChatCreem = () => {
 
       // Filtrar chats vacíos (sin mensajes), eliminados, y donde el usuario ya no es participante
       const filteredChats = data.filter(chat => {
-        const hasMessage = chat.lastMessage && chat.lastMessage.trim() !== "";
+        const lastMessage = (chat.lastMessage || "").trim();
+        // No considerar mensajes eliminados o vacíos como mensajes válidos
+        const hasMessage = lastMessage !== "" && 
+                          lastMessage !== "Este mensaje fue eliminado" &&
+                          !lastMessage.toLowerCase().includes("este mensaje fue eliminado");
         const notDeleted = !chat.deleted;
         const notDeletedForUser = !chat.deletedFor?.includes(currentUser.id);
         const isParticipant = chat.participants?.includes(currentUser.id);
 
         const shouldShow = hasMessage && notDeleted && notDeletedForUser && isParticipant;
-
-        // Log para debugging
-        if (!shouldShow) {
-          console.log(`❌ Chat ${chat.id} filtrado:`, {
-            hasMessage,
-            notDeleted,
-            notDeletedForUser,
-            isParticipant,
-            deletedFor: chat.deletedFor,
-            deleted: chat.deleted
-          });
-        } else if (chat.deletedFor && chat.deletedFor.length > 0) {
-          console.log(`⚠️ Chat ${chat.id} tenía deletedFor pero ya está vacío:`, chat.deletedFor);
-        }
 
         return shouldShow;
       });
@@ -149,11 +140,17 @@ const ChatCreem = () => {
               ? participantNames.join(", ") + (otherParticipants.length > 3 ? "..." : "")
               : `Chat grupal (${otherParticipants.length + 1})`);
 
+          // Filtrar mensajes eliminados del preview
+          const lastMessage = (chat.lastMessage || "").trim();
+          const displayMessage = (lastMessage === "Este mensaje fue eliminado" || 
+                                 lastMessage === "" ||
+                                 lastMessage.toLowerCase().includes("este mensaje fue eliminado")) ? "" : lastMessage;
+
           return {
             id: chat.id,
             otherUserId: null, // Chats grupales no tienen un solo "otro usuario"
             name: groupName,
-            message: chat.lastMessage || "",
+            message: displayMessage,
             time:
               chat.updatedAt?.toDate?.().toLocaleTimeString([], {
                 hour: "2-digit",
@@ -175,11 +172,18 @@ const ChatCreem = () => {
 
           const otherUser = cacheRef.current[otherUserId] || { nombre: "Desconocido" };
           //console.log("💬 Formateando chat con usuario:", otherUser);
+          
+          // Filtrar mensajes eliminados del preview
+          const lastMessage = (chat.lastMessage || "").trim();
+          const displayMessage = (lastMessage === "Este mensaje fue eliminado" || 
+                                 lastMessage === "" ||
+                                 lastMessage.toLowerCase().includes("este mensaje fue eliminado")) ? "" : lastMessage;
+
           return {
             id: chat.id,
             otherUserId, // 👈 ID del otro usuario
             name: formatShortName(otherUser),
-            message: chat.lastMessage || "",
+            message: displayMessage,
             time:
               chat.updatedAt?.toDate?.().toLocaleTimeString([], {
                 hour: "2-digit",
@@ -250,13 +254,9 @@ useEffect(() => {
   };
 }, [chats, currentUser]);
 
-  // Función para manejar la eliminación de chat
-  const handleDeleteChat = async (chatId: string) => {
-    console.log("🗑️ Iniciando eliminación de chat...");
-    console.log("👤 CurrentUser:", currentUser ? currentUser.id : "NULL");
-
+  // Función para abrir modal de confirmación de eliminación
+  const handleOpenDeleteChat = (chatId: string) => {
     if (!currentUser) {
-      console.error("❌ currentUser es null, no se puede eliminar el chat");
       showAlert(
         "Error de sesión",
         "No se pudo identificar tu usuario. Por favor, cierra la app y vuelve a iniciar sesión.",
@@ -264,49 +264,29 @@ useEffect(() => {
       );
       return;
     }
+    setSelectedChatId(chatId);
+    setMenuVisible(false);
+    setShowDeleteChatModal(true);
+  };
 
-    showAlert(
-      "Eliminar chat",
-      "¿Estás seguro de que deseas eliminar este chat? Solo se eliminará para ti.",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setDeleting(true);
-              console.log("🗑️ Iniciando eliminación de chat desde UI...");
-              console.log("📋 Chat ID:", chatId);
-              console.log("👤 User ID:", currentUser.id);
+  // Función para manejar la eliminación de chat
+  const handleDeleteChat = async () => {
+    if (!currentUser || !selectedChatId) return;
 
-              await deleteChat(chatId, currentUser.id);
+    try {
+      setDeleting(true);
+      await deleteChat(selectedChatId, currentUser.id);
 
-              setMenuVisible(false);
-              setSelectedChatId(null);
-
-              showAlert(
-                "Chat eliminado",
-                "El chat ha sido eliminado de tu lista. Los demás participantes aún pueden verlo."
-              );
-
-              console.log("✅ Chat eliminado exitosamente desde UI");
-            } catch (error) {
-              console.error("❌ Error eliminando chat desde UI:", error);
-              showAlert(
-                "Error",
-                "No se pudo eliminar el chat. Por favor, intenta de nuevo."
-              );
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+      setShowDeleteChatModal(false);
+      setSelectedChatId(null);
+    } catch (error) {
+      showAlert(
+        "Error",
+        "No se pudo eliminar el chat. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -462,8 +442,7 @@ useEffect(() => {
                 style={styles.menuOption}
                 onPress={() => {
                   if (selectedChatId) {
-                    handleDeleteChat(selectedChatId);
-                    setMenuVisible(false);
+                    handleOpenDeleteChat(selectedChatId);
                   }
                 }}
               >
@@ -485,6 +464,58 @@ useEffect(() => {
             </View>
           </TouchableWithoutFeedback>
         </Pressable>
+      </Modal>
+
+      {/* Modal de confirmación para eliminar chat */}
+      <Modal
+        visible={showDeleteChatModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteChatModal(false)}
+      >
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.deleteModalContainer}>
+            <View style={styles.deleteModalHeader}>
+              <Text style={styles.deleteModalTitle}>Eliminar chat</Text>
+              <TouchableOpacity
+                onPress={() => setShowDeleteChatModal(false)}
+                style={styles.deleteModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.deleteModalContent}>
+              <Text style={styles.deleteModalLabel}>
+                ¿Estás seguro de que deseas eliminar este chat? Se eliminará completamente, incluyendo todos los mensajes.
+              </Text>
+              <Text style={[styles.deleteModalLabel, { fontSize: 12, marginTop: 8, color: "#999" }]}>
+                Esta acción no se puede deshacer.
+              </Text>
+            </View>
+
+            <View style={styles.deleteModalButtons}>
+              <TouchableOpacity
+                style={styles.deleteModalCancelButton}
+                onPress={() => setShowDeleteChatModal(false)}
+                disabled={deleting}
+              >
+                <Text style={styles.deleteModalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteModalDeleteButton, deleting && styles.deleteModalButtonDisabled]}
+                onPress={handleDeleteChat}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.deleteModalDeleteButtonText}>Eliminar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </SafeAreaView>
@@ -667,5 +698,87 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#e5e5e5",
     marginVertical: 4,
+  },
+  deleteModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteModalContainer: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: "85%",
+    maxWidth: 400,
+    padding: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  deleteModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  deleteModalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#333",
+  },
+  deleteModalCloseButton: {
+    padding: 4,
+  },
+  deleteModalContent: {
+    padding: 20,
+  },
+  deleteModalLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+    marginBottom: 8,
+  },
+  deleteModalButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+  },
+  deleteModalCancelButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#E0E0E0",
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteModalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  deleteModalDeleteButton: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteModalDeleteButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  deleteModalButtonDisabled: {
+    opacity: 0.6,
   },
 });

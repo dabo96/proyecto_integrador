@@ -1,5 +1,5 @@
 import { db, storage } from "@/services/firebase";
-import { addDoc, collection, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 // Crear o reutilizar un chat entre dos usuarios
@@ -281,47 +281,46 @@ export const updateGroupName = async (chatId: string, newGroupName: string): Pro
   });
 };
 
-// Eliminar chat para un usuario (marcar como eliminado)
+// Eliminar chat completamente de la base de datos
 export const deleteChat = async (chatId: string, userId: string) => {
   try {
-    console.log(`🗑️ Iniciando eliminación de chat ${chatId} para usuario ${userId}`);
-
     const chatRef = doc(db, "Chats", chatId);
     const chatDoc = await getDoc(chatRef);
 
     if (!chatDoc.exists()) {
-      console.error("❌ Chat no encontrado");
       throw new Error("Chat no encontrado");
     }
 
-    const chatData = chatDoc.data();
-    const participants = chatData.participants || [];
-    const deletedFor = chatData.deletedFor || [];
+    // 1. Eliminar todos los mensajes del chat
+    const mensajesRef = collection(db, "Chats", chatId, "mensajes");
+    const mensajesSnapshot = await getDocs(mensajesRef);
 
-    console.log(`📋 Participantes: ${participants.length}, Ya eliminado por: ${deletedFor.length}`);
+    // Usar batch para eliminar mensajes en lotes (máximo 500 por batch)
+    const batch = writeBatch(db);
+    let batchCount = 0;
+    const maxBatchSize = 500;
 
-    // 1. Marcar que este usuario ha eliminado el chat
-    const updatedDeletedFor = [...new Set([...deletedFor, userId])];
+    for (const mensajeDoc of mensajesSnapshot.docs) {
+      batch.delete(mensajeDoc.ref);
+      batchCount++;
 
-    // 2. Actualizar documento - incluir limpieza del contador de no leídos
-    await updateDoc(chatRef, {
-      deletedFor: updatedDeletedFor,
-      [`unreadCount.${userId}`]: 0, // Limpiar contador de mensajes no leídos
-    });
-
-    console.log(`✅ Chat marcado como eliminado para usuario ${userId}`);
-
-    // 3. Si todos los participantes lo eliminaron → marcar chat como eliminado global
-    if (updatedDeletedFor.length === participants.length) {
-      await updateDoc(chatRef, {
-        deleted: true,
-        deletedAt: serverTimestamp(),
-      });
-
-      console.log("🌍 Chat globalmente eliminado (todos los participantes lo borraron)");
+      // Si alcanzamos el límite del batch, ejecutamos y creamos uno nuevo
+      if (batchCount >= maxBatchSize) {
+        await batch.commit();
+        batchCount = 0;
+      }
     }
+
+    // Ejecutar el batch final si hay documentos pendientes
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+
+    // 2. Eliminar el documento del chat
+    await deleteDoc(chatRef);
+
   } catch (error) {
-    console.error("❌ Error eliminando chat:", error);
+    console.error("Error eliminando chat:", error);
     throw error;
   }
 };
@@ -329,15 +328,39 @@ export const deleteChat = async (chatId: string, userId: string) => {
 // Eliminar un mensaje específico para todos los usuarios
 export const deleteMessage = async (chatId: string, messageId: string): Promise<void> => {
   try {
-    console.log(`🗑️ Eliminando mensaje ${messageId} del chat ${chatId}`);
-
     const messageRef = doc(db, "Chats", chatId, "mensajes", messageId);
     const messageDoc = await getDoc(messageRef);
 
     if (!messageDoc.exists()) {
-      console.error("❌ Mensaje no encontrado");
       throw new Error("Mensaje no encontrado");
     }
+
+    const chatRef = doc(db, "Chats", chatId);
+    const chatDoc = await getDoc(chatRef);
+    
+    if (!chatDoc.exists()) {
+      throw new Error("Chat no encontrado");
+    }
+
+    const messageData = messageDoc.data();
+    const currentLastMessage = (chatDoc.data().lastMessage || "").trim();
+    const messageText = (messageData.text || "").trim();
+    
+    // Determinar qué preview tendría este mensaje ANTES de eliminarlo
+    let messagePreview = "";
+    if (messageText && messageText !== "Este mensaje fue eliminado") {
+      messagePreview = messageText.trim();
+    } else if (messageData.imageUrl) {
+      messagePreview = "📷 Imagen";
+    } else if (messageData.fileUrl) {
+      messagePreview = `📎 ${messageData.fileName || "Archivo"}`;
+    }
+    
+    // Verificar si este mensaje es el que aparece como lastMessage
+    // Comparar tanto el preview como el texto directamente (sin espacios)
+    const isLastMessage = currentLastMessage === messagePreview || 
+                          currentLastMessage === messageText.trim() ||
+                          (messagePreview && currentLastMessage.includes(messagePreview));
 
     // Actualizar el mensaje para marcarlo como eliminado
     await updateDoc(messageRef, {
@@ -350,9 +373,44 @@ export const deleteMessage = async (chatId: string, messageId: string): Promise<
       fileType: null,
     });
 
-    console.log(`✅ Mensaje ${messageId} eliminado correctamente`);
+    // SIEMPRE buscar y actualizar el lastMessage después de eliminar
+    // Esto asegura que el preview se actualice correctamente en todos los casos
+    const mensajesRef = collection(db, "Chats", chatId, "mensajes");
+    const mensajesQuery = query(mensajesRef, orderBy("timestamp", "desc"));
+    const mensajesSnapshot = await getDocs(mensajesQuery);
+    
+    // Buscar el siguiente mensaje más reciente que no esté eliminado
+    let nuevoLastMessage = "";
+    for (const mensajeDoc of mensajesSnapshot.docs) {
+      // Saltar el mensaje que acabamos de eliminar
+      if (mensajeDoc.id === messageId) continue;
+      
+      const mensajeData = mensajeDoc.data();
+      
+      // Saltar mensajes eliminados
+      if (mensajeData.deleted || mensajeData.text === "Este mensaje fue eliminado") continue;
+      
+      // Determinar el preview del mensaje
+      const mensajeTexto = (mensajeData.text || "").trim();
+      if (mensajeTexto && mensajeTexto !== "Este mensaje fue eliminado") {
+        nuevoLastMessage = mensajeTexto;
+      } else if (mensajeData.imageUrl) {
+        nuevoLastMessage = "📷 Imagen";
+      } else if (mensajeData.fileUrl) {
+        nuevoLastMessage = `📎 ${mensajeData.fileName || "Archivo"}`;
+      }
+      
+      if (nuevoLastMessage) break; // Encontramos un mensaje válido
+    }
+    
+    // SIEMPRE actualizar el lastMessage del chat para asegurar sincronización
+    // Esto garantiza que el listener detecte el cambio y actualice la UI
+    await updateDoc(chatRef, {
+      lastMessage: nuevoLastMessage,
+      updatedAt: serverTimestamp(),
+    });
   } catch (error) {
-    console.error("❌ Error eliminando mensaje:", error);
+    console.error("Error eliminando mensaje:", error);
     throw error;
   }
 };

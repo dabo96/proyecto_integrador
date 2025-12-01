@@ -1,6 +1,7 @@
-import { deleteMessage, getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
+import { deleteChat, deleteMessage, getOrCreateChat, listenMessages, markMessagesAsRead, sendMessage, updateGroupName, uploadFileToStorage, uploadImageToStorage } from "@/api/messageService";
 import { escucharEstadoUsuario, obtenerUsuarioActual, obtenerUsuarioPorId, Usuario } from "@/api/usuariosService";
 import { db } from "@/services/firebase";
+import { showAlert } from "@/utils/alert";
 import { formatShortName } from "@/utils/nameFormatter";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -86,6 +87,8 @@ const ChatDetails = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
   const [deletingMessage, setDeletingMessage] = useState(false);
+  const [deletingChat, setDeletingChat] = useState(false);
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
 
   useEffect(() => {
     if (chatId && currentUser?.id) {
@@ -397,6 +400,16 @@ const ChatDetails = () => {
     if (!chatId || !currentUser) return;
     if (newMessage.trim() === "" && !selectedImage && !selectedFile) return;
 
+    // Guardar el mensaje antes de limpiarlo
+    const messageToSend = newMessage;
+    const imageToSend = selectedImage;
+    const fileToSend = selectedFile;
+
+    // Limpiar el campo de texto inmediatamente
+    setNewMessage("");
+    setSelectedImage(null);
+    setSelectedFile(null);
+
     try {
       setUploading(true);
       let imageUrl: string | undefined;
@@ -405,20 +418,20 @@ const ChatDetails = () => {
       let fileType: string | undefined;
 
       // Subir imagen si hay una seleccionada
-      if (selectedImage) {
-        imageUrl = await uploadImageToStorage(selectedImage, chatId);
+      if (imageToSend) {
+        imageUrl = await uploadImageToStorage(imageToSend, chatId);
       }
 
       // Subir archivo si hay uno seleccionado
-      if (selectedFile) {
+      if (fileToSend) {
         fileUrl = await uploadFileToStorage(
-          selectedFile.uri,
-          selectedFile.name,
-          selectedFile.mimeType,
+          fileToSend.uri,
+          fileToSend.name,
+          fileToSend.mimeType,
           chatId
         );
-        fileName = selectedFile.name;
-        fileType = selectedFile.mimeType;
+        fileName = fileToSend.name;
+        fileType = fileToSend.mimeType;
       }
 
       // Enviar mensaje
@@ -427,7 +440,7 @@ const ChatDetails = () => {
           chatId,
           currentUser.id,
           null,
-          newMessage,
+          messageToSend,
           imageUrl,
           fileUrl,
           fileName,
@@ -436,26 +449,29 @@ const ChatDetails = () => {
       } else {
         if (!userId) {
           console.warn("No se encontró el ID del receptor.");
+          // Restaurar el mensaje si hay error
+          setNewMessage(messageToSend);
+          if (imageToSend) setSelectedImage(imageToSend);
+          if (fileToSend) setSelectedFile(fileToSend);
           return;
         }
         await sendMessage(
           chatId,
           currentUser.id,
           String(userId),
-          newMessage,
+          messageToSend,
           imageUrl,
           fileUrl,
           fileName,
           fileType
         );
       }
-
-      // Limpiar estado
-      setNewMessage("");
-      setSelectedImage(null);
-      setSelectedFile(null);
     } catch (error) {
       console.error("Error al enviar mensaje:", error);
+      // Restaurar el mensaje si hay error
+      setNewMessage(messageToSend);
+      if (imageToSend) setSelectedImage(imageToSend);
+      if (fileToSend) setSelectedFile(fileToSend);
       Alert.alert("Error", "No se pudo enviar el mensaje");
     } finally {
       setUploading(false);
@@ -475,6 +491,40 @@ const ChatDetails = () => {
     setEditingGroupName(groupName);
     setShowEditGroupNameModal(true);
     setShowGroupMenu(false); // Cerrar el menú si está abierto
+  };
+
+  // 🔹 Abrir modal de confirmación para eliminar chat
+  const handleOpenDeleteChat = () => {
+    if (!currentUser || !chatId) {
+      showAlert(
+        "Error de sesión",
+        "No se pudo identificar tu usuario. Por favor, cierra la app y vuelve a iniciar sesión.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    setShowGroupMenu(false);
+    setShowDeleteChatModal(true);
+  };
+
+  // 🔹 Función para manejar la eliminación de chat
+  const handleDeleteChat = async () => {
+    if (!currentUser || !chatId) return;
+
+    try {
+      setDeletingChat(true);
+      await deleteChat(chatId, currentUser.id);
+
+      setShowDeleteChatModal(false);
+      router.back();
+    } catch (error) {
+      showAlert(
+        "Error",
+        "No se pudo eliminar el chat. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setDeletingChat(false);
+    }
   };
 
   // 🔹 Guardar nuevo nombre del grupo
@@ -615,6 +665,7 @@ const ChatDetails = () => {
         <View style={[
           styles.bubble,
           isMe ? styles.myBubble : styles.theirBubble,
+          isMe && !(message as any).deleted && styles.bubbleWithMenu, // Agregar padding extra cuando hay menú
           isGroup && !isMe && {
             backgroundColor: senderColor + "15", // Color con transparencia para fondo
             borderLeftWidth: 3,
@@ -631,8 +682,9 @@ const ChatDetails = () => {
             <TouchableOpacity
               style={styles.messageMenuButton}
               onPress={() => setShowMessageMenu(!showMessageMenu)}
+              activeOpacity={0.7}
             >
-              <Ionicons name="ellipsis-vertical" size={16} color={isMe ? "#fff" : "#666"} />
+              <Ionicons name="ellipsis-vertical" size={18} color={isMe ? "#fff" : "#666"} />
             </TouchableOpacity>
           )}
 
@@ -856,12 +908,15 @@ const ChatDetails = () => {
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => {
-            if (isGroup) {
-              setShowGroupMenu(true);
-            }
+            setShowGroupMenu(true);
           }}
+          disabled={deletingChat}
         >
-          <Ionicons name="ellipsis-vertical" size={20} color="#333" />
+          <Ionicons 
+            name="ellipsis-vertical" 
+            size={20} 
+            color={deletingChat ? "#d1d5db" : "#333"} 
+          />
         </TouchableOpacity>
       </View>
 
@@ -957,20 +1012,19 @@ const ChatDetails = () => {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Modal de menú de opciones del grupo */}
-      {isGroup && (
-        <Modal
-          transparent
-          visible={showGroupMenu}
-          animationType="fade"
-          onRequestClose={() => setShowGroupMenu(false)}
+      {/* Modal de menú de opciones */}
+      <Modal
+        transparent
+        visible={showGroupMenu}
+        animationType="fade"
+        onRequestClose={() => setShowGroupMenu(false)}
+      >
+        <Pressable
+          style={styles.menuModalOverlay}
+          onPress={() => setShowGroupMenu(false)}
         >
-          <TouchableOpacity
-            style={styles.menuModalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowGroupMenu(false)}
-          >
-            <View style={styles.groupMenuBox}>
+          <View style={styles.groupMenuBox}>
+            {isGroup && (
               <TouchableOpacity
                 style={styles.groupMenuItem}
                 onPress={handleOpenEditGroupName}
@@ -978,10 +1032,34 @@ const ChatDetails = () => {
                 <Ionicons name="pencil" size={20} color="#333" style={styles.groupMenuIcon} />
                 <Text style={styles.groupMenuText}>Editar nombre del grupo</Text>
               </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      )}
+            )}
+            
+            {isGroup && <View style={styles.menuDivider} />}
+            
+            <TouchableOpacity
+              style={styles.groupMenuItem}
+              onPress={handleOpenDeleteChat}
+              disabled={deletingChat}
+            >
+              <Ionicons name="trash-outline" size={20} color="#ef4444" style={styles.groupMenuIcon} />
+              <Text style={[styles.groupMenuText, { color: "#ef4444" }]}>
+                Eliminar chat
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.groupMenuItem}
+              onPress={() => setShowGroupMenu(false)}
+            >
+              <Text style={[styles.groupMenuText, { textAlign: "center", width: "100%" }]}>
+                Cancelar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Modal de previsualización de imagen */}
       <Modal
@@ -1118,6 +1196,58 @@ const ChatDetails = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de confirmación para eliminar chat */}
+      <Modal
+        visible={showDeleteChatModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteChatModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Eliminar chat</Text>
+              <TouchableOpacity
+                onPress={() => setShowDeleteChatModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={styles.modalLabel}>
+                ¿Estás seguro de que deseas eliminar este chat? Se eliminará completamente, incluyendo todos los mensajes.
+              </Text>
+              <Text style={[styles.modalLabel, { fontSize: 12, marginTop: 8, color: "#999" }]}>
+                Esta acción no se puede deshacer.
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowDeleteChatModal(false)}
+                disabled={deletingChat}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalDeleteButton, deletingChat && styles.modalSaveButtonDisabled]}
+                onPress={handleDeleteChat}
+                disabled={deletingChat}
+              >
+                {deletingChat ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalSaveButtonText}>Eliminar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1212,7 +1342,16 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   messageAvatarText: { fontSize: 12, fontWeight: "bold", color: "#fff" },
-  bubble: { maxWidth: "85%", padding: 12, borderRadius: 18, marginHorizontal: 5 },
+  bubble: { 
+    maxWidth: "85%", 
+    padding: 12, 
+    borderRadius: 18, 
+    marginHorizontal: 5,
+    position: "relative",
+  },
+  bubbleWithMenu: {
+    paddingRight: 40, // Espacio extra para los 3 puntitos
+  },
   myBubble: { backgroundColor: "#949494ff", borderBottomRightRadius: 5 },
   theirBubble: {
     backgroundColor: "white",
@@ -1466,6 +1605,11 @@ const styles = StyleSheet.create({
     color: "#333",
     fontWeight: "500",
   },
+  menuDivider: {
+    height: 1,
+    backgroundColor: "#E0E0E0",
+    marginVertical: 4,
+  },
   imagePreviewOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.95)",
@@ -1487,11 +1631,20 @@ const styles = StyleSheet.create({
   },
   messageMenuButton: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    padding: 4,
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    borderRadius: 12,
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   messageMenuOverlay: {
     flex: 1,
