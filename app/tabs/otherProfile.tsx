@@ -4,6 +4,7 @@ import PostCard from '@/components/cards/PostCard';
 import ModButton from '@/components/ModButton';
 import { db } from '@/services/firebase';
 import { formatShortName } from '@/utils/nameFormatter';
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -81,13 +82,18 @@ export default function OtherProfileScreen() {
         return postDate.toLocaleDateString();
     };
 
+    const [error, setError] = useState<string>('');
+
     // Cargar datos del usuario
     const loadUserData = async () => {
         try {
             setLoading(true);
+            setError('');
 
             const storedUsuarioID = await AsyncStorage.getItem('usuarioID');
-            if (!storedUsuarioID) {                return;
+            if (!storedUsuarioID) {
+                setError('No se encontró sesión de usuario');
+                return;
             }
 
             setCurrentUserID(storedUsuarioID);
@@ -100,7 +106,11 @@ export default function OtherProfileScreen() {
 
             // Obtener perfil del usuario objetivo
             const perfil = await obtenerPerfilUsuario(usuarioIDObjetivo as string);
-            if (!perfil) return            setUserProfile(perfil);
+            if (!perfil) {
+                setError('Usuario no encontrado');
+                return;
+            }
+            setUserProfile(perfil);
 
             // Verificar si el usuario actual sigue al usuario objetivo
             const sigue = await verificarSiSigue(storedUsuarioID, usuarioIDObjetivo as string);
@@ -145,7 +155,10 @@ export default function OtherProfileScreen() {
             }
 
             setUserPosts(posts);
-        } catch (error) {        } finally {
+        } catch (error) {
+            console.error("Error loading user data:", error);
+            setError('Error al cargar el perfil');
+        } finally {
             setLoading(false);
         }
     };
@@ -156,11 +169,13 @@ export default function OtherProfileScreen() {
 
     // Escuchar estado de conexión del usuario
     useEffect(() => {
-        if (!usuarioIDObjetivo) return;        
-        const unsubscribe = escucharEstadoUsuario(String(usuarioIDObjetivo), (online) => {            setIsUserOnline(online);
+        if (!usuarioIDObjetivo) return;
+        const unsubscribe = escucharEstadoUsuario(String(usuarioIDObjetivo), (online) => {
+            setIsUserOnline(online);
         });
 
-        return () => {            unsubscribe();
+        return () => {
+            unsubscribe();
         };
     }, [usuarioIDObjetivo]);
 
@@ -211,7 +226,7 @@ export default function OtherProfileScreen() {
             });
 
             setComentarios(prev => ({ ...prev, [postId]: comentariosList }));
-        } catch (error) {        } finally {
+        } catch (error) { } finally {
             setLoadingComments(null);
         }
     };
@@ -240,7 +255,7 @@ export default function OtherProfileScreen() {
                 // Actualizar conteos
                 await actualizarConteos(postId);
                 await cargarComentarios(postId);
-            } catch (error) {            }
+            } catch (error) { }
         } else {
             setShowCommentInput(postId);
             await cargarComentarios(postId);
@@ -263,7 +278,7 @@ export default function OtherProfileScreen() {
             setCommentText('');
             await actualizarConteos(postId);
             await cargarComentarios(postId);
-        } catch (error) {        }
+        } catch (error) { }
     };
 
     const handleLike = async (postId: string) => {
@@ -293,7 +308,7 @@ export default function OtherProfileScreen() {
                 setLikedPosts(prev => ({ ...prev, [postId]: false }));
                 await actualizarConteos(postId);
             }
-        } catch (error) {        }
+        } catch (error) { }
     };
 
     const handleViewLikes = (postId: string) => {        // Aquí luego puedes:
@@ -301,7 +316,7 @@ export default function OtherProfileScreen() {
         // - abrir un modal con la lista de usuarios
         // por ahora solo dejamos el log
     };
-    
+
 
     const actualizarConteos = async (postId: string) => {
         try {
@@ -326,7 +341,7 @@ export default function OtherProfileScreen() {
                         : post
                 )
             );
-        } catch (error) {        }
+        } catch (error) { }
     };
 
     const handleFollow = async () => {
@@ -349,10 +364,10 @@ export default function OtherProfileScreen() {
                     setFollowStatus('pending');
                 }
             }
-        } catch (error) {        }
+        } catch (error) { }
     };
 
-    const handleMessage = () => {    };
+    const handleMessage = () => { };
 
     const seleccionarUsuario = (usuario: Usuario) => {
         // Navegar a los detalles del chat con toda la información del usuario
@@ -368,37 +383,38 @@ export default function OtherProfileScreen() {
         });
     };
 
-  // Función para obtener lista de usuarios seguidos con datos completos
-  const obtenerSeguidosCompletos = async (usuarioID: string): Promise<Usuario[]> => {
-    try {
-      setLoadingUsers(true);
-      const seguidosIDs = await obtenerListaSeguidos(usuarioID);      
-      // Usar un Map para evitar duplicados
-      const usuariosUnicos = new Map<string, Usuario>();
-      
-      for (const seguidoID of seguidosIDs) {
-        // Evitar procesar el mismo ID dos veces
-        if (usuariosUnicos.has(seguidoID)) continue;
-        
-        const usuario = await obtenerUsuarioPorId(seguidoID);
-        if (usuario) {
-          usuariosUnicos.set(seguidoID, {
-            id: usuario.id,
-            nombre: usuario.nombreCompleto || usuario.nombre || 'Usuario',
-            codigo: usuario.codigo || usuario.codigoUniversitario || undefined,
-            carrera: usuario.carrera || undefined,
-            correo: usuario.correo || undefined,
-            fotoPerfil: usuario.fotoPerfil || undefined,
-          });
-        }
-      }
+    // Función para obtener lista de usuarios seguidos con datos completos
+    const obtenerSeguidosCompletos = async (usuarioID: string): Promise<Usuario[]> => {
+        try {
+            setLoadingUsers(true);
+            const seguidosIDs = await obtenerListaSeguidos(usuarioID);
+            // Usar un Map para evitar duplicados
+            const usuariosUnicos = new Map<string, Usuario>();
 
-      const usuarios = Array.from(usuariosUnicos.values());      return usuarios;
-    } catch (error) {      return [];
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
+            for (const seguidoID of seguidosIDs) {
+                // Evitar procesar el mismo ID dos veces
+                if (usuariosUnicos.has(seguidoID)) continue;
+
+                const usuario = await obtenerUsuarioPorId(seguidoID);
+                if (usuario) {
+                    usuariosUnicos.set(seguidoID, {
+                        id: usuario.id,
+                        nombre: usuario.nombreCompleto || usuario.nombre || 'Usuario',
+                        codigo: usuario.codigo || usuario.codigoUniversitario || undefined,
+                        carrera: usuario.carrera || undefined,
+                        correo: usuario.correo || undefined,
+                        fotoPerfil: usuario.fotoPerfil || undefined,
+                    });
+                }
+            }
+
+            const usuarios = Array.from(usuariosUnicos.values()); return usuarios;
+        } catch (error) {
+            return [];
+        } finally {
+            setLoadingUsers(false);
+        }
+    };
 
     // Función para obtener lista de seguidores con datos completos
     const obtenerSeguidoresCompletos = async (usuarioID: string): Promise<Usuario[]> => {
@@ -435,39 +451,55 @@ export default function OtherProfileScreen() {
             }
 
             return seguidores;
-        } catch (error) {            return [];
+        } catch (error) {
+            return [];
         } finally {
             setLoadingUsers(false);
         }
     };
 
-  // Función para abrir modal de seguidos
-  const handleOpenSeguidos = async () => {
-    if (!usuarioIDObjetivo) return;
-    setModalType('seguidos');
-    setShowUsersModal(true);
-    const usuarios = await obtenerSeguidosCompletos(usuarioIDObjetivo as string);
-    setUsersList(usuarios);
-    // Recargar perfil para actualizar contadores
-    await loadUserData();
-  };
+    // Función para abrir modal de seguidos
+    const handleOpenSeguidos = async () => {
+        if (!usuarioIDObjetivo) return;
+        setModalType('seguidos');
+        setShowUsersModal(true);
+        const usuarios = await obtenerSeguidosCompletos(usuarioIDObjetivo as string);
+        setUsersList(usuarios);
+        // Recargar perfil para actualizar contadores
+        await loadUserData();
+    };
 
-  // Función para abrir modal de seguidores
-  const handleOpenSeguidores = async () => {
-    if (!usuarioIDObjetivo) return;
-    setModalType('seguidores');
-    setShowUsersModal(true);
-    const usuarios = await obtenerSeguidoresCompletos(usuarioIDObjetivo as string);
-    setUsersList(usuarios);
-    // Recargar perfil para actualizar contadores
-    await loadUserData();
-  };
+    // Función para abrir modal de seguidores
+    const handleOpenSeguidores = async () => {
+        if (!usuarioIDObjetivo) return;
+        setModalType('seguidores');
+        setShowUsersModal(true);
+        const usuarios = await obtenerSeguidoresCompletos(usuarioIDObjetivo as string);
+        setUsersList(usuarios);
+        // Recargar perfil para actualizar contadores
+        await loadUserData();
+    };
 
-    if (loading || !userProfile) {
+    if (loading) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#2F4AA6" />
                 <Text style={styles.loadingText}>Cargando perfil...</Text>
+            </View>
+        );
+    }
+
+    if (error || !userProfile) {
+        return (
+            <View style={styles.loadingContainer}>
+                <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
+                <Text style={styles.loadingText}>{error || 'Usuario no encontrado'}</Text>
+                <TouchableOpacity
+                    style={{ marginTop: 20, padding: 10, backgroundColor: '#2F4AA6', borderRadius: 8 }}
+                    onPress={() => router.back()}
+                >
+                    <Text style={{ color: 'white' }}>Volver</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -521,10 +553,10 @@ export default function OtherProfileScreen() {
                             <View style={styles.nameContainer}>
                                 <Text style={styles.name}>
                                     {formatShortName({
-                                      nombre: userProfile.nombre,
-                                      apellido: userProfile.apellido,
-                                      nombres: userProfile.nombre,
-                                      apellidos: userProfile.apellido
+                                        nombre: userProfile.nombre,
+                                        apellido: userProfile.apellido,
+                                        nombres: userProfile.nombre,
+                                        apellidos: userProfile.apellido
                                     })}
                                 </Text>
                                 <View style={styles.statusContainer}>
@@ -543,7 +575,7 @@ export default function OtherProfileScreen() {
                             <Text style={styles.profession}>{userProfile.carrera || 'Sin carrera'}</Text>
 
                             <View style={styles.statsContainer}>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.statBox}
                                     onPress={handleOpenSeguidores}
                                     activeOpacity={0.7}
@@ -551,7 +583,7 @@ export default function OtherProfileScreen() {
                                     <Text style={styles.statNumber}>{userProfile.seguidores}</Text>
                                     <Text style={styles.statLabel}>Seguidores</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.statBox}
                                     onPress={handleOpenSeguidos}
                                     activeOpacity={0.7}
@@ -635,8 +667,8 @@ export default function OtherProfileScreen() {
                         ) : usersList.length === 0 ? (
                             <View style={styles.modalEmptyContainer}>
                                 <Text style={styles.modalEmptyText}>
-                                    {modalType === 'seguidos' 
-                                        ? 'Este usuario no sigue a nadie' 
+                                    {modalType === 'seguidos'
+                                        ? 'Este usuario no sigue a nadie'
                                         : 'Este usuario no tiene seguidores'}
                                 </Text>
                             </View>
